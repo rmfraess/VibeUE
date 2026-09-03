@@ -71,6 +71,10 @@ public:
 	static FString InspectOwnedManifest(const FString& AssetId, const FString& EngineVersion = TEXT(""),
 	                                    int32 MaxFiles = 1000);
 
+	/** Return on-disk Asset Registry metadata for one package without loading it. */
+	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Assets")
+	static FString InspectAssetRegistryPackage(const FString& PackageName);
+
 	/** Search Fab's public zero-price catalog without changing the user's Fab library. */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Fab")
 	static FString SearchFreeCatalog(const FString& Query = TEXT(""), const FString& SellerFilter = TEXT(""),

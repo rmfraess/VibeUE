@@ -197,4 +197,18 @@ bool FVibeFabManifestSanitizationTest::RunTest(const FString&)
 	return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVibeAssetRegistryMissingPackageTest, "VibeUE.Fab.AssetRegistry.MissingPackage",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FVibeAssetRegistryMissingPackageTest::RunTest(const FString&)
+{
+	const FString Result = UFabService::InspectAssetRegistryPackage(TEXT("/Game/DefinitelyMissing/VibeUECatalogTest"));
+	TSharedPtr<FJsonObject> Object;
+	TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Result);
+	TestTrue(TEXT("result is JSON"), FJsonSerializer::Deserialize(Reader, Object));
+	TestFalse(TEXT("missing package fails"), Object->GetBoolField(TEXT("success")));
+	TestEqual(TEXT("missing package is classified"), Object->GetStringField(TEXT("error_code")),
+		TEXT("ASSET_REGISTRY_NOT_FOUND"));
+	return true;
+}
+
 #endif // WITH_AUTOMATION_TESTS && WITH_VIBEUE_FAB

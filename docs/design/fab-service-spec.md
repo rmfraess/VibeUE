@@ -5,6 +5,8 @@
 > returning a sanitized file list with explicit manifest/heuristic fidelity. It never starts an installer
 > or requests payload chunks; signed CDN locations and EOS/account data remain transient. This surface
 > supports the Phase 1 unified local asset catalog documented in `docs/fab-asset-catalog.md`.
+> `InspectAssetRegistryPackage` separately projects on-disk registry metadata for already-mounted packages
+> without loading them; arbitrary Vault Cache and other-project packages remain unmounted and classified.
 >
 > **2026-07 update — public free imports implemented.** `SearchFreeCatalog` searches Fab's anonymous
 > `/i/listings` catalog with `is_free=1`; `ImportFreeAsset` requires explicit per-call EULA acceptance,
@@ -137,6 +139,10 @@ public:
     static FString InspectOwnedManifest(const FString& AssetId,
                                         const FString& EngineVersion = TEXT(""),
                                         int32 MaxFiles = 1000);
+
+    // Return authoritative on-disk registry evidence for one already-mounted package without loading it.
+    UFUNCTION(BlueprintCallable, meta=(AICallable), Category="VibeUE|Assets")
+    static FString InspectAssetRegistryPackage(const FString& PackageName);
 
     // --- import ---
     // Download + import an owned asset into the project. Idempotent: skips if already imported (UFabLocalAssets).

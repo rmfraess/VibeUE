@@ -25,11 +25,15 @@ class FabAssetCatalogTest(unittest.TestCase):
             {
                 "id": "product-oak",
                 "title": "English Oak",
+                "description": "A mature deciduous tree source pack.",
                 "distribution_method": "ASSET_PACK",
                 "listing_type": "3D",
                 "source": "fab",
+                "seller": "Tree Publisher",
+                "url": "https://www.fab.com/listings/product-oak",
+                "images": [{"url": "https://media.fab.com/oak.jpg", "type": "Featured"}],
                 "compatible": True,
-                "project_versions": [{"artifact_id": "OakArtifactV1", "engine_versions": ["UE_5.8"]}],
+                "project_versions": [{"artifact_id": "OakArtifactV1", "engine_versions": ["UE_5.8"], "target_platforms": ["Windows"]}],
             },
             {
                 "id": "product-engine",
@@ -79,6 +83,14 @@ class FabAssetCatalogTest(unittest.TestCase):
         try:
             self.assertEqual(connection.execute("SELECT COUNT(*) FROM products").fetchone()[0], 1)
             self.assertEqual(connection.execute("SELECT title FROM products").fetchone()[0], "English Oak")
+            provenance = connection.execute(
+                "SELECT description, publisher_name, listing_url, reported_platforms_json, adoption_state FROM products"
+            ).fetchone()
+            self.assertEqual(provenance[0], "A mature deciduous tree source pack.")
+            self.assertEqual(provenance[1], "Tree Publisher")
+            self.assertEqual(provenance[2], "https://www.fab.com/listings/product-oak")
+            self.assertEqual(json.loads(provenance[3]), ["Windows"])
+            self.assertEqual(provenance[4], "source")
         finally:
             connection.close()
 
@@ -90,6 +102,10 @@ class FabAssetCatalogTest(unittest.TestCase):
         self.assertEqual(rows[0]["metadata_fidelity"], "manifest")
         self.assertEqual(rows[0]["installed_state"], "expanded-cache")
         self.assertIs(rows[0]["engine_compatible"], True)
+        product_rows = catalog.search_catalog(self.database, "Tree Publisher", fidelity="listing", limit=10)
+        self.assertEqual(len(product_rows), 1)
+        self.assertEqual(product_rows[0]["source_product_id"], "product-oak")
+        self.assertEqual(product_rows[0]["listing_url"], "https://www.fab.com/listings/product-oak")
         self.assertEqual(
             len(
                 catalog.search_catalog(
@@ -142,6 +158,80 @@ class FabAssetCatalogTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "identity mismatch"):
             self.sync()
         self.assertFalse(self.database.exists())
+
+    def test_discovers_local_corpora_and_keeps_registry_authority_separate(self):
+        projects = self.root / "Projects"
+        wot = projects / "WOT"
+        test_project = projects / "Tool" / "Test"
+        (wot / "Content" / "Maps").mkdir(parents=True)
+        (test_project / "Content").mkdir(parents=True)
+        current_project = wot / "WOT.uproject"
+        current_project.write_text(json.dumps({"EngineAssociation": "5.8"}), encoding="utf-8")
+        (test_project / "Test.uproject").write_text(json.dumps({"EngineAssociation": "5.8"}), encoding="utf-8")
+        wot_map = wot / "Content" / "Maps" / "QuarryRoad.umap"
+        wot_map.write_bytes(b"map")
+        (test_project / "Content" / "Fixture.uasset").write_bytes(b"asset")
+        engine_root = self.root / "UE_5.8"
+        engine_content = engine_root / "Engine" / "Content"
+        engine_plugin = engine_root / "Engine" / "Plugins" / "FakePlugin"
+        engine_content.mkdir(parents=True)
+        (engine_plugin / "Content").mkdir(parents=True)
+        (engine_content / "EngineAsset.uasset").write_bytes(b"engine")
+        (engine_plugin / "FakePlugin.uplugin").write_text(json.dumps({"EngineVersion": "5.8"}), encoding="utf-8")
+        (engine_plugin / "Content" / "PluginAsset.uasset").write_bytes(b"plugin")
+        registry = self.root / "registry.jsonl"
+        registry.write_text(
+            json.dumps(
+                {
+                    "success": True,
+                    "expected_package_name": "/Game/Maps/QuarryRoad",
+                    "package_name": "/Game/Maps/QuarryRoad",
+                    "dependencies": ["/Script/Engine"],
+                    "referencers": [],
+                    "assets": [
+                        {
+                            "package_name": "/Game/Maps/QuarryRoad",
+                            "package_path": "/Game/Maps",
+                            "object_path": "/Game/Maps/QuarryRoad.QuarryRoad",
+                            "asset_name": "QuarryRoad",
+                            "asset_class": "/Script/Engine.World",
+                            "tags": {"MapTag": "Value"},
+                        }
+                    ],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        summary = catalog.sync_catalog(
+            self.snapshot,
+            self.vault,
+            self.manifests,
+            self.database,
+            "5.8",
+            scan_roots=[projects],
+            current_project=current_project,
+            registry_results_path=registry,
+            include_engine=True,
+            engine_root=engine_root,
+        )
+        self.assertEqual(summary["local_filesystem_packages"], 4)
+        self.assertEqual(summary["asset_registry_enriched_packages"], 1)
+        self.assertEqual(summary["asset_registry_assets"], 1)
+        self.assertEqual(summary["local_asset_registry_unavailable_or_failed"], 3)
+        connection = sqlite3.connect(self.database)
+        try:
+            statuses = dict(connection.execute("SELECT package_name, asset_registry_status FROM local_packages"))
+            self.assertEqual(statuses["/Game/Maps/QuarryRoad"], "enriched")
+            self.assertEqual(statuses["/Game/Fixture"], "unavailable-not-current-project")
+            tags = connection.execute("SELECT tags_json FROM asset_registry_assets").fetchone()[0]
+            self.assertEqual(json.loads(tags), {"MapTag": "Value"})
+        finally:
+            connection.close()
+        rows = catalog.search_catalog(self.database, "QuarryRoad", limit=10)
+        self.assertEqual({row["metadata_fidelity"] for row in rows}, {"filesystem", "asset-registry"})
+        self.assertEqual(catalog.search_catalog(self.database, "EngineAsset", limit=10), [])
+        self.assertEqual(len(catalog.search_catalog(self.database, "EngineAsset", include_engine=True, limit=10)), 1)
 
 
 if __name__ == "__main__":

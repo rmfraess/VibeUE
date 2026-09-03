@@ -19,6 +19,7 @@ FString UFabService::AuthStatus(float) { return FabUnavailableJson(); }
 FString UFabService::ListLibrary(const FString&, const FString&, const FString&, int32, int32, bool) { return FabUnavailableJson(); }
 FString UFabService::GetAsset(const FString&) { return FabUnavailableJson(); }
 FString UFabService::InspectOwnedManifest(const FString&, const FString&, int32) { return FabUnavailableJson(); }
+FString UFabService::InspectAssetRegistryPackage(const FString&) { return FabUnavailableJson(); }
 FString UFabService::SearchFreeCatalog(const FString&, const FString&, const FString&, int32, const FString&) { return FabUnavailableJson(); }
 FString UFabService::ImportAsset(const FString&, const FString&, const FString&, const FString&) { return FabUnavailableJson(); }
 FString UFabService::ImportFreeAsset(const FString&, const FString&, const FString&, const FString&, bool) { return FabUnavailableJson(); }
@@ -34,6 +35,7 @@ FString UFabService::ImportStatus(const FString&) { return FabUnavailableJson();
 #include "Fab/FabEndpoints.h"
 
 #include "Json.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Misc/EngineVersion.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogFabService, Log, All);
@@ -431,6 +433,71 @@ FString UFabService::InspectOwnedManifest(const FString& AssetId, const FString&
 	Object->SetStringField(TEXT("build_version"), DownloadInfo.BuildVersion);
 	Object->SetStringField(TEXT("type_inference_notice"),
 		TEXT("Filename and folder type hints are heuristic; this is manifest fidelity, not Asset Registry or loaded-asset evidence."));
+	return OkJson(Object);
+}
+
+FString UFabService::InspectAssetRegistryPackage(const FString& PackageName)
+{
+	if (PackageName.IsEmpty() || !PackageName.StartsWith(TEXT("/")))
+	{
+		return ErrJson(TEXT("BAD_ARGUMENT"), TEXT("PackageName must be a long package name beginning with '/'."));
+	}
+
+	IAssetRegistry& Registry = FAssetRegistryModule::GetRegistry();
+	TArray<FAssetData> Assets;
+	Registry.GetAssetsByPackageName(FName(*PackageName), Assets, true);
+	if (Assets.IsEmpty())
+	{
+		return ErrJson(TEXT("ASSET_REGISTRY_NOT_FOUND"),
+			FString::Printf(TEXT("No on-disk Asset Registry data found for package '%s'."), *PackageName));
+	}
+
+	TArray<FName> Dependencies;
+	TArray<FName> Referencers;
+	Registry.GetDependencies(FName(*PackageName), Dependencies);
+	Registry.GetReferencers(FName(*PackageName), Referencers);
+	Dependencies.Sort(FNameLexicalLess());
+	Referencers.Sort(FNameLexicalLess());
+
+	auto NamesToJson = [](const TArray<FName>& Names)
+	{
+		TArray<TSharedPtr<FJsonValue>> Values;
+		Values.Reserve(Names.Num());
+		for (const FName Name : Names)
+		{
+			Values.Add(MakeShared<FJsonValueString>(Name.ToString()));
+		}
+		return Values;
+	};
+
+	TArray<TSharedPtr<FJsonValue>> JsonAssets;
+	JsonAssets.Reserve(Assets.Num());
+	for (const FAssetData& Asset : Assets)
+	{
+		TSharedPtr<FJsonObject> JsonAsset = MakeShared<FJsonObject>();
+		JsonAsset->SetStringField(TEXT("package_name"), Asset.PackageName.ToString());
+		JsonAsset->SetStringField(TEXT("package_path"), Asset.PackagePath.ToString());
+		JsonAsset->SetStringField(TEXT("object_path"), Asset.GetObjectPathString());
+		JsonAsset->SetStringField(TEXT("asset_name"), Asset.AssetName.ToString());
+		JsonAsset->SetStringField(TEXT("asset_class"), Asset.AssetClassPath.ToString());
+
+		TSharedPtr<FJsonObject> Tags = MakeShared<FJsonObject>();
+		Asset.TagsAndValues.ForEach(
+			[&Tags](const TPair<FName, FAssetTagValueRef>& Pair)
+			{
+				Tags->SetStringField(Pair.Key.ToString(), Pair.Value.AsString());
+			});
+		JsonAsset->SetObjectField(TEXT("tags"), Tags);
+		JsonAssets.Add(MakeShared<FJsonValueObject>(JsonAsset));
+	}
+
+	TSharedPtr<FJsonObject> Object = MakeShared<FJsonObject>();
+	Object->SetStringField(TEXT("package_name"), PackageName);
+	Object->SetStringField(TEXT("metadata_fidelity"), TEXT("asset-registry"));
+	Object->SetStringField(TEXT("registry_status"), TEXT("enriched"));
+	Object->SetArrayField(TEXT("dependencies"), NamesToJson(Dependencies));
+	Object->SetArrayField(TEXT("referencers"), NamesToJson(Referencers));
+	Object->SetArrayField(TEXT("assets"), MoveTemp(JsonAssets));
 	return OkJson(Object);
 }
 
