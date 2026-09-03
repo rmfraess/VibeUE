@@ -2,6 +2,7 @@
 
 #include "Misc/AutomationTest.h"
 #include "Fab/FabLibraryClient.h"
+#include "Fab/FabManifestClient.h"
 #include "Fab/FabEndpoints.h"
 #include "PythonAPI/UFabService.h"
 #include "Json.h"
@@ -129,6 +130,70 @@ bool FVibeFabFreeImportEulaGuardTest::RunTest(const FString&)
 			TEXT("EULA_ACCEPTANCE_REQUIRED"));
 		TestFalse(TEXT("library remains unchanged"), Root->GetBoolField(TEXT("library_changed")));
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVibeFabManifestResponseTest, "VibeUE.Fab.Manifest.ParseResponse",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FVibeFabManifestResponseTest::RunTest(const FString&)
+{
+	const FString Response = TEXT("{\"downloadInfo\":[{\"type\":\"manifest\",\"assetFormat\":\"asset-format/game-engine/unreal-engine\",")
+		TEXT("\"buildVersion\":\"UE_5.8\",\"distributionPoints\":[{\"manifestUrl\":")
+		TEXT("\"https://cdn.invalid/file.manifest?X-Amz-Credential=secret\"}],")
+		TEXT("\"distributionPointBaseUrls\":[\"https://cdn.invalid/Chunks\"]}]}");
+	FFabDownloadInfo Info;
+	FString Error;
+	TestTrue(TEXT("valid response parses"), FVibeFabManifest::ParseDownloadResponse(Response, Info, Error));
+	TestTrue(TEXT("response is BuildPatch"), Info.bIsBuildPatch);
+	TestEqual(TEXT("build version"), Info.BuildVersion, TEXT("UE_5.8"));
+	TestEqual(TEXT("one base location"), Info.BaseUrls.Num(), 1);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVibeFabManifestMalformedTest, "VibeUE.Fab.Manifest.MalformedData",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FVibeFabManifestMalformedTest::RunTest(const FString&)
+{
+	FFabDownloadInfo Info;
+	FString Error;
+	int32 HttpCode = 0;
+	TestFalse(TEXT("malformed response rejected"),
+		FVibeFabManifest::ParseDownloadResponse(TEXT("{not-json"), Info, Error));
+	TestFalse(TEXT("missing artifact fields rejected without network"),
+		FVibeFabManifest::Fetch(TEXT("https://www.fab.com"), TEXT(""), TEXT(""), TEXT(""),
+			TEXT("Windows"), TEXT("unused"), 1.0, Info, HttpCode, Error));
+
+	const TArray<uint8> InvalidManifest = {0x01, 0x02, 0x03};
+	FFabManifestInspection Inspection;
+	TestFalse(TEXT("malformed BuildPatch manifest rejected"),
+		FVibeFabManifest::ParseBuildPatchData(InvalidManifest, 0, Inspection, Error));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVibeFabManifestSanitizationTest, "VibeUE.Fab.Manifest.SanitizedProjection",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FVibeFabManifestSanitizationTest::RunTest(const FString&)
+{
+	FFabManifestInspection Inspection;
+	Inspection.ManifestBytes = 256;
+	Inspection.BuildSizeBytes = 1024;
+	Inspection.DownloadSizeBytes = 512;
+	Inspection.TotalFiles = 1;
+	FFabManifestInspection::FFile File;
+	File.Path = TEXT("Content/Trees/SM_English_Oak.uasset");
+	File.SizeBytes = 1024;
+	File.TypeHint = TEXT("unreal-package");
+	Inspection.Files.Add(MoveTemp(File));
+
+	const TSharedPtr<FJsonObject> Object = Inspection.ToJsonObject();
+	TestEqual(TEXT("manifest fidelity is explicit"), Object->GetStringField(TEXT("metadata_fidelity")), TEXT("manifest"));
+	TestEqual(TEXT("payload request count is zero"), Object->GetNumberField(TEXT("payload_chunk_requests")), 0.0);
+	FString Json;
+	TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Json);
+	FJsonSerializer::Serialize(Object.ToSharedRef(), Writer);
+	TestFalse(TEXT("signed URL is absent"), Json.Contains(TEXT("https://")));
+	TestFalse(TEXT("credential marker is absent"), Json.Contains(TEXT("X-Amz")));
+	TestFalse(TEXT("token field is absent"), Json.Contains(TEXT("token"), ESearchCase::IgnoreCase));
 	return true;
 }
 

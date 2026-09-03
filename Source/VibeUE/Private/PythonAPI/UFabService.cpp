@@ -18,6 +18,7 @@ static FString FabUnavailableJson()
 FString UFabService::AuthStatus(float) { return FabUnavailableJson(); }
 FString UFabService::ListLibrary(const FString&, const FString&, const FString&, int32, int32, bool) { return FabUnavailableJson(); }
 FString UFabService::GetAsset(const FString&) { return FabUnavailableJson(); }
+FString UFabService::InspectOwnedManifest(const FString&, const FString&, int32) { return FabUnavailableJson(); }
 FString UFabService::SearchFreeCatalog(const FString&, const FString&, const FString&, int32, const FString&) { return FabUnavailableJson(); }
 FString UFabService::ImportAsset(const FString&, const FString&, const FString&, const FString&) { return FabUnavailableJson(); }
 FString UFabService::ImportFreeAsset(const FString&, const FString&, const FString&, const FString&, bool) { return FabUnavailableJson(); }
@@ -363,6 +364,74 @@ FString UFabService::GetAsset(const FString& AssetId)
 	Obj->SetArrayField(TEXT("images"), Imgs);
 
 	return OkJson(Obj);
+}
+
+// ---------------------------------------------------------------------------
+// InspectOwnedManifest — negotiation + BuildPatch manifest only. No installer.
+// ---------------------------------------------------------------------------
+
+FString UFabService::InspectOwnedManifest(const FString& AssetId, const FString& EngineVersion, int32 MaxFiles)
+{
+	if (AssetId.IsEmpty())
+	{
+		return ErrJson(TEXT("BAD_ARGUMENT"), TEXT("AssetId is required."));
+	}
+	if (MaxFiles < 0)
+	{
+		return ErrJson(TEXT("BAD_ARGUMENT"), TEXT("MaxFiles must be zero or positive."));
+	}
+	FString AuthError;
+	if (!RequireAuth(15.0, AuthError))
+	{
+		return AuthError;
+	}
+	FString LibraryError;
+	if (!EnsureLibrary(false, LibraryError))
+	{
+		return LibraryError;
+	}
+	const FFabLibraryAsset* Asset = FindAsset(AssetId);
+	if (Asset == nullptr)
+	{
+		return ErrJson(TEXT("ASSET_NOT_OWNED"),
+			FString::Printf(TEXT("No owned asset with id '%s'."), *AssetId));
+	}
+
+	const FString Engine = EngineVersion.IsEmpty() ? CurrentEngineVersion() : EngineVersion;
+	const bool bEngineCompatible = Asset->SupportsEngine(Engine);
+	const FString ArtifactId = Asset->ArtifactIdForEngine(Engine);
+	if (ArtifactId.IsEmpty())
+	{
+		return ErrJson(TEXT("NO_ARTIFACT"), TEXT("No downloadable artifact was found for this owned asset."));
+	}
+
+	FFabDownloadInfo DownloadInfo;
+	int32 HttpCode = 0;
+	FString Error;
+	if (!FVibeFabManifest::Fetch(BaseUrl(), ArtifactId, Asset->AssetNamespace, Asset->AssetId, TEXT("Windows"),
+		FVibeFabAuth::GetAccessToken(), 30.0, DownloadInfo, HttpCode, Error))
+	{
+		return ErrJson(TEXT("MANIFEST_RESOLUTION_FAILED"), Error);
+	}
+
+	FFabManifestInspection Inspection;
+	if (!FVibeFabManifest::InspectBuildPatch(DownloadInfo, 30.0, MaxFiles, Inspection, HttpCode, Error))
+	{
+		return ErrJson(TEXT("MANIFEST_PARSE_FAILED"), Error);
+	}
+
+	TSharedPtr<FJsonObject> Object = Inspection.ToJsonObject();
+	Object->SetStringField(TEXT("product_id"), Asset->AssetId);
+	Object->SetStringField(TEXT("artifact_id"), ArtifactId);
+	Object->SetStringField(TEXT("title"), Asset->Title);
+	Object->SetStringField(TEXT("distribution_method"), Asset->DistributionMethod);
+	Object->SetStringField(TEXT("engine_version"), Engine);
+	Object->SetBoolField(TEXT("engine_compatible"), bEngineCompatible);
+	Object->SetStringField(TEXT("artifact_selection"), bEngineCompatible ? TEXT("engine-match") : TEXT("fallback-first"));
+	Object->SetStringField(TEXT("build_version"), DownloadInfo.BuildVersion);
+	Object->SetStringField(TEXT("type_inference_notice"),
+		TEXT("Filename and folder type hints are heuristic; this is manifest fidelity, not Asset Registry or loaded-asset evidence."));
+	return OkJson(Object);
 }
 
 // ---------------------------------------------------------------------------

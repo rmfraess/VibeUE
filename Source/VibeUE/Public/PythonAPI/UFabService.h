@@ -59,6 +59,18 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Fab")
 	static FString GetAsset(const FString& AssetId);
 
+	/**
+	 * Resolve one owned asset version, download only its small BuildPatch manifest, and return sanitized
+	 * product/file metadata. This never creates an installer or requests payload chunks. File type hints
+	 * are filename/folder heuristics, not Asset Registry or loaded-asset evidence.
+	 * @param AssetId       The owned product id from ListLibrary.
+	 * @param EngineVersion Version to inspect; empty = current engine.
+	 * @param MaxFiles      Maximum file rows to return; 0 = all files.
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Fab")
+	static FString InspectOwnedManifest(const FString& AssetId, const FString& EngineVersion = TEXT(""),
+	                                    int32 MaxFiles = 1000);
+
 	/** Search Fab's public zero-price catalog without changing the user's Fab library. */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Fab")
 	static FString SearchFreeCatalog(const FString& Query = TEXT(""), const FString& SellerFilter = TEXT(""),

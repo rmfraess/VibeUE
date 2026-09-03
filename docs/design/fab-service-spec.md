@@ -1,5 +1,11 @@
 # FabService — Design Spec
 
+> **2026-09 update — read-only owned-manifest inspection implemented.**
+> `InspectOwnedManifest` negotiates one owned BuildPatch artifact and fetches only its small manifest,
+> returning a sanitized file list with explicit manifest/heuristic fidelity. It never starts an installer
+> or requests payload chunks; signed CDN locations and EOS/account data remain transient. This surface
+> supports the Phase 1 unified local asset catalog documented in `docs/fab-asset-catalog.md`.
+>
 > **2026-07 update — public free imports implemented.** `SearchFreeCatalog` searches Fab's anonymous
 > `/i/listings` catalog with `is_free=1`; `ImportFreeAsset` requires explicit per-call EULA acceptance,
 > re-fetches the chosen listing and requires an exact zero-price license, obtains an anonymous signed
@@ -125,6 +131,12 @@ public:
     // Full record for one owned asset (all projectVersions, images, engineVersions, distributionMethod).
     UFUNCTION(BlueprintCallable, meta=(AICallable), Category="VibeUE|Fab")
     static FString GetAsset(const FString& AssetId);
+
+    // Fetch and parse only owned BuildPatch manifest metadata; never download payload chunks.
+    UFUNCTION(BlueprintCallable, meta=(AICallable), Category="VibeUE|Fab")
+    static FString InspectOwnedManifest(const FString& AssetId,
+                                        const FString& EngineVersion = TEXT(""),
+                                        int32 MaxFiles = 1000);
 
     // --- import ---
     // Download + import an owned asset into the project. Idempotent: skips if already imported (UFabLocalAssets).
