@@ -22,6 +22,20 @@ keywords:
 
 ## Critical Rules
 
+### Material information over MCP: use `GetMaterialInfoResult`
+
+Call `VibeUE.MaterialService.GetMaterialInfoResult` with only `materialPath`.
+UE 5.8's native ToolsetRegistry serializes the direct return value, not output-reference
+parameters: legacy `GetMaterialInfo` can return `returnValue: true` without `outInfo`.
+The new operation returns `returnValue` containing `bSuccess`, `info`, and `errorMessage`.
+Check `bSuccess` before reading `info`; failure returns an error and default-empty details.
+`Summarize` and `GetPropertyInfo` also use output references; they are not MCP substitutes.
+Existing C++/Blueprint/Python `get_material_info` callers are unchanged. In Python,
+`get_material_info_result(path)` returns `.success`, `.info`, and `.error_message`.
+
+Regression: run `Automation RunTests VibeUE.Materials.GetMaterialInfoResult` in the
+Editor console. The test reads engine fixtures without creating or saving packages.
+
 ### 🚨 Connecting Function Call Inputs: Use Bare Names, Not Display Names
 
 `get_expression_pins(mat, expr_id)` (MaterialNodeService) returns input pins with **display labels including type suffixes** like `"TextureObject (T2d)"`, `"TextureSize (V3)"`, `"Use High Quality Normals (SB)"`. Connections are made through the **engine** `MaterialTools.connect_expressions` call, and UE's connect API matches against the *bare* input name only — **never pass these display labels** as `to_input_name`:

@@ -520,6 +520,17 @@ bool UMaterialService::GetMaterialInfo(const FString& MaterialPath, FMaterialDet
 	return true;
 }
 
+FMaterialInfoResult UMaterialService::GetMaterialInfoResult(const FString& MaterialPath)
+{
+	FMaterialInfoResult Result;
+	Result.bSuccess = GetMaterialInfo(MaterialPath, Result.Info);
+	if (!Result.bSuccess)
+	{
+		Result.ErrorMessage = FString::Printf(TEXT("Could not load a material or material instance at '%s'."), *MaterialPath);
+	}
+	return Result;
+}
+
 bool UMaterialService::Summarize(const FString& MaterialPath, FMaterialSummary& OutSummary)
 {
 	FMaterialDetailedInfo Info;
