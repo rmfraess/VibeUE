@@ -139,6 +139,7 @@ when two areas seem to fit, the one that *excludes* your task is telling you whe
 | **Blueprints & gameplay logic** | author Blueprint classes & graphs, Enhanced Input, gameplay tags, Gameplay Ability System (abilities/attributes/effects/cues) â€” NOT AI behavior (â†’ AI), NOT AnimBP graphs (â†’ Animation), NOT C++/source (coding-agent handoff) | `blueprints`, `blueprint-graphs`, `enhanced-input`, `gameplay-tags`, `gas` |
 | **AI** | author StateTree or Behavior Tree logic, Blackboards, states, tasks, transitions, event payloads, and delegate bindings â€” NOT character body animation (â†’ Animation), NOT generic actor placement (â†’ Scene) | `state-trees`, `behavior-trees` |
 | **Animation & rigging** | AnimBP state machines, AnimSequence keyframes, montages & AnimNotify wiring, bone/skeleton editing & retarget â€” NOT cinematic timelines (Epic Sequencer), NOT AI movement (â†’ AI), NOT authoring/adding sound assets â€” even a character's footstep sounds (â†’ Audio) | `animation-blueprint`, `animsequence`, `animation-editing`, `animation-montage`, `skeleton` |
+| **Character customization (Mutable)** | Customizable Object graphs: modular character parts, mesh sections, skin/clothing parameters, switches, hat/outfit groups and child objects, compiling a CO â€” NOT plain skeletal mesh or skeleton edits (â†’ Animation), NOT ordinary material graphs (â†’ Materials) | `customizable-object` |
 | **Materials & shading** | materials, instances, graph nodes, Custom HLSL â€” NOT Niagara particle materials (â†’ VFX), NOT landscape auto-materials (â†’ Environment) | `materials` |
 | **VFX (Niagara)** | particle systems, emitters, scratch-pad HLSL, attaching/placing a Niagara component on an actor â€” NOT surface materials (â†’ Materials) | `niagara-systems`, `niagara-emitters` |
 | **UI (UMG)** | widget blueprints, layout, fonts/brushes, MVVM â€” NOT the gameplay behind the UI (â†’ Blueprints) | `umg-widgets` |
@@ -184,6 +185,18 @@ unreal.StateTreeService.create_state_tree("/Game/AI/MyBehavior")
 You get the full `unreal.*` API plus every `unreal.<Service>` VibeUE adds. Reserve `call_tool` for
 **engine toolsets and skills** (e.g. `AgentSkillToolset`, `EditorToolset.EditorAppToolset`,
 `LogsToolset`, `GameplayTagsToolset`, `AssetTools`).
+
+**`code` is Python source, never a script path.** A path such as `C:/scripts/build.py` passed as
+`code` is compiled as Python and fails (`SyntaxError` / `NameError`); it is not run as a file. (Code
+that merely mentions a `.py` file in a comment or string runs normally.) To run a script file, pass
+code that runs it:
+
+```python
+import unreal, runpy
+runpy.run_path(r"C:/scripts/build.py")        # the script gets its own globals
+# or, sharing the console globals every execute_python_code call sees:
+exec(open(r"C:/scripts/build.py").read())
+```
 
 **`auto_save` (default true).** Before running your script, `execute_python_code` saves every dirty
 content AND world package headlessly (issue #433: this avoids the modal save dialog that would hang
@@ -247,7 +260,12 @@ The open level is never reported - only stragglers.
 | `discover_python_class` / `discover_python_function` / `discover_python_module` | Get live signatures before writing code |
 | `list_python_subsystems` | Enumerate editor subsystems for `unreal.get_editor_subsystem(...)` |
 | `terrain_data` | Real-world heightmaps + water splines (see `terrain-data` skill) |
-| `deep_research` | Web research / page fetch / geocoding |
+| `deep_research` | Web research / page fetch / geocoding. If Jina Reader refuses your network (HTTP 401), set a free Jina key in the `JINA_API_KEY` environment variable and restart the editor |
+
+`deep_research` and `terrain_data` run off the game thread, so the editor keeps working while they wait. Four run at
+a time and more wait their turn; past 16 running or waiting, a call is refused with `BUSY` (retry when one finishes).
+Cancelling one from the client (`notifications/cancelled`) matches it by JSON-RPC request id only: with several MCP
+clients connected, a cancel can also end another client's call that carries the same id.
 
 ## Engine toolsets replace the old VibeUE tools
 
