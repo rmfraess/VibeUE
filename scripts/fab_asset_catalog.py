@@ -10,10 +10,10 @@ import json
 import os
 import re
 import sqlite3
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Iterable
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 CONTENT_DISTRIBUTIONS = {"ASSET_PACK", "COMPLETE_PROJECT", "CODE_PLUGIN"}
 LOCAL_EXTENSIONS = {".uasset", ".umap"}
 PROHIBITED_KEYS = {
@@ -145,10 +145,23 @@ CREATE TABLE asset_registry_assets (
     metadata_fidelity TEXT NOT NULL,
     UNIQUE (local_package_id, object_path)
 );
+CREATE TABLE fab_asset_registry_assets (
+    id INTEGER PRIMARY KEY,
+    file_id INTEGER NOT NULL REFERENCES files(id),
+    package_name TEXT NOT NULL,
+    package_path TEXT NOT NULL,
+    object_path TEXT NOT NULL,
+    asset_name TEXT NOT NULL,
+    asset_class TEXT NOT NULL,
+    tags_json TEXT NOT NULL,
+    metadata_fidelity TEXT NOT NULL,
+    UNIQUE (file_id, object_path)
+);
 CREATE VIRTUAL TABLE catalog_fts USING fts5(
     product_id UNINDEXED,
     artifact_id UNINDEXED,
-    product_title,
+    product_title UNINDEXED,
+    search_title,
     path,
     file_name,
     source_tier UNINDEXED,
@@ -169,7 +182,7 @@ CREATE VIRTUAL TABLE catalog_fts USING fts5(
     asset_class,
     evidence_reference,
     publisher_name,
-    source_product_id,
+    source_product_id UNINDEXED,
     listing_url,
     preview_references,
     reported_engine_versions,
@@ -260,6 +273,56 @@ def _load_registry_results(path: Path | None) -> dict[str, dict[str, Any]]:
         if result.get("success") and result.get("package_name") != package_name:
             raise ValueError(f"Asset Registry package identity mismatch on line {line_number}")
         results[package_name] = result
+    return results
+
+
+def _fab_package_name_from_content_path(value: str) -> str:
+    path = PurePosixPath(value.replace("\\", "/"))
+    if (
+        path.is_absolute()
+        or ".." in path.parts
+        or len(path.parts) < 2
+        or path.parts[0] != "Content"
+        or path.suffix.lower() not in LOCAL_EXTENSIONS
+    ):
+        raise ValueError(f"invalid expanded Fab Content package path: {value}")
+    return "/Game/" + path.relative_to("Content").with_suffix("").as_posix()
+
+
+def _load_fab_registry_results(path: Path | None) -> dict[str, dict[str, dict[str, Any]]]:
+    if path is None:
+        return {}
+    results: dict[str, dict[str, dict[str, Any]]] = {}
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            result = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise ValueError(f"malformed Fab Asset Registry result on line {line_number}: {error.msg}") from error
+        if not isinstance(result, dict):
+            raise ValueError(f"Fab Asset Registry result on line {line_number} must be an object")
+        _assert_safe_manifest_result(result, f"line {line_number}")
+        artifact_id = str(result.get("artifact_id") or "")
+        product_id = str(result.get("product_id") or "")
+        package_name = str(result.get("expected_package_name") or result.get("package_name") or "")
+        relative_path = str(result.get("path") or "")
+        if not artifact_id or not product_id or not package_name or not relative_path:
+            raise ValueError(f"Fab Asset Registry result on line {line_number} is missing package identity")
+        if _fab_package_name_from_content_path(relative_path) != package_name:
+            raise ValueError(f"Fab Asset Registry package/path mismatch on line {line_number}")
+        success = result.get("success")
+        assets = result.get("assets")
+        if not isinstance(success, bool) or not isinstance(assets, list):
+            raise ValueError(f"invalid Fab Asset Registry result on line {line_number}")
+        if result.get("package_name") and str(result["package_name"]) != package_name:
+            raise ValueError(f"Fab Asset Registry package identity mismatch on line {line_number}")
+        if not success and assets:
+            raise ValueError(f"failed Fab Asset Registry package has asset rows on line {line_number}")
+        package_results = results.setdefault(artifact_id, {})
+        if package_name in package_results:
+            raise ValueError(f"duplicate Fab Asset Registry package {package_name} for artifact {artifact_id}")
+        package_results[package_name] = result
     return results
 
 
@@ -419,7 +482,7 @@ def _discover_local_corpora(
 
 def _insert_search_row(connection: sqlite3.Connection, **row: Any) -> None:
     columns = (
-        "product_id", "artifact_id", "product_title", "path", "file_name", "source_tier",
+        "product_id", "artifact_id", "product_title", "search_title", "path", "file_name", "source_tier",
         "metadata_fidelity", "installed_state", "distribution_method", "engine_compatible", "type_hint",
         "record_kind", "description", "corpus_id", "corpus_type", "source", "compatibility_status",
         "adoption_state", "asset_registry_status", "object_path", "asset_class", "evidence_reference",
@@ -427,9 +490,11 @@ def _insert_search_row(connection: sqlite3.Connection, **row: Any) -> None:
         "preview_references", "reported_engine_versions", "reported_platforms",
         "asset_namespace", "thumbnail_url",
     )
+    search_row = dict(row)
+    search_row.setdefault("search_title", search_row.get("product_title", ""))
     connection.execute(
         f"INSERT INTO catalog_fts VALUES ({','.join('?' for _ in columns)})",
-        tuple(str(row.get(column, "")) for column in columns),
+        tuple(str(search_row.get(column, "")) for column in columns),
     )
 
 
@@ -443,6 +508,7 @@ def sync_catalog(
     scan_roots: Iterable[Path] = (),
     current_project: Path | None = None,
     registry_results_path: Path | None = None,
+    fab_registry_results_path: Path | None = None,
     include_engine: bool = False,
     engine_root: Path | None = None,
 ) -> dict[str, int]:
@@ -471,6 +537,10 @@ def sync_catalog(
     if unknown_results:
         raise ValueError(f"manifest results contain unknown artifact ids: {', '.join(unknown_results)}")
     registry_results = _load_registry_results(registry_results_path)
+    fab_registry_results = _load_fab_registry_results(fab_registry_results_path)
+    unknown_fab_results = sorted(set(fab_registry_results) - set(selected))
+    if unknown_fab_results:
+        raise ValueError(f"Fab Asset Registry results contain unknown artifact ids: {', '.join(unknown_fab_results)}")
     corpora, local_packages = _discover_local_corpora(scan_roots, current_project, include_engine, engine_root)
 
     database_path.parent.mkdir(parents=True, exist_ok=True)
@@ -484,6 +554,7 @@ def sync_catalog(
             connection.execute("INSERT INTO metadata VALUES ('schema_version', ?)", (str(SCHEMA_VERSION),))
             connection.execute("INSERT INTO metadata VALUES ('engine_version', ?)", (engine_version,))
             connection.execute("INSERT INTO metadata VALUES ('snapshot_path', ?)", (str(snapshot_path),))
+            connection.execute("INSERT INTO metadata VALUES ('fab_registry_results_path', ?)", (str(fab_registry_results_path or ""),))
 
             for artifact_id, product in selected.items():
                 project_versions = product.get("project_versions") or []
@@ -713,6 +784,72 @@ def sync_catalog(
             if extra_registry:
                 raise ValueError(f"Asset Registry results contain unknown local packages: {', '.join(extra_registry)}")
 
+            for artifact_id, package_results in fab_registry_results.items():
+                product = selected[artifact_id]
+                product_id = str(product["id"])
+                cached_files = connection.execute(
+                    "SELECT * FROM files WHERE artifact_id = ? AND source_tier = 'vault-cache' ORDER BY path",
+                    (artifact_id,),
+                ).fetchall()
+                if not cached_files:
+                    raise ValueError(f"Fab Asset Registry results have no expanded-cache files for artifact {artifact_id}")
+                files_by_package: dict[str, sqlite3.Row] = {}
+                for file in cached_files:
+                    package_name = _fab_package_name_from_content_path(file["path"])
+                    if package_name in files_by_package:
+                        raise ValueError(f"duplicate expanded-cache package path for artifact {artifact_id}: {package_name}")
+                    files_by_package[package_name] = file
+                if set(package_results) != set(files_by_package):
+                    missing = sorted(set(files_by_package) - set(package_results))
+                    extra = sorted(set(package_results) - set(files_by_package))
+                    raise ValueError(
+                        f"Fab Asset Registry package set mismatch for artifact {artifact_id}: "
+                        f"missing={len(missing)}, extra={len(extra)}"
+                    )
+                for package_name, result in package_results.items():
+                    if str(result.get("product_id") or "") != product_id:
+                        raise ValueError(f"Fab Asset Registry product identity mismatch for artifact {artifact_id}")
+                    if result.get("product_title") and str(result["product_title"]) != str(product.get("title") or ""):
+                        raise ValueError(f"Fab Asset Registry product title mismatch for artifact {artifact_id}")
+                    file = files_by_package[package_name]
+                    success = bool(result["success"])
+                    error_code = re.sub(r"[^A-Za-z0-9_.-]", "_", str(result.get("error_code") or "unknown"))[:80]
+                    status = "enriched" if success else "failed:" + (error_code or "unknown")
+                    connection.execute("UPDATE files SET asset_registry_status = ? WHERE id = ?", (status, file["id"]))
+                    if not success:
+                        continue
+                    for asset in result.get("assets") or []:
+                        if not isinstance(asset, dict):
+                            raise ValueError(f"invalid Fab Asset Registry asset in {package_name}")
+                        asset_package = str(asset.get("package_name") or "")
+                        asset_path = str(asset.get("package_path") or "")
+                        object_path = str(asset.get("object_path") or "")
+                        asset_name = str(asset.get("asset_name") or "")
+                        asset_class = str(asset.get("asset_class") or "")
+                        expected_package_path = package_name.rpartition("/")[0]
+                        if (
+                            asset_package != package_name
+                            or asset_path != expected_package_path
+                            or object_path != f"{package_name}.{asset_name}"
+                            or not asset_name
+                            or not asset_class
+                        ):
+                            raise ValueError(f"invalid Fab Asset Registry asset identity in {package_name}")
+                        tags_value = asset.get("tags")
+                        if tags_value is None:
+                            tags_value = {}
+                        if not isinstance(tags_value, dict):
+                            raise ValueError(f"invalid Fab Asset Registry tags in {package_name}")
+                        _assert_safe_manifest_result(tags_value, f"Fab Asset Registry tags for {package_name}")
+                        tags = json.dumps(tags_value, ensure_ascii=False, sort_keys=True)
+                        connection.execute(
+                            """INSERT INTO fab_asset_registry_assets
+                               (file_id, package_name, package_path, object_path, asset_name, asset_class,
+                                tags_json, metadata_fidelity)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, 'asset-registry')""",
+                            (file["id"], asset_package, asset_path, object_path, asset_name, asset_class, tags),
+                        )
+
             for product in connection.execute("SELECT * FROM products"):
                 common = {
                     "product_id": product["product_id"], "artifact_id": product["artifact_id"],
@@ -743,6 +880,30 @@ def sync_catalog(
                         asset_registry_status=file["asset_registry_status"],
                     )
 
+            fab_asset_rows = connection.execute(
+                """SELECT p.*, f.path AS file_path, f.installed_state AS file_installed_state,
+                          a.package_name, a.package_path, a.object_path, a.asset_name, a.asset_class,
+                          a.metadata_fidelity AS asset_metadata_fidelity
+                   FROM fab_asset_registry_assets a
+                   JOIN files f ON f.id = a.file_id
+                   JOIN products p ON p.artifact_id = f.artifact_id
+                   ORDER BY p.title, f.path, a.object_path"""
+            ).fetchall()
+            for asset in fab_asset_rows:
+                _insert_search_row(
+                    connection, product_id=asset["product_id"], artifact_id=asset["artifact_id"],
+                    product_title=asset["title"], search_title="", path=asset["file_path"], file_name=asset["asset_name"],
+                    source_tier="asset-registry", metadata_fidelity=asset["asset_metadata_fidelity"],
+                    installed_state=asset["file_installed_state"], distribution_method=asset["distribution_method"],
+                    engine_compatible=asset["engine_compatible"], type_hint=asset["asset_class"],
+                    record_kind="fab-asset-registry-asset", description="",
+                    corpus_id="fab-vault-cache", corpus_type="fab-vault-cache", source="fab",
+                    compatibility_status=asset["compatibility_status"], adoption_state=asset["adoption_state"],
+                    asset_registry_status="enriched", object_path=asset["object_path"],
+                    asset_class=asset["asset_class"], evidence_reference=asset["file_path"],
+                    source_product_id=asset["source_product_id"],
+                )
+
             local_rows = connection.execute(
                 """SELECT lp.*, c.name AS corpus_name, c.corpus_type FROM local_packages lp
                    JOIN corpora c ON c.corpus_id = lp.corpus_id"""
@@ -772,6 +933,14 @@ def sync_catalog(
                         asset_class=asset["asset_class"], evidence_reference=package["filesystem_path"],
                     )
 
+            fab_registry_package_count = sum(len(packages) for packages in fab_registry_results.values())
+            fab_registry_enriched_count = sum(
+                bool(result["success"])
+                for packages in fab_registry_results.values()
+                for result in packages.values()
+            )
+            local_registry_asset_count = connection.execute("SELECT COUNT(*) FROM asset_registry_assets").fetchone()[0]
+            fab_registry_asset_count = connection.execute("SELECT COUNT(*) FROM fab_asset_registry_assets").fetchone()[0]
             summary = {
                 "products": connection.execute("SELECT COUNT(*) FROM products").fetchone()[0],
                 "manifest_attempts": connection.execute("SELECT COUNT(*) FROM manifest_attempts").fetchone()[0],
@@ -787,7 +956,15 @@ def sync_catalog(
                 "local_project_uasset": connection.execute("SELECT COUNT(*) FROM local_packages WHERE extension = '.uasset'").fetchone()[0],
                 "local_project_umap": connection.execute("SELECT COUNT(*) FROM local_packages WHERE extension = '.umap'").fetchone()[0],
                 "asset_registry_enriched_packages": connection.execute("SELECT COUNT(*) FROM local_packages WHERE asset_registry_status = 'enriched'").fetchone()[0],
-                "asset_registry_assets": connection.execute("SELECT COUNT(*) FROM asset_registry_assets").fetchone()[0],
+                "local_asset_registry_assets": local_registry_asset_count,
+                "fab_asset_registry_scanned_products": len(fab_registry_results),
+                "fab_asset_registry_unscanned_products": connection.execute("SELECT COUNT(*) FROM products").fetchone()[0] - len(fab_registry_results),
+                "fab_asset_registry_expected_packages": fab_registry_package_count,
+                "fab_asset_registry_enriched_packages": fab_registry_enriched_count,
+                "fab_asset_registry_failed_packages": fab_registry_package_count - fab_registry_enriched_count,
+                "fab_asset_registry_assets": fab_registry_asset_count,
+                "fab_asset_registry_unscanned_packages": connection.execute("SELECT COUNT(*) FROM files WHERE source_tier = 'vault-cache' AND asset_registry_status = 'unavailable-unmounted-vault'").fetchone()[0],
+                "asset_registry_assets": local_registry_asset_count + fab_registry_asset_count,
                 "local_asset_registry_unavailable_or_failed": connection.execute("SELECT COUNT(*) FROM local_packages WHERE asset_registry_status != 'enriched'").fetchone()[0],
                 "vault_asset_registry_unavailable_unmounted": connection.execute("SELECT COUNT(*) FROM files WHERE source_tier = 'vault-cache' AND asset_registry_status = 'unavailable-unmounted-vault'").fetchone()[0],
                 "asset_registry_unavailable_or_failed_total": connection.execute("SELECT COUNT(*) FROM local_packages WHERE asset_registry_status != 'enriched'").fetchone()[0]
@@ -796,7 +973,7 @@ def sync_catalog(
                 "tier_manifest_rows": connection.execute("SELECT COUNT(*) FROM files WHERE source_tier = 'manifest'").fetchone()[0],
                 "tier_vault_filesystem_rows": connection.execute("SELECT COUNT(*) FROM files WHERE source_tier = 'vault-cache'").fetchone()[0],
                 "tier_local_filesystem_rows": connection.execute("SELECT COUNT(*) FROM local_packages").fetchone()[0],
-                "tier_asset_registry_rows": connection.execute("SELECT COUNT(*) FROM asset_registry_assets").fetchone()[0],
+                "tier_asset_registry_rows": local_registry_asset_count + fab_registry_asset_count,
             }
             connection.execute("INSERT INTO metadata VALUES ('summary_json', ?)", (json.dumps(summary, sort_keys=True),))
             connection.commit()
@@ -812,7 +989,21 @@ def sync_catalog(
 
 def _fts_query(text: str) -> str:
     tokens = re.findall(r"[\w]+", text, flags=re.UNICODE)
-    return " AND ".join(f'"{token}"*' for token in tokens)
+    terms = []
+    for token in tokens:
+        lowered = token.casefold()
+        singular = ""
+        if lowered.endswith("ies") and len(lowered) > 4:
+            singular = lowered[:-3] + "y"
+        elif lowered.endswith(("ches", "shes", "sses", "xes", "zes")) and len(lowered) > 4:
+            singular = lowered[:-2]
+        elif lowered.endswith("s") and not lowered.endswith("ss") and len(lowered) > 3:
+            singular = lowered[:-1]
+        if singular and singular != lowered:
+            terms.append(f'("{token}"* OR "{singular}"*)')
+        else:
+            terms.append(f'"{token}"*')
+    return " AND ".join(terms)
 
 
 def search_catalog(
@@ -825,6 +1016,7 @@ def search_catalog(
     distribution: str = "",
     compatible: bool | None = None,
     fidelity: str = "",
+    asset_class: str = "",
     source: str = "",
     corpus: str = "",
     adoption_state: str = "",
@@ -856,6 +1048,13 @@ def search_catalog(
     if fidelity:
         clauses.append("metadata_fidelity = ?")
         parameters.append(fidelity)
+    if asset_class:
+        if asset_class.startswith("/"):
+            clauses.append("asset_class = ? COLLATE NOCASE")
+            parameters.append(asset_class)
+        else:
+            clauses.append("(asset_class = ? COLLATE NOCASE OR asset_class LIKE ? COLLATE NOCASE)")
+            parameters.extend((asset_class, f"%.{asset_class}"))
     if source:
         clauses.append("source = ? COLLATE NOCASE")
         parameters.append(source)
@@ -929,6 +1128,7 @@ def _build_parser() -> argparse.ArgumentParser:
     sync.add_argument("--scan-root", action="append", default=[], type=Path)
     sync.add_argument("--current-project", type=Path)
     sync.add_argument("--registry-results", type=Path)
+    sync.add_argument("--fab-registry-results", type=Path)
     sync.add_argument("--include-engine", action="store_true")
     sync.add_argument("--engine-root", type=Path)
 
@@ -941,6 +1141,7 @@ def _build_parser() -> argparse.ArgumentParser:
     search.add_argument("--distribution", default="")
     search.add_argument("--compatible", choices=("true", "false"))
     search.add_argument("--fidelity", choices=("listing", "manifest", "local-file", "filesystem", "asset-registry"), default="")
+    search.add_argument("--asset-class", default="")
     search.add_argument("--source", default="")
     search.add_argument("--corpus", default="")
     search.add_argument("--adoption-state", default="")
@@ -965,6 +1166,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             scan_roots=args.scan_root,
             current_project=args.current_project,
             registry_results_path=args.registry_results,
+            fab_registry_results_path=args.fab_registry_results,
             include_engine=args.include_engine,
             engine_root=args.engine_root,
         )
@@ -979,6 +1181,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             distribution=args.distribution,
             compatible=compatible,
             fidelity=args.fidelity,
+            asset_class=args.asset_class,
             source=args.source,
             corpus=args.corpus,
             adoption_state=args.adoption_state,

@@ -20,6 +20,7 @@ class FabAssetCatalogTest(unittest.TestCase):
         self.snapshot = self.root / "snapshot.json"
         self.vault = self.root / "VaultCache"
         self.manifests = self.root / "manifests.jsonl"
+        self.fab_registry = self.root / "fab-registry.jsonl"
         self.database = self.root / "catalog.sqlite3"
         products = [
             {
@@ -72,6 +73,29 @@ class FabAssetCatalogTest(unittest.TestCase):
 
     def sync(self):
         return catalog.sync_catalog(self.snapshot, self.vault, self.manifests, self.database, "5.8")
+
+    def fab_registry_row(self, path, asset_name, asset_class, *, success=True, error_code="", tags=None):
+        package_name = "/Game/" + Path(path).relative_to("Content").with_suffix("").as_posix()
+        return {
+            "artifact_id": "OakArtifactV1",
+            "product_id": "product-oak",
+            "product_title": "English Oak",
+            "expected_package_name": package_name,
+            "package_name": package_name if success else "",
+            "path": path,
+            "success": success,
+            "error_code": error_code,
+            "assets": [
+                {
+                    "package_name": package_name,
+                    "package_path": package_name.rpartition("/")[0],
+                    "object_path": f"{package_name}.{asset_name}",
+                    "asset_name": asset_name,
+                    "asset_class": asset_class,
+                    "tags": tags or {},
+                }
+            ] if success else [],
+        }
 
     def test_sync_excludes_engine_rows_and_maps_expanded_cache(self):
         summary = self.sync()
@@ -126,6 +150,119 @@ class FabAssetCatalogTest(unittest.TestCase):
         finally:
             connection.close()
         self.assertEqual(status, "succeeded")
+
+    def test_fab_registry_assets_search_by_plural_role_and_class(self):
+        wall_path = self.vault / "OakArtifactV1" / "data" / "Content" / "Structures" / "SM_Wall.uasset"
+        wall_path.parent.mkdir(parents=True)
+        wall_path.write_bytes(b"wall")
+        foliage_path = self.vault / "OakArtifactV1" / "data" / "Content" / "Trees" / "FT_Foliage.uasset"
+        foliage_path.write_bytes(b"foliage")
+        crate_path = self.vault / "OakArtifactV1" / "data" / "Content" / "Props" / "SM_Crate.uasset"
+        crate_path.parent.mkdir(parents=True)
+        crate_path.write_bytes(b"crate")
+        records = [
+            self.fab_registry_row("Content/Trees/SM_English_Oak.uasset", "SM_English_Oak", "/Script/Engine.StaticMesh"),
+            self.fab_registry_row("Content/Trees/Oak_Grove.umap", "Oak_Grove", "/Script/Engine.World"),
+            self.fab_registry_row("Content/Trees/FT_Foliage.uasset", "FT_Foliage", "/Script/Foliage.FoliageType_InstancedStaticMesh"),
+            self.fab_registry_row("Content/Structures/SM_Wall.uasset", "SM_Wall", "/Script/Engine.StaticMesh"),
+            self.fab_registry_row("Content/Props/SM_Crate.uasset", "SM_Crate", "/Script/Engine.StaticMesh"),
+        ]
+        self.fab_registry.write_text("\n".join(json.dumps(row) for row in records) + "\n", encoding="utf-8")
+        summary = catalog.sync_catalog(
+            self.snapshot, self.vault, self.manifests, self.database, "5.8",
+            fab_registry_results_path=self.fab_registry,
+        )
+        self.assertEqual(summary["fab_asset_registry_scanned_products"], 1)
+        self.assertEqual(summary["fab_asset_registry_unscanned_products"], 0)
+        self.assertEqual(summary["fab_asset_registry_expected_packages"], 5)
+        self.assertEqual(summary["fab_asset_registry_enriched_packages"], 5)
+        self.assertEqual(summary["fab_asset_registry_assets"], 5)
+        walls = catalog.search_catalog(
+            self.database, "walls", fidelity="asset-registry", source="fab", asset_class="StaticMesh", limit=10,
+        )
+        self.assertEqual(len(walls), 1)
+        self.assertEqual(walls[0]["record_kind"], "fab-asset-registry-asset")
+        self.assertEqual(walls[0]["file_name"], "SM_Wall")
+        self.assertEqual(walls[0]["source_product_id"], "product-oak")
+        trees = catalog.search_catalog(
+            self.database, "trees", fidelity="asset-registry", source="fab", asset_class="StaticMesh", limit=10,
+        )
+        self.assertEqual(len(trees), 1)
+        self.assertEqual(trees[0]["file_name"], "SM_English_Oak")
+        oaks = catalog.search_catalog(
+            self.database, "oak", fidelity="asset-registry", source="fab", asset_class="StaticMesh", limit=10,
+        )
+        self.assertEqual(len(oaks), 1)
+        self.assertEqual(oaks[0]["file_name"], "SM_English_Oak")
+        self.assertEqual(oaks[0]["product_title"], "English Oak")
+
+    def test_fab_registry_failure_is_preserved_and_counted(self):
+        records = [
+            self.fab_registry_row("Content/Trees/SM_English_Oak.uasset", "SM_English_Oak", "/Script/Engine.StaticMesh"),
+            self.fab_registry_row(
+                "Content/Trees/Oak_Grove.umap", "", "", success=False, error_code="no-asset-registry-record",
+            ),
+        ]
+        self.fab_registry.write_text("\n".join(json.dumps(row) for row in records) + "\n", encoding="utf-8")
+        summary = catalog.sync_catalog(
+            self.snapshot, self.vault, self.manifests, self.database, "5.8",
+            fab_registry_results_path=self.fab_registry,
+        )
+        self.assertEqual(summary["fab_asset_registry_expected_packages"], 2)
+        self.assertEqual(summary["fab_asset_registry_enriched_packages"], 1)
+        self.assertEqual(summary["fab_asset_registry_failed_packages"], 1)
+        connection = sqlite3.connect(self.database)
+        try:
+            status = connection.execute(
+                "SELECT asset_registry_status FROM files WHERE artifact_id = ? AND path = ? AND source_tier = 'vault-cache'",
+                ("OakArtifactV1", "Content/Trees/Oak_Grove.umap"),
+            ).fetchone()[0]
+        finally:
+            connection.close()
+        self.assertEqual(status, "failed:no-asset-registry-record")
+
+    def test_fab_registry_rejects_identity_mismatch_and_unsafe_tags(self):
+        records = [
+            self.fab_registry_row("Content/Trees/SM_English_Oak.uasset", "SM_English_Oak", "/Script/Engine.StaticMesh"),
+            self.fab_registry_row("Content/Trees/Oak_Grove.umap", "Oak_Grove", "/Script/Engine.World"),
+        ]
+        records[1]["product_id"] = "wrong-product"
+        self.fab_registry.write_text("\n".join(json.dumps(row) for row in records) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "product identity mismatch"):
+            catalog.sync_catalog(
+                self.snapshot, self.vault, self.manifests, self.database, "5.8",
+                fab_registry_results_path=self.fab_registry,
+            )
+        self.assertFalse(self.database.exists())
+
+        records[1]["product_id"] = "product-oak"
+        records[0]["assets"][0]["tags"] = {"download_url": "https://example.invalid/signed"}
+        self.fab_registry.write_text("\n".join(json.dumps(row) for row in records) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "prohibited"):
+            catalog.sync_catalog(
+                self.snapshot, self.vault, self.manifests, self.database, "5.8",
+                fab_registry_results_path=self.fab_registry,
+            )
+        self.assertFalse(self.database.exists())
+
+        records[0]["assets"][0]["tags"] = {}
+        records[0]["assets"][0]["object_path"] = "/Game/Trees/Other"
+        self.fab_registry.write_text("\n".join(json.dumps(row) for row in records) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "invalid Fab Asset Registry asset identity"):
+            catalog.sync_catalog(
+                self.snapshot, self.vault, self.manifests, self.database, "5.8",
+                fab_registry_results_path=self.fab_registry,
+            )
+        self.assertFalse(self.database.exists())
+
+        records[0].pop("assets")
+        self.fab_registry.write_text("\n".join(json.dumps(row) for row in records) + "\n", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "invalid Fab Asset Registry result"):
+            catalog.sync_catalog(
+                self.snapshot, self.vault, self.manifests, self.database, "5.8",
+                fab_registry_results_path=self.fab_registry,
+            )
+        self.assertFalse(self.database.exists())
 
     def test_missing_manifest_result_is_classified_not_silently_omitted(self):
         self.manifests.write_text("", encoding="utf-8")
