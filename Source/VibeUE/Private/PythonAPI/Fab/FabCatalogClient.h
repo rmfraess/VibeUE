@@ -47,6 +47,10 @@ public:
 	                       double TimeoutSeconds, TArray<FFabCatalogListing>& OutListings,
 	                       FString& OutNextCursor, int32& OutHttpCode, FString& OutError);
 
+	/** Resolve a library-owned listing through native Fab; never claims a license or accepts an EULA. */
+	static bool ResolveOwnedDownload(const FString& BaseUrl, const FString& ListingId, const FString& Quality,
+	                                const FString& Format, FFabFreeDownload& OutDownload, FString& OutError);
+
 	/**
 	 * Re-fetch a listing, require a zero-price license, select the requested source file, and obtain
 	 * its short-lived signed URL. No entitlement/library mutation is performed.

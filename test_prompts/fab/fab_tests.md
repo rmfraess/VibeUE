@@ -106,3 +106,14 @@ path as evidence.)
 
 Import the SAME asset again. (Expected: success=true but it is recognised as already imported — reports the
 existing path and does NOT re-download or duplicate the asset.)
+
+## Owned individual texture regression
+
+With native Fab signed in, refresh the library and continue `LIBRARY_PENDING` from separate Editor
+round-trips until finished. Verify a known owned individual listing by exact ID, not only a pack.
+For an authorized Quixel surface, import an absent Low quality, continuing `IMPORT_PENDING` from
+separate calls, then poll `import_status`. Verify the texture/material paths, save only new packages,
+reload them and check actual texture dimensions and material references. Repeat the same quality:
+expect the same paths with no writes. Request another existing quality: expect that quality's paths,
+not the first quality's cached result. Preserve prior Content/config hashes. Never claim or purchase
+an item for this test. Run `VibeUE.Fab` automation tests, including account/callback/route guards.

@@ -25,6 +25,9 @@ struct FFabLibraryAsset
 	FString Source;              // e.g. "quixel", "sketchfab", "unreal-engine"
 	FString DistributionMethod;  // e.g. "asset_pack", "complete_project", "engine_plugin"
 	FString Url;
+	FString ListingId;
+	bool bNativeListing = false;
+
 	TArray<FFabProjectVersion> ProjectVersions;
 
 	struct FImage { FString Url; FString Type; int32 Width = 0; int32 Height = 0; };

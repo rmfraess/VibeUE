@@ -105,6 +105,51 @@ namespace
 		return false;
 	}
 
+	// Native Fab can sign in after our independent EOS session has expired.
+	bool CaptureNativeFabSession()
+	{
+		IEOSSDKManager* SDK = IEOSSDKManager::Get();
+		FEosProdCreds Creds;
+		FString Error;
+		if (!SDK || !ReadProdCreds(Creds, Error))
+		{
+			return false;
+		}
+		for (const IEOSPlatformHandlePtr& Platform : SDK->GetActivePlatforms())
+		{
+			const EOS_HAuth Auth = EOS_Platform_GetAuthInterface(*Platform);
+			if (!Auth)
+			{
+				continue;
+			}
+			for (int32_t Index = 0; Index < EOS_Auth_GetLoggedInAccountsCount(Auth); ++Index)
+			{
+				const EOS_EpicAccountId Account = EOS_Auth_GetLoggedInAccountByIndex(Auth, Index);
+				EOS_Auth_CopyUserAuthTokenOptions Options = {};
+				Options.ApiVersion = EOS_AUTH_COPYUSERAUTHTOKEN_API_LATEST;
+				EOS_Auth_Token* Token = nullptr;
+				if (EOS_Auth_CopyUserAuthToken(Auth, &Options, Account, &Token) != EOS_EResult::EOS_Success || !Token)
+				{
+					continue;
+				}
+				const bool bMatches = Token->ClientId && Creds.ClientId == UTF8_TO_TCHAR(Token->ClientId)
+					&& Token->AccessToken && Token->AccessToken[0] && Token->ExpiresIn > 0
+					&& EOS_Auth_GetLoginStatus(Auth, Account) == EOS_ELoginStatus::EOS_LS_LoggedIn;
+				EOS_Auth_Token_Release(Token);
+				if (bMatches)
+				{
+					GPlatform = Platform;
+					GAuth = Auth;
+					GAccountId = Account;
+					GState = EFabAuthState::LoggedIn;
+					GLastError.Reset();
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
 	void EOS_CALL OnLoginComplete(const EOS_Auth_LoginCallbackInfo* Data);
 
 	void StartExchangeCodeLogin()
@@ -258,9 +303,19 @@ bool FVibeFabAuth::IsSupported()
 bool FVibeFabAuth::EnsureLoggedIn(double TimeoutSeconds, FString& OutError)
 {
 #if WITH_EOS_SDK
-	if (GState == EFabAuthState::LoggedIn)
+	OutError.Reset();
+	if (IsLoggedIn() && !GetAccessToken().IsEmpty())
 	{
 		return true;
+	}
+	if (GState != EFabAuthState::Pending && CaptureNativeFabSession())
+	{
+		return true;
+	}
+	if (GState == EFabAuthState::LoggedIn)
+	{
+		GState = EFabAuthState::Idle;
+		GAccountId = nullptr;
 	}
 	if (!EnsurePlatformAndLogin(OutError))
 	{
@@ -282,9 +337,14 @@ bool FVibeFabAuth::EnsureLoggedIn(double TimeoutSeconds, FString& OutError)
 		FPlatformProcess::Sleep(0.02f);
 	}
 
-	if (GState == EFabAuthState::LoggedIn)
+	if (IsLoggedIn() && !GetAccessToken().IsEmpty())
 	{
 		return true;
+	}
+	if (GState == EFabAuthState::LoggedIn)
+	{
+		GState = EFabAuthState::Failed;
+		GLastError = TEXT("Fab login completed without usable credentials. Sign into the Fab window, then retry.");
 	}
 	if (GState == EFabAuthState::Failed)
 	{
@@ -322,7 +382,8 @@ FString FVibeFabAuth::GetAccessToken()
 	Opts.ApiVersion = EOS_AUTH_COPYUSERAUTHTOKEN_API_LATEST;
 	if (EOS_Auth_CopyUserAuthToken(GAuth, &Opts, GAccountId, &Token) == EOS_EResult::EOS_Success)
 	{
-		const FString Access = FString(Token->AccessToken);
+		const FString Access = Token->AccessToken && Token->ExpiresIn > 0
+			? FString(UTF8_TO_TCHAR(Token->AccessToken)) : FString();
 		EOS_Auth_Token_Release(Token);
 		return Access;
 	}

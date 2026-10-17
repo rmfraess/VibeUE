@@ -5,15 +5,10 @@
 #include "CoreMinimal.h"
 
 /**
- * FabService (#517) auth bridge — obtains an Epic Games access token for fab.com by standing up our
- * OWN EOS platform with the engine Fab plugin's baked credentials (read reflectively from the cooked
- * /Fab/Data/FabEos.FabEos asset) and logging in with EOS_LCT_PersistentAuth, falling back to the
- * launcher exchange code on the command line. This silently reuses the Epic login the editor/launcher
- * already holds — no separate sign-in — and yields a token carrying fab.com's client scopes.
- *
- * We deliberately create a second same-ProductId platform rather than reusing the Fab plugin's private
- * one: the engine's IEOSSDKManager allows it (no dedupe on the raw CreatePlatform overload), auto-ticks
- * it, and this avoids depending on Fab's private auth state or on the Fab UI ever having been opened.
+ * FabService auth reuses an active EOS platform when its token matches the Fab client, or creates a
+ * fallback platform with the engine Fab plugin's baked credentials (read reflectively from
+ * /Fab/Data/FabEos.FabEos) using PersistentAuth and the launcher exchange code. Native Fab sign-in
+ * can recover an expired fallback session. Cached state alone never establishes usable credentials.
  * All EOS calls are compiled only under WITH_EOS_SDK (defined =1 by the EOSSDK module).
  */
 class FVibeFabAuth

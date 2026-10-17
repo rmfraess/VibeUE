@@ -43,6 +43,22 @@ direct glTF/GLB import (including eligible Quixel/Megascans listings), implement
 
 ---
 
+## Current owned-source contract
+
+Authentication validates live EOS login, account and nonexpired token rather than cached status, and
+can reuse native Fab's matching-client session. `auth_status` does not establish library reachability.
+The UE-pack feed omits individual Fab source listings; merge it with the signed-in native Fab
+`/i/library/search` pages. Keep the Fab window open. A bounded GET-only browser bridge reuses that
+request context without exporting cookies/tokens. `LIBRARY_PENDING` requires another Editor
+round-trip; the cache becomes current only when every page completes.
+
+For library-owned Quixel glTF, `import_asset` resolves the requested quality and authenticated signed
+download through the same context, then invokes native Fab's reflected `AddToProject` interface.
+`IMPORT_PENDING` requires repeating the same call on another tick; after startup use `import_status`.
+Native material/texture setup and quality folders are retained. A registered existing quality is not
+reimported. Other source pipelines report unsupported rather than claiming generic support.
+No purchases, claims, new EULA acceptance or arbitrary browser requests are implemented.
+
 ## 1. Goal & scope
 
 Give an AI agent (and, incidentally, any Python caller) the ability to **discover the user's owned Fab

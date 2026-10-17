@@ -18,6 +18,7 @@ struct FFabImportProgress
 	bool bCached = false;
 	FString Error;
 	FString AssetName;
+	FString SourceQuality;         // Owned-source idempotence must not reuse a different quality.
 	TArray<FString> AssetPaths;    // /Game/... packages created by the import
 	FString InstallRoot;           // /Game/<top folder> if derivable
 	FString DestinationPath;       // Direct-file imports: requested /Game destination
@@ -53,6 +54,10 @@ public:
 	/** Begin a direct HTTP download followed by automated glTF/GLB import into DestinationPath. */
 	static bool StartDirect(const FString& AssetId, const FString& AssetName, const FString& DownloadUrl,
 	                        const FString& DestinationPath, FString& OutError);
+
+	/** Use Epic's native Quixel material/texture pipeline for an owned Megascans glTF source. */
+	static bool StartOwnedSource(const FString& AssetId, const FString& AssetName, const FString& DownloadUrl,
+	                             const FString& ListingType, const FString& Quality, FString& OutError);
 
 	/** Current progress for AssetId, or null if no import has been started this session. */
 	static bool StartProject(const FString& AssetId, const FString& AssetName, const FFabDownloadInfo& Info, FString& OutError);

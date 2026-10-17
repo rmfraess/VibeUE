@@ -52,14 +52,23 @@ or support every Fab product format yet.
 
 1. Call `auth_status()` first. If it is not authenticated, tell the user to open the Fab window or
    launch the editor from the Epic Games Launcher.
-2. Call `list_library(...)`; use `refresh=true` only when the account library may have changed.
+2. Keep the signed-in **Window → Fab** open. Call `list_library(...)`; use `refresh=true` when the
+   account library may have changed. It combines the UE-pack feed with individual listings from
+   native Fab. On `LIBRARY_PENDING`, call again from a later Editor round-trip with `refresh=false`
+   until complete; do not spin inside one blocking Editor call. Cached zeros are not fresh evidence.
 3. Call `get_asset(asset_id)` to inspect versions and compatibility.
-4. Call `import_asset(asset_id, ...)`, then poll `import_status(asset_id)`.
+4. Call `import_asset(asset_id, ...)`. On `IMPORT_PENDING`, repeat the same call from a later Editor
+   round-trip until source resolution completes, then poll `import_status(asset_id)`.
 5. Verify the returned `/Game/...` paths before reporting success.
 
-Owned BuildPatch packs and plugins are supported. Sparse or non-BuildPatch owned assets may still be
-discoverable without being importable through `import_asset`; use the public-free path only when the
-listing is currently free and provides a supported source format.
+Owned BuildPatch packs/plugins and individual **Quixel Megascans glTF** listings are supported.
+Quixel imports reuse native Fab's materials/textures and quality folders under `/Game/Fab/Megascans`.
+An existing registered quality is returned without reimport. Other source formats/sellers remain
+discoverable but are explicitly unsupported for automated source intake; use native Fab instead.
+Library presence alone does not prove source entitlement: the authenticated download request must
+succeed. No claim, purchase or new license acceptance occurs in this path.
+Native library summaries can omit seller/source metadata; use a name or exact listing ID rather than
+relying on `type_filter="quixel"` to find every individual Megascans item.
 
 ## Rules
 

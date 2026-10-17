@@ -12,7 +12,7 @@
  * (including Quixel Megascans) without adding them to the account library.
  *
  * Thin orchestration over Unreal 5.8's built-in Fab plugin: it reuses the Epic login the editor/launcher
- * already holds (via its own EOS session), calls fab.com's owned-library REST feed, and (for import)
+ * already holds, combines the UE-pack feed with the signed-in native Fab library, and (for import)
  * drives the engine Fab plugin's downloader. These fab.com endpoints are unofficial/reverse-engineered
  * and may change without notice — see docs/design/fab-service-spec.md and the `fab` skill.
  *
@@ -27,7 +27,7 @@ class VIBEUE_API UFabService : public UToolsetDefinition
 
 public:
 	/**
-	 * Report whether an Epic session is available and the Fab library is reachable. RUN THIS FIRST.
+	 * Report whether usable Epic credentials are available. RUN THIS FIRST; it does not fetch the library.
 	 * Silently reuses the editor/launcher Epic login; if none is available, returns actionable guidance
 	 * (open the Fab window / launch from the Epic Games Launcher) rather than failing hard.
 	 * @param TimeoutSeconds How long to wait for the (async) login to resolve before reporting pending. Default 15.
@@ -38,7 +38,8 @@ public:
 	/**
 	 * List the owned Fab library as a COMPACT projection (id, title, type, source, distribution method,
 	 * a `compatible` flag for the current engine, thumbnail). Fetched once and cached in-process; pass
-	 * Refresh=true to re-fetch. Filters are applied locally.
+	 * Refresh=true to re-fetch. Keep the signed-in native Fab window open. LIBRARY_PENDING means call
+	 * again on a later Editor tick (Refresh=false) until the paged refresh finishes. Filters are local.
 	 * @param NameFilter    Case-insensitive substring match on the title. Empty = all.
 	 * @param TypeFilter    Match on derived type / distribution method (e.g. "pack","plugin","quixel","model"). Empty = all.
 	 * @param EngineVersion Only assets supporting this engine (e.g. "5.8"). Empty = the current engine;
@@ -83,7 +84,8 @@ public:
 
 	/**
 	 * Download + import an owned asset into the project. Idempotent (skips assets already imported).
-	 * ASYNC: returns immediately with status "queued"/"downloading" — poll ImportStatus(AssetId).
+	 * ASYNC: IMPORT_PENDING means repeat this same call on a later Editor tick until resolution ends;
+	 * then poll ImportStatus(AssetId). Owned Quixel Megascans use native Fab's glTF material pipeline.
 	 * @param AssetId       The assetId from ListLibrary.
 	 * @param EngineVersion Version to import; empty = best match for the current engine.
 	 * @param Quality       "" | "Low" | "Medium" | "High" | "Raw" (Quixel/Megascans).

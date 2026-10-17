@@ -5,6 +5,8 @@
 
 #include "FabCatalogClient.h"
 #include "FabEndpoints.h"
+#include "FabBrowserBridge.h"
+#include "FabAuthBridge.h"
 
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
@@ -279,6 +281,96 @@ bool FVibeFabCatalog::SearchFree(const FString& BaseUrl, const FString& Query, c
 		}
 		PageCursor = NextCursor;
 	}
+	return true;
+}
+
+bool FVibeFabCatalog::ResolveOwnedDownload(const FString& BaseUrl, const FString& ListingId,
+                                         const FString& Quality, const FString& Format,
+                                         FFabFreeDownload& OutDownload, FString& OutError)
+{
+	const FString RequestedQuality = NormalizedQuality(Quality.IsEmpty() ? TEXT("High") : Quality);
+	const FString RequestedFormat = Format.IsEmpty() ? TEXT("gltf") : Format.ToLower();
+	FGuid Id;
+	if (!FGuid::ParseExact(ListingId, EGuidFormats::DigitsWithHyphens, Id)
+		|| RequestedQuality.IsEmpty() || RequestedFormat != TEXT("gltf"))
+	{
+		OutError = TEXT("Owned source import requires an exact listing UUID, Raw/High/Medium/Low quality and gltf format.");
+		return false;
+	}
+	// Keep completed metadata between asynchronous browser reads; never store signed URLs on disk.
+	static TMap<FString, FFabFreeDownload> Pending;
+	const FString Key = FVibeFabAuth::GetEpicAccountId() + TEXT("/") + ListingId + TEXT("/") + RequestedQuality;
+	FFabFreeDownload& Download = Pending.FindOrAdd(Key);
+	Download.ListingId = ListingId;
+	Download.Quality = RequestedQuality;
+	Download.Format = RequestedFormat;
+	FString Body;
+	if (Download.Title.IsEmpty())
+	{
+		if (!VibeUE::Fab::BrowserGet(TEXT("/i/listings/") + ListingId, Body, OutError)) return false;
+		TSharedPtr<FJsonObject> Listing;
+		if (!ParseObject(Body, Listing) || !Listing->TryGetStringField(TEXT("title"), Download.Title))
+		{
+			OutError = TEXT("Invalid owned listing metadata."); Pending.Remove(Key); return false;
+		}
+		Listing->TryGetStringField(TEXT("listingType"), Download.ListingType);
+		const TSharedPtr<FJsonObject>* User = nullptr;
+		if (Listing->TryGetObjectField(TEXT("user"), User)) (*User)->TryGetStringField(TEXT("sellerName"), Download.Seller);
+	}
+	if (Download.FileUid.IsEmpty())
+	{
+		if (!VibeUE::Fab::BrowserGet(TEXT("/i/listings/") + ListingId + TEXT("/asset-formats"), Body, OutError)) return false;
+		TArray<TSharedPtr<FJsonValue>> Formats;
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Body);
+		if (!FJsonSerializer::Deserialize(Reader, Formats))
+		{
+			OutError = TEXT("Invalid owned source formats."); Pending.Remove(Key); return false;
+		}
+		for (const TSharedPtr<FJsonValue>& Value : Formats)
+		{
+			const TSharedPtr<FJsonObject>* Object = nullptr;
+			const TSharedPtr<FJsonObject>* Type = nullptr;
+			const TArray<TSharedPtr<FJsonValue>>* Files = nullptr;
+			FString Code;
+			if (!Value->TryGetObject(Object) || !(*Object)->TryGetObjectField(TEXT("assetFormatType"), Type)
+				|| !(*Type)->TryGetStringField(TEXT("code"), Code) || Code != RequestedFormat
+				|| !(*Object)->TryGetArrayField(TEXT("files"), Files)) continue;
+			for (const TSharedPtr<FJsonValue>& FileValue : *Files)
+			{
+				const TSharedPtr<FJsonObject>* File = nullptr;
+				FString Name, Uid;
+				if (FileValue->TryGetObject(File) && (*File)->TryGetStringField(TEXT("name"), Name)
+					&& Name.ToLower().Contains(QualityToken(RequestedQuality)) && (*File)->TryGetStringField(TEXT("uid"), Uid))
+				{
+					Download.FileUid = Uid; Download.FileName = Name;
+					double Size = 0; (*File)->TryGetNumberField(TEXT("fileSize"), Size);
+					Download.FileSize = static_cast<uint64>(FMath::Max(0.0, Size)); break;
+				}
+			}
+		}
+		if (Download.FileUid.IsEmpty())
+		{
+			OutError = TEXT("No source file for the requested quality/format. Reference-only access is not source access.");
+			Pending.Remove(Key); return false;
+		}
+	}
+	const FString Path = VibeUE::Fab::CatalogDownloadInfoUrl(BaseUrl, ListingId, RequestedFormat,
+		Download.FileUid, TEXT("Windows")).Mid(BaseUrl.Len());
+	if (!VibeUE::Fab::BrowserGet(Path, Body, OutError)) return false;
+	TSharedPtr<FJsonObject> Root;
+	const TArray<TSharedPtr<FJsonValue>>* Infos = nullptr;
+	const TSharedPtr<FJsonObject>* Info = nullptr;
+	FString Type;
+	if (!ParseObject(Body, Root) || !Root->TryGetArrayField(TEXT("downloadInfo"), Infos) || Infos->IsEmpty()
+		|| !(*Infos)[0]->TryGetObject(Info) || !(*Info)->TryGetStringField(TEXT("type"), Type)
+		|| Type != TEXT("binary") || !(*Info)->TryGetStringField(TEXT("downloadUrl"), Download.DownloadUrl)
+		|| !Download.DownloadUrl.StartsWith(TEXT("https://")))
+	{
+		OutError = TEXT("Owned source download is unavailable; no claim or license acceptance was attempted.");
+		Pending.Remove(Key); return false;
+	}
+	OutDownload = Download;
+	Pending.Remove(Key);
 	return true;
 }
 

@@ -55,6 +55,12 @@ namespace VibeUE::Fab
 		return Url;
 	}
 
+	inline FString NativeLibraryPath(const FString& Cursor)
+	{
+		return TEXT("/i/library/search?count=100&sort_by=-createdAt")
+			+ (Cursor.IsEmpty() ? FString() : TEXT("&cursor=") + FGenericPlatformHttp::UrlEncode(Cursor));
+	}
+
 	inline FString CatalogListingUrl(const FString& BaseUrl, const FString& ListingId)
 	{
 		return FString::Printf(TEXT("%s/i/listings/%s"), *BaseUrl, *ListingId);

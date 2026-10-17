@@ -33,6 +33,7 @@ FString UFabService::ImportStatus(const FString&) { return FabUnavailableJson();
 #include "Fab/FabImportDriver.h"
 #include "Fab/FabCatalogClient.h"
 #include "Fab/FabEndpoints.h"
+#include "Fab/FabBrowserBridge.h"
 
 #include "Json.h"
 #include "AssetRegistry/AssetRegistryModule.h"
@@ -46,6 +47,11 @@ DEFINE_LOG_CATEGORY_STATIC(LogFabService, Log, All);
 
 static TArray<FFabLibraryAsset> GLibraryCache;
 static bool GLibraryCached = false;
+static bool GRefreshingLibrary = false;
+static TArray<FFabLibraryAsset> GRefreshingAssets;
+static FString GNativeCursor;
+static FString GLibraryAccount;
+static TSet<FString> GNativeCursors;
 
 // ---------------------------------------------------------------------------
 // JSON response helpers (same contract as the other VibeUE services)
@@ -130,22 +136,91 @@ static bool RequireAuth(double TimeoutSeconds, FString& OutErr)
 // Fill the in-process cache if needed.
 static bool EnsureLibrary(bool bRefresh, FString& OutErr)
 {
-	if (GLibraryCached && !bRefresh)
+	const FString Account = FVibeFabAuth::GetEpicAccountId();
+	if (Account != GLibraryAccount)
+	{
+		GLibraryCached = false;
+		GRefreshingLibrary = false;
+		GLibraryCache.Reset();
+		GLibraryAccount = Account;
+	}
+	if (GLibraryCached && !bRefresh && !GRefreshingLibrary)
 	{
 		return true;
 	}
-	const FString Token = FVibeFabAuth::GetAccessToken();
-	const FString Account = FVibeFabAuth::GetEpicAccountId();
-	int32 HttpCode = 0;
-	FString Err;
-	TArray<FFabLibraryAsset> Fetched;
-	if (!FVibeFabLibrary::Fetch(BaseUrl(), Account, Token, /*PageSize*/ 1000, /*Timeout*/ 45.0, Fetched, HttpCode, Err))
+	if (!GRefreshingLibrary)
 	{
-		OutErr = ErrJson(HttpCode == 401 || HttpCode == 403 ? TEXT("AUTH_REJECTED") : TEXT("LIBRARY_FETCH_FAILED"), Err);
+		int32 HttpCode = 0;
+		FString Err;
+		if (!FVibeFabLibrary::Fetch(BaseUrl(), FVibeFabAuth::GetEpicAccountId(), FVibeFabAuth::GetAccessToken(),
+			1000, 45.0, GRefreshingAssets, HttpCode, Err))
+		{
+			OutErr = ErrJson(HttpCode == 401 || HttpCode == 403 ? TEXT("AUTH_REJECTED") : TEXT("LIBRARY_FETCH_FAILED"), Err);
+			return false;
+		}
+		GNativeCursor.Reset();
+		GNativeCursors.Reset();
+		GRefreshingLibrary = true;
+	}
+	FString Body, Error;
+	const FString Path = VibeUE::Fab::NativeLibraryPath(GNativeCursor);
+	if (!VibeUE::Fab::BrowserGet(Path, Body, Error))
+	{
+		const bool bPending = Error == TEXT("NATIVE_REQUEST_PENDING");
+		if (!bPending) GRefreshingLibrary = false;
+		OutErr = ErrJson(bPending ? TEXT("LIBRARY_PENDING") : TEXT("NATIVE_LIBRARY_FAILED"), Error);
 		return false;
 	}
-	GLibraryCache = MoveTemp(Fetched);
+	TSharedPtr<FJsonObject> Root;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Body);
+	const TArray<TSharedPtr<FJsonValue>>* Results = nullptr;
+	if (!FJsonSerializer::Deserialize(Reader, Root) || !Root.IsValid() || !Root->TryGetArrayField(TEXT("results"), Results))
+	{
+		GRefreshingLibrary = false;
+		OutErr = ErrJson(TEXT("NATIVE_LIBRARY_FAILED"), TEXT("Native Fab library returned invalid JSON."));
+		return false;
+	}
+	for (const TSharedPtr<FJsonValue>& Value : *Results)
+	{
+		const TSharedPtr<FJsonObject>* Entry = nullptr;
+		const TSharedPtr<FJsonObject>* Listing = nullptr;
+		if (!Value->TryGetObject(Entry) || !(*Entry)->TryGetObjectField(TEXT("listing"), Listing)) continue;
+		FFabLibraryAsset Asset;
+		if (!(*Listing)->TryGetStringField(TEXT("uid"), Asset.ListingId) || Asset.ListingId.IsEmpty()) continue;
+		const FString ListingUrl = BaseUrl() + TEXT("/listings/") + Asset.ListingId;
+		if (GRefreshingAssets.ContainsByPredicate([&](const FFabLibraryAsset& Existing) {
+			return Existing.ListingId == Asset.ListingId || Existing.Url.Contains(Asset.ListingId);
+		})) continue;
+		Asset.AssetId = Asset.ListingId;
+		Asset.Url = ListingUrl;
+		Asset.bNativeListing = true;
+		Asset.Source = TEXT("fab");
+		Asset.DistributionMethod = TEXT("source_listing");
+		(*Listing)->TryGetStringField(TEXT("title"), Asset.Title);
+		(*Listing)->TryGetStringField(TEXT("listingType"), Asset.ListingType);
+		const TSharedPtr<FJsonObject>* Seller = nullptr;
+		if ((*Listing)->TryGetObjectField(TEXT("user"), Seller)) (*Seller)->TryGetStringField(TEXT("sellerName"), Asset.Seller);
+		if (Asset.Seller.Contains(TEXT("Quixel"), ESearchCase::IgnoreCase)) Asset.Source = TEXT("quixel");
+		GRefreshingAssets.Add(MoveTemp(Asset));
+	}
+	const TSharedPtr<FJsonObject>* Cursors = nullptr;
+	GNativeCursor.Reset();
+	if (Root->TryGetObjectField(TEXT("cursors"), Cursors)) (*Cursors)->TryGetStringField(TEXT("next"), GNativeCursor);
+	if (!GNativeCursor.IsEmpty())
+	{
+		if (GNativeCursors.Contains(GNativeCursor) || GNativeCursors.Num() >= 100)
+		{
+			GRefreshingLibrary = false;
+			OutErr = ErrJson(TEXT("NATIVE_LIBRARY_FAILED"), TEXT("Native Fab library pagination repeated or exceeded its safety limit."));
+			return false;
+		}
+		GNativeCursors.Add(GNativeCursor);
+		OutErr = ErrJson(TEXT("LIBRARY_PENDING"), TEXT("Native Fab library has another page; call list_library again."));
+		return false;
+	}
+	GLibraryCache = MoveTemp(GRefreshingAssets);
 	GLibraryCached = true;
+	GRefreshingLibrary = false;
 	return true;
 }
 
@@ -164,6 +239,8 @@ static TSharedPtr<FJsonObject> CompactAsset(const FFabLibraryAsset& A, const FSt
 	O->SetStringField(TEXT("source"), A.Source);
 	O->SetStringField(TEXT("distribution_method"), A.DistributionMethod);
 	O->SetStringField(TEXT("listing_type"), A.ListingType);
+	O->SetStringField(TEXT("listing_id"), A.ListingId);
+
 	O->SetBoolField(TEXT("compatible"), A.SupportsEngine(EngineVersion));
 	if (A.Images.Num() > 0)
 	{
@@ -194,7 +271,7 @@ FString UFabService::AuthStatus(float TimeoutSeconds)
 	if (bLoggedIn)
 	{
 		Obj->SetStringField(TEXT("epic_account_id"), FVibeFabAuth::GetEpicAccountId());
-		Obj->SetStringField(TEXT("message"), TEXT("Signed into Fab. The owned library is reachable."));
+		Obj->SetStringField(TEXT("message"), TEXT("Fab credentials are available. Call list_library with Refresh=true to verify current library access."));
 	}
 	else if (State == TEXT("pending"))
 	{
@@ -331,6 +408,8 @@ FString UFabService::GetAsset(const FString& AssetId)
 	Obj->SetStringField(TEXT("distribution_method"), A->DistributionMethod);
 	Obj->SetStringField(TEXT("type"), A->DeriveAssetType());
 	Obj->SetStringField(TEXT("url"), A->Url);
+	Obj->SetStringField(TEXT("listing_id"), A->ListingId);
+
 	Obj->SetBoolField(TEXT("compatible"), A->SupportsEngine(EngineVer));
 	Obj->SetStringField(TEXT("engine_version"), EngineVer);
 
@@ -577,6 +656,25 @@ FString UFabService::ImportAsset(const FString& AssetId, const FString& EngineVe
 	if (!A)
 	{
 		return ErrJson(TEXT("ASSET_NOT_OWNED"), FString::Printf(TEXT("No owned asset with id '%s'."), *AssetId));
+	}
+	if (A->bNativeListing)
+	{
+		const FString RequestedQuality = Quality.IsEmpty() ? TEXT("High") : Quality;
+		if (const auto Previous = FVibeFabImport::Get(AssetId); Previous && Previous->Phase != FFabImportProgress::EPhase::Failed)
+		{
+			if (Previous->SourceQuality.Equals(RequestedQuality, ESearchCase::IgnoreCase)) return ImportStatus(AssetId);
+			if (Previous->Phase != FFabImportProgress::EPhase::Done)
+				return ErrJson(TEXT("IMPORT_BUSY"), TEXT("Another quality of this source is still importing; wait before changing quality."));
+		}
+		FFabFreeDownload Download;
+		FString Error;
+		if (!FVibeFabCatalog::ResolveOwnedDownload(BaseUrl(), A->ListingId, Quality, Format, Download, Error))
+			return ErrJson(Error == TEXT("NATIVE_REQUEST_PENDING") ? TEXT("IMPORT_PENDING") : TEXT("OWNED_SOURCE_UNAVAILABLE"), Error);
+		if (!Download.Seller.Contains(TEXT("Quixel"), ESearchCase::IgnoreCase))
+			return ErrJson(TEXT("UNSUPPORTED_SOURCE"), TEXT("Owned source automation currently supports Quixel Megascans glTF. Use native Fab for other source pipelines."));
+		if (!FVibeFabImport::StartOwnedSource(AssetId, Download.Title, Download.DownloadUrl,
+			Download.ListingType, Download.Quality, Error)) return ErrJson(TEXT("IMPORT_START_FAILED"), Error);
+		return ImportStatus(AssetId);
 	}
 	const FString EngineVer = EngineVersion.IsEmpty() ? CurrentEngineVersion() : EngineVersion;
 	if (!A->SupportsEngine(EngineVer))

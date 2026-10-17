@@ -4,6 +4,9 @@
 #include "Fab/FabLibraryClient.h"
 #include "Fab/FabManifestClient.h"
 #include "Fab/FabEndpoints.h"
+#include "Fab/FabAuthBridge.h"
+#include "Fab/FabCatalogClient.h"
+#include "Fab/FabBrowserBridge.h"
 #include "PythonAPI/UFabService.h"
 #include "Json.h"
 
@@ -46,6 +49,27 @@ bool FVibeFabSupportsEngineTest::RunTest(const FString&)
 	FFabLibraryAsset C;
 	TestTrue(TEXT("no versions = compatible (unknown)"), C.SupportsEngine(TEXT("5.8")));
 
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVibeFabAuthConsistencyTest, "VibeUE.Fab.Auth.StatusMatchesCredentials",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FVibeFabAuthConsistencyTest::RunTest(const FString&)
+{
+	TSharedPtr<FJsonObject> Status;
+	const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(UFabService::AuthStatus(1.0f));
+	if (!TestTrue(TEXT("auth status is JSON"), FJsonSerializer::Deserialize(Reader, Status) && Status.IsValid()))
+	{
+		return false;
+	}
+	bool bAuthenticated = false;
+	if (Status->TryGetBoolField(TEXT("authenticated"), bAuthenticated) && bAuthenticated)
+	{
+		TestTrue(TEXT("authenticated means live EOS login"), FVibeFabAuth::IsLoggedIn());
+		TestTrue(TEXT("authenticated means account available"), !FVibeFabAuth::GetEpicAccountId().IsEmpty());
+		TestTrue(TEXT("authenticated means usable access token"), !FVibeFabAuth::GetAccessToken().IsEmpty());
+	}
+	TestFalse(TEXT("status never returns an access token"), Status->HasField(TEXT("access_token")));
 	return true;
 }
 
@@ -130,6 +154,37 @@ bool FVibeFabFreeImportEulaGuardTest::RunTest(const FString&)
 			TEXT("EULA_ACCEPTANCE_REQUIRED"));
 		TestFalse(TEXT("library remains unchanged"), Root->GetBoolField(TEXT("library_changed")));
 	}
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVibeFabNativeGuardsTest, "VibeUE.Fab.OwnedSource.Guards",
+	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+bool FVibeFabNativeGuardsTest::RunTest(const FString&)
+{
+	TestEqual(TEXT("native cursor encoded"), VibeUE::Fab::NativeLibraryPath(TEXT("a+b&x=1")),
+		TEXT("/i/library/search?count=100&sort_by=-createdAt&cursor=a%2Bb%26x%3D1"));
+	FString Body, Error;
+	TestFalse(TEXT("external URL refused"), VibeUE::Fab::BrowserGet(TEXT("https://example.com/"), Body, Error));
+	TestFalse(TEXT("traversal refused"), VibeUE::Fab::BrowserGet(TEXT("/i/listings/../accounts"), Body, Error));
+	FFabFreeDownload Download;
+	TestFalse(TEXT("malformed listing refused"), FVibeFabCatalog::ResolveOwnedDownload(TEXT("https://www.fab.com"),
+		TEXT("not-a-uuid"), TEXT("Medium"), TEXT("gltf"), Download, Error));
+	TestFalse(TEXT("unsupported format refused"), FVibeFabCatalog::ResolveOwnedDownload(TEXT("https://www.fab.com"),
+		TEXT("db8c5bda-e867-412a-8e9a-f27c536d4ff8"), TEXT("Medium"), TEXT("fbx"), Download, Error));
+	UFabBrowserResponse* Response = NewObject<UFabBrowserResponse>();
+	Response->RequestId = TEXT("expected");
+	Response->Complete(TEXT("wrong"), 200, TEXT("{}"));
+	TestFalse(TEXT("wrong request callback ignored"), Response->bDone);
+	Response->Complete(TEXT("expected"), 403, TEXT("private response must not be returned"));
+	TestTrue(TEXT("HTTP rejection completes request"), Response->bDone);
+	TestTrue(TEXT("HTTP rejection withholds body"), Response->Body.IsEmpty());
+	TestFalse(TEXT("HTTP rejection reports error"), Response->Error.IsEmpty());
+	UFabBrowserResponse* WrongAccount = NewObject<UFabBrowserResponse>();
+	WrongAccount->RequestId = TEXT("account-test");
+	WrongAccount->ExpectedAccount = TEXT("not-the-current-account");
+	WrongAccount->Complete(TEXT("account-test"), 200, TEXT("must-not-leak"));
+	TestTrue(TEXT("account mismatch withholds body"), WrongAccount->Body.IsEmpty());
+	TestFalse(TEXT("account mismatch reports error"), WrongAccount->Error.IsEmpty());
 	return true;
 }
 

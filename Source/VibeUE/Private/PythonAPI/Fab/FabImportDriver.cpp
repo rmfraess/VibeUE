@@ -27,6 +27,10 @@
 #include "Interfaces/IBuildInstaller.h"
 #include "Interfaces/IBuildManifest.h"
 #include "BuildPatchSettings.h"
+#include "UObject/UnrealType.h"
+#include "UObject/StructOnScope.h"
+#include "UObject/UObjectIterator.h"
+#include "InterchangeManager.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogFabImport, Log, All);
 
@@ -421,6 +425,95 @@ bool FVibeFabImport::StartProject(const FString& AssetId, const FString& AssetNa
 		State->Error = OutError = TEXT("Could not start manifest request.");
 		return false;
 	}
+	return true;
+}
+
+bool FVibeFabImport::StartOwnedSource(const FString& AssetId, const FString& AssetName, const FString& DownloadUrl,
+                                    const FString& ListingType, const FString& Quality, FString& OutError)
+{
+	check(IsInGameThread());
+	if (const auto Existing = Get(AssetId); Existing && Existing->Phase != FFabImportProgress::EPhase::Failed)
+	{
+		if (Existing->SourceQuality == Quality) return true;
+		if (Existing->Phase != FFabImportProgress::EPhase::Done)
+		{
+			OutError = TEXT("Another quality is still importing."); return false;
+		}
+	}
+	UClass* ApiClass = FindObject<UClass>(nullptr, TEXT("/Script/Fab.FabBrowserApi"));
+	UClass* LocalClass = FindObject<UClass>(nullptr, TEXT("/Script/Fab.FabLocalAssets"));
+	UFunction* Add = ApiClass ? ApiClass->FindFunctionByName(TEXT("AddToProject")) : nullptr;
+	FStrProperty* Url = Add ? FindFProperty<FStrProperty>(Add, TEXT("DownloadUrl")) : nullptr;
+	FStructProperty* Metadata = Add ? FindFProperty<FStructProperty>(Add, TEXT("AssetMetadata")) : nullptr;
+	FMapProperty* LocalPaths = LocalClass ? FindFProperty<FMapProperty>(LocalClass, TEXT("PathsListingID")) : nullptr;
+	UObject* Api = nullptr;
+	for (TObjectIterator<UObject> It; It; ++It)
+	{
+		if (It->GetClass() == ApiClass && !It->HasAnyFlags(RF_ClassDefaultObject)) { Api = *It; break; }
+	}
+	if (!Api || !Add || !Url || !Metadata || !LocalPaths
+		|| !CastField<FStrProperty>(LocalPaths->KeyProp) || !CastField<FStrProperty>(LocalPaths->ValueProp))
+	{
+		OutError = TEXT("Native Fab import interface unavailable. Open Fab first; engine interface may have changed."); return false;
+	}
+	const auto State = MakeShared<FFabImportProgress>();
+	State->AssetName = AssetName; State->SourceQuality = Quality; State->Phase = FFabImportProgress::EPhase::Importing;
+	auto LocalRoot = [LocalClass, LocalPaths, AssetId]() -> FString
+	{
+		FScriptMapHelper Map(LocalPaths, LocalPaths->ContainerPtrToValuePtr<void>(LocalClass->GetDefaultObject()));
+		for (int32 Index = 0; Index < Map.GetMaxIndex(); ++Index)
+		{
+			if (Map.IsValidIndex(Index) && CastFieldChecked<FStrProperty>(LocalPaths->ValueProp)->GetPropertyValue(Map.GetValuePtr(Index)) == AssetId)
+				return CastFieldChecked<FStrProperty>(LocalPaths->KeyProp)->GetPropertyValue(Map.GetKeyPtr(Index));
+		}
+		return FString();
+	};
+	auto Imported = [State, LocalRoot, Quality]() -> bool
+	{
+		const FString Root = LocalRoot();
+		if (Root.IsEmpty()) return false;
+		TArray<FAssetData> Assets;
+		const FString TierRoot = Root / Quality;
+		FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get().GetAssetsByPath(FName(TierRoot), Assets, true);
+		if (Assets.IsEmpty()) return false;
+		for (const FAssetData& Asset : Assets)
+		{
+			UObject* Object = Asset.GetAsset();
+			if (!Object || UInterchangeManager::GetInterchangeManager().IsObjectBeingImported(Object)) return false;
+		}
+		State->InstallRoot = TierRoot;
+		for (const FAssetData& Asset : Assets) State->AssetPaths.AddUnique(Asset.PackageName.ToString());
+		State->Percent = 100; State->Phase = FFabImportProgress::EPhase::Done;
+		return true;
+	};
+	GImports.Add(AssetId, State);
+	if (Imported()) return true;
+	FStructOnScope Params(Add);
+	Url->SetPropertyValue_InContainer(Params.GetStructMemory(), DownloadUrl);
+	void* Data = Metadata->ContainerPtrToValuePtr<void>(Params.GetStructMemory());
+	for (const TPair<FName, FString>& Field : TArray<TPair<FName, FString>>{
+		{TEXT("AssetId"), AssetId}, {TEXT("AssetName"), AssetName}, {TEXT("AssetType"), TEXT("gltf")}, {TEXT("ListingType"), ListingType}})
+	{
+		FStrProperty* Property = FindFProperty<FStrProperty>(Metadata->Struct, Field.Key);
+		if (!Property) { OutError = TEXT("Native Fab metadata interface changed."); GImports.Remove(AssetId); return false; }
+		Property->SetPropertyValue_InContainer(Data, Field.Value);
+	}
+	FBoolProperty* IsQuixel = FindFProperty<FBoolProperty>(Metadata->Struct, TEXT("IsQuixel"));
+	if (!IsQuixel) { OutError = TEXT("Native Fab metadata interface changed."); GImports.Remove(AssetId); return false; }
+	IsQuixel->SetPropertyValue_InContainer(Data, true);
+	Api->ProcessEvent(Add, Params.GetStructMemory());
+	const double Started = FPlatformTime::Seconds();
+	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([State, Imported, Started](float)
+	{
+		if (Imported()) return false;
+		if (FPlatformTime::Seconds() - Started > 180)
+		{
+			State->Phase = FFabImportProgress::EPhase::Failed;
+			State->Error = TEXT("Native Fab import did not produce registered assets within 180 seconds; inspect current native workflow before retrying.");
+			return false;
+		}
+		return true;
+	}), 0.5f);
 	return true;
 }
 
