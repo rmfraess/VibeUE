@@ -4380,6 +4380,25 @@ bool ULandscapeService::DeleteAllSplines(const FString& LandscapeNameOrLabel)
 	return true;
 }
 
+int32 ULandscapeService::EnsureSplineEditLayer(const FString& LandscapeNameOrLabel, FName LayerName)
+{
+	if (!IsInGameThread() || !GEditor || GEditor->PlayWorld) { return INDEX_NONE; }
+	ALandscape* Landscape = FindLandscapeByIdentifier(LandscapeNameOrLabel);
+	if (!Landscape || Landscape->IsTemplate()
+		|| Landscape->GetWorld()->WorldType != EWorldType::Editor)
+	{
+		return INDEX_NONE;
+	}
+	if (const ULandscapeEditLayerBase* Existing = Landscape->FindEditLayerOfTypeConst(ULandscapeEditLayerSplines::StaticClass()))
+	{
+		return Landscape->GetLayerIndex(Existing->GetGuid());
+	}
+	if (LayerName.IsNone()) { LayerName = TEXT("Splines"); }
+	if (Landscape->GetLayerIndex(LayerName) != INDEX_NONE || Landscape->IsMaxLayersReached()) { return INDEX_NONE; }
+	FScopedTransaction Transaction(NSLOCTEXT("LandscapeService", "EnsureSplineEditLayer", "Create Spline Edit Layer"));
+	return Landscape->CreateLayer(LayerName, ULandscapeEditLayerSplines::StaticClass());
+}
+
 bool ULandscapeService::RebuildSplines(const FString& LandscapeNameOrLabel)
 {
 	ALandscape* Landscape = FindLandscapeByIdentifier(LandscapeNameOrLabel);

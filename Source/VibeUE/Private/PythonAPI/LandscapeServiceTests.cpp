@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "Landscape.h"
 #include "LandscapeInfo.h"
+#include "LandscapeEditLayer.h"
 #include "LandscapeSplineControlPoint.h"
 #include "LandscapeSplineSegment.h"
 #include "LandscapeSplinesComponent.h"
@@ -216,6 +217,41 @@ bool FVibeLandscapeSplineSplitTest::RunTest(const FString&)
 	TestTrue(TEXT("Redo split"), GEditor->RedoTransaction());
 	TestEqual(TEXT("Redo split restores spans"), Fixture.Component->GetSegments().Num(), 2);
 	TestTrue(TEXT("recover Redo split"), ULandscapeService::RebuildSplines(Fixture.Label));
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVibeLandscapeSplineLayerTest, "VibeUE.Landscape.Splines.EditLayer", Flags)
+bool FVibeLandscapeSplineLayerTest::RunTest(const FString&)
+{
+	if (!GEditor || GEditor->PlayWorld)
+	{
+		AddError(TEXT("Requires an idle Editor world"));
+		return false;
+	}
+	FSplineFixture Fixture;
+	FSplineFixture Other;
+	const int32 OtherCount = Other.Landscape->GetEditLayers().Num();
+	const int32 BaseIndex = Fixture.Landscape->CreateLayer(TEXT("Base"));
+	const FGuid BaseGuid = Fixture.Landscape->GetEditLayer(BaseIndex)->GetGuid();
+	const int32 InitialCount = Fixture.Landscape->GetEditLayers().Num();
+	Fixture.Landscape->SetEditingLayer(BaseGuid);
+	TestEqual(TEXT("missing target rejected"), ULandscapeService::EnsureSplineEditLayer(TEXT("NoSuchLandscape_VibeUESplineTest"), TEXT("Road")), INDEX_NONE);
+	TestEqual(TEXT("name collision rejected"), ULandscapeService::EnsureSplineEditLayer(Fixture.Label, TEXT("Base")), INDEX_NONE);
+	TestEqual(TEXT("rejection preserves layers"), Fixture.Landscape->GetEditLayers().Num(), InitialCount);
+	const int32 Index = ULandscapeService::EnsureSplineEditLayer(Fixture.Label, TEXT("Road"));
+	if (!TestTrue(TEXT("spline layer created"), Index != INDEX_NONE)) { return false; }
+	TestTrue(TEXT("native specialized class"), Fixture.Landscape->GetEditLayer(Index)->IsA<ULandscapeEditLayerSplines>());
+	TestEqual(TEXT("base layer preserved"), Fixture.Landscape->GetEditLayer(BaseIndex)->GetGuid(), BaseGuid);
+	TestEqual(TEXT("active base remains active"), Fixture.Landscape->GetEditingLayer(), BaseGuid);
+	const FGuid SplineGuid = Fixture.Landscape->GetEditLayer(Index)->GetGuid();
+	TestEqual(TEXT("repeat returns existing layer"), ULandscapeService::EnsureSplineEditLayer(Fixture.Label, TEXT("Road")), Index);
+	TestEqual(TEXT("different requested name does not duplicate or rename"), ULandscapeService::EnsureSplineEditLayer(Fixture.Label, TEXT("AnotherName")), Index);
+	TestEqual(TEXT("only one specialized layer"), Fixture.Landscape->GetEditLayers().Num(), InitialCount + 1);
+	TestEqual(TEXT("other Landscape untouched"), Other.Landscape->GetEditLayers().Num(), OtherCount);
+	TestTrue(TEXT("Undo creation"), GEditor->UndoTransaction());
+	TestNull(TEXT("Undo removes specialized layer"), Fixture.Landscape->FindEditLayerOfType(ULandscapeEditLayerSplines::StaticClass()));
+	TestTrue(TEXT("Redo creation"), GEditor->RedoTransaction());
+	TestEqual(TEXT("Redo restores same layer"), Fixture.Landscape->GetEditLayer(Index)->GetGuid(), SplineGuid);
 	return true;
 }
 

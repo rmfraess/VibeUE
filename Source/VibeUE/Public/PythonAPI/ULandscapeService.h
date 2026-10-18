@@ -1736,6 +1736,14 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Landscape|Splines")
 	static bool RebuildSplines(const FString& LandscapeNameOrLabel);
 
+	/** Ensure one native specialized Spline Edit Layer on this Landscape; return its index or -1.
+	 * Reuses an existing spline layer without renaming it. Rejects a conflicting ordinary layer
+	 * name, missing target, layer-count limit, or PIE. Preserves base data and active edit layer.
+	 * Creation is undoable; merging is deferred. Does not save or stamp the base layer.
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Landscape|Splines")
+	static int32 EnsureSplineEditLayer(const FString& LandscapeNameOrLabel, FName LayerName = TEXT("Splines"));
+
 	/** Split an ordinary segment at a normalized interior Hermite-curve fraction (not distance).
 	 * Returns the new control-point index; the second segment is appended. Existing indices stay valid.
 	 * Preserves segment mesh/material, terrain, collision and render settings; interpolates point
