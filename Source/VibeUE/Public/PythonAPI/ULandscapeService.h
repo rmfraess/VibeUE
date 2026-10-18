@@ -626,6 +626,8 @@ struct FLineTraceHit
  * - modify_spline_point: Modify a control point (param: world_location, NOT location)
  * - delete_spline_point: Delete a control point
  * - delete_all_splines: Remove all splines from a landscape
+ * - rebuild_splines: Rebuild target spline meshes/collision and request spline-layer refresh
+ * - split_spline_segment: Split a segment at an interior curve fraction
  * - apply_splines_to_landscape: Apply spline deformation to the terrain
  * - set_spline_segment_meshes: Assign meshes to a spline segment
  * - set_spline_point_mesh: Assign a mesh to a control point
@@ -1727,6 +1729,23 @@ public:
 	static bool DeleteAllSplines(
 		const FString& LandscapeNameOrLabel);
 
+	/** Rebuild only this Landscape's spline meshes/collision and request its procedural layer update.
+	 * Does not stamp the active/base edit layer or create an Undo entry. Layer merging is deferred.
+	 * Call after Undo/Redo when live collision needs explicit recovery, including after clear-all.
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Landscape|Splines")
+	static bool RebuildSplines(const FString& LandscapeNameOrLabel);
+
+	/** Split an ordinary segment at a normalized interior Hermite-curve fraction (not distance).
+	 * Returns the new control-point index; the second segment is appended. Existing indices stay valid.
+	 * Preserves segment mesh/material, terrain, collision and render settings; interpolates point
+	 * width/falloff/roll/mesh offset. The new point has no control-point mesh. Socket endpoints and
+	 * degenerate tangents are rejected before mutation. Does not change endpoint transforms.
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Landscape|Splines")
+	static FSplineCreateResult SplitSplineSegment(
+		const FString& LandscapeNameOrLabel, int32 SegmentIndex, float SplitFraction);
+
 	/**
 	 * Apply terrain deformation and layer painting for all splines.
 	 * Maps to action="apply_splines_to_landscape"
@@ -1751,8 +1770,8 @@ public:
 	 * are used in random order along the segment.
 	 *
 	 * Call this AFTER connecting points (connect_spline_points) to set the
-	 * visual mesh on each segment. Then call apply_splines_to_landscape to
-	 * regenerate mesh components and terrain deformation.
+	 * visual mesh on each segment. Use rebuild_splines to explicitly refresh meshes and the
+	 * procedural Spline Edit Layer; apply_splines_to_landscape stamps the active/fallback layer.
 	 *
 	 * @param LandscapeNameOrLabel - Name or label of the landscape
 	 * @param SegmentIndex - Index of the segment to modify (from get_spline_info)

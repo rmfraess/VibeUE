@@ -3840,6 +3840,28 @@ bool ULandscapeService::GetHoleAtLocation(
 // Landscape Splines
 // =================================================================
 
+namespace
+{
+	void DeleteLandscapeSplineSegment(ULandscapeSplinesComponent* Component, ULandscapeSplineSegment* Segment)
+	{
+		Segment->Modify();
+		Segment->DeleteSplinePoints();
+		Component->GetSegments().Remove(Segment);
+		for (int32 End = 0; End < 2; ++End)
+		{
+			if (ULandscapeSplineControlPoint* Point = Segment->Connections[End].ControlPoint)
+			{
+				Point->Modify();
+				Point->ConnectedSegments.Remove(FLandscapeSplineConnection(Segment, End));
+				if (Point->GetOuterSafe())
+				{
+					Point->UpdateSplinePoints();
+				}
+			}
+		}
+	}
+}
+
 FSplineCreateResult ULandscapeService::CreateSplinePoint(
 	const FString& LandscapeNameOrLabel,
 	FVector WorldLocation,
@@ -4272,13 +4294,13 @@ bool ULandscapeService::DeleteSplinePoint(
 	ULandscapeSplineControlPoint* CP = SplinesComp->GetControlPoints()[PointIndex];
 	if (!CP)
 	{
-		SplinesComp->GetControlPoints().RemoveAt(PointIndex);
-		return true;
+		return false;
 	}
 
 	FScopedTransaction Transaction(NSLOCTEXT("LandscapeService", "DeleteSplinePoint", "Delete Spline Point"));
 	SplinesComp->Modify();
 	CP->Modify();
+	CP->DeleteSplinePoints();
 
 	// Collect connected segments to delete
 	TArray<ULandscapeSplineSegment*> SegsToDelete;
@@ -4286,35 +4308,19 @@ bool ULandscapeService::DeleteSplinePoint(
 	{
 		if (Conn.Segment)
 		{
-			SegsToDelete.Add(Conn.Segment);
+			SegsToDelete.AddUnique(Conn.Segment);
 		}
 	}
 
-	// Remove each connected segment and its references from the other control point
 	for (ULandscapeSplineSegment* Seg : SegsToDelete)
 	{
-		Seg->Modify();
-
-		// Remove back-reference from the OTHER control point
-		for (int32 ConnIdx = 0; ConnIdx < 2; ConnIdx++)
-		{
-			ULandscapeSplineControlPoint* OtherCP = Seg->Connections[ConnIdx].ControlPoint.Get();
-			if (OtherCP && OtherCP != CP)
-			{
-				OtherCP->Modify();
-				OtherCP->ConnectedSegments.RemoveAll([Seg](const FLandscapeSplineConnection& C)
-				{
-					return C.Segment == Seg;
-				});
-				OtherCP->UpdateSplinePoints();
-			}
-		}
-
-		SplinesComp->GetSegments().Remove(Seg);
+		DeleteLandscapeSplineSegment(SplinesComp, Seg);
 	}
 
+	CP->ConnectedSegments.Empty();
 	SplinesComp->GetControlPoints().RemoveAt(PointIndex);
 
+	Landscape->RequestSplineLayerUpdate();
 	SplinesComp->MarkRenderStateDirty();
 	Landscape->MarkPackageDirty();
 
@@ -4345,15 +4351,159 @@ bool ULandscapeService::DeleteAllSplines(const FString& LandscapeNameOrLabel)
 	int32 NumPoints   = SplinesComp->GetControlPoints().Num();
 	int32 NumSegments = SplinesComp->GetSegments().Num();
 
+	const auto Segments = SplinesComp->GetSegments();
+	for (ULandscapeSplineSegment* Segment : Segments)
+	{
+		if (Segment)
+		{
+			DeleteLandscapeSplineSegment(SplinesComp, Segment);
+		}
+	}
+	for (ULandscapeSplineControlPoint* Point : SplinesComp->GetControlPoints())
+	{
+		if (Point)
+		{
+			Point->Modify();
+			Point->DeleteSplinePoints();
+			Point->ConnectedSegments.Empty();
+		}
+	}
 	SplinesComp->GetControlPoints().Empty();
 	SplinesComp->GetSegments().Empty();
 
+	Landscape->RequestSplineLayerUpdate();
 	SplinesComp->MarkRenderStateDirty();
 	Landscape->MarkPackageDirty();
 
 	UE_LOG(LogTemp, Log, TEXT("ULandscapeService::DeleteAllSplines: Cleared %d points and %d segments from '%s'"),
 		NumPoints, NumSegments, *LandscapeNameOrLabel);
 	return true;
+}
+
+bool ULandscapeService::RebuildSplines(const FString& LandscapeNameOrLabel)
+{
+	ALandscape* Landscape = FindLandscapeByIdentifier(LandscapeNameOrLabel);
+	if (!Landscape)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ULandscapeService::RebuildSplines: Landscape '%s' not found"), *LandscapeNameOrLabel);
+		return false;
+	}
+
+	// Derived-data recovery must not add an Undo entry or discard the caller's Redo.
+	if (ULandscapeSplinesComponent* Component = Landscape->GetSplinesComponent())
+	{
+		Component->RebuildAllSplines(true);
+		Component->MarkRenderStateDirty();
+	}
+	Landscape->RequestSplineLayerUpdate();
+	Landscape->MarkPackageDirty();
+	return true;
+}
+
+FSplineCreateResult ULandscapeService::SplitSplineSegment(
+	const FString& LandscapeNameOrLabel, int32 SegmentIndex, float SplitFraction)
+{
+	FSplineCreateResult Result;
+	ALandscape* Landscape = FindLandscapeByIdentifier(LandscapeNameOrLabel);
+	ULandscapeSplinesComponent* Component = Landscape ? Landscape->GetSplinesComponent() : nullptr;
+	if (!Component || !Component->GetSegments().IsValidIndex(SegmentIndex))
+	{
+		Result.ErrorMessage = TEXT("Landscape or spline segment not found");
+		return Result;
+	}
+	if (!FMath::IsFinite(SplitFraction) || SplitFraction <= 0.0f || SplitFraction >= 1.0f)
+	{
+		Result.ErrorMessage = TEXT("SplitFraction must be finite and strictly between 0 and 1");
+		return Result;
+	}
+
+	ULandscapeSplineSegment* Segment = Component->GetSegments()[SegmentIndex];
+	ULandscapeSplineControlPoint* Start = Segment ? Segment->Connections[0].ControlPoint.Get() : nullptr;
+	ULandscapeSplineControlPoint* End = Segment ? Segment->Connections[1].ControlPoint.Get() : nullptr;
+	if (!Start || !End || Start == End || Start->GetOuterSafe() != Component || End->GetOuterSafe() != Component)
+	{
+		Result.ErrorMessage = TEXT("Segment must have two distinct control points on the target component");
+		return Result;
+	}
+	// shortcut: socket-connected splits are unsupported; add their transform contract before enabling them.
+	if (!Segment->Connections[0].SocketName.IsNone() || !Segment->Connections[1].SocketName.IsNone())
+	{
+		Result.ErrorMessage = TEXT("Socket-connected segment splits are not supported");
+		return Result;
+	}
+	const FVector StartTangent = Start->Rotation.Vector() * Segment->Connections[0].TangentLen;
+	const FVector EndTangent = End->Rotation.Vector() * -Segment->Connections[1].TangentLen;
+	const FVector Location = FMath::CubicInterp(Start->Location, StartTangent, End->Location, EndTangent, SplitFraction);
+	const FVector Tangent = FMath::CubicInterpDerivative(Start->Location, StartTangent, End->Location, EndTangent, SplitFraction);
+	if (Location.ContainsNaN() || Tangent.ContainsNaN() || Tangent.IsNearlyZero())
+	{
+		Result.ErrorMessage = TEXT("Segment has a non-finite or degenerate split tangent");
+		return Result;
+	}
+
+	FScopedTransaction Transaction(NSLOCTEXT("LandscapeService", "SplitSplineSegment", "Split Spline Segment"));
+	Component->Modify();
+	Segment->Modify();
+	End->Modify();
+	ULandscapeSplineControlPoint* Point = NewObject<ULandscapeSplineControlPoint>(Component, NAME_None, RF_Transactional);
+	Result.PointIndex = Component->GetControlPoints().Num();
+	Component->GetControlPoints().Add(Point);
+	Point->Location = Location;
+	Point->Rotation = Tangent.Rotation();
+	Point->Rotation.Roll = FMath::Lerp(Start->Rotation.Roll, End->Rotation.Roll, SplitFraction);
+	Point->Width = FMath::Lerp(Start->Width, End->Width, SplitFraction);
+	Point->LayerWidthRatio = FMath::Lerp(Start->LayerWidthRatio, End->LayerWidthRatio, SplitFraction);
+	Point->SideFalloff = FMath::Lerp(Start->SideFalloff, End->SideFalloff, SplitFraction);
+	Point->EndFalloff = FMath::Lerp(Start->EndFalloff, End->EndFalloff, SplitFraction);
+	Point->LeftSideFalloffFactor = FMath::Lerp(Start->LeftSideFalloffFactor, End->LeftSideFalloffFactor, SplitFraction);
+	Point->RightSideFalloffFactor = FMath::Lerp(Start->RightSideFalloffFactor, End->RightSideFalloffFactor, SplitFraction);
+	Point->LeftSideLayerFalloffFactor = FMath::Lerp(Start->LeftSideLayerFalloffFactor, End->LeftSideLayerFalloffFactor, SplitFraction);
+	Point->RightSideLayerFalloffFactor = FMath::Lerp(Start->RightSideLayerFalloffFactor, End->RightSideLayerFalloffFactor, SplitFraction);
+	Point->SegmentMeshOffset = FMath::Lerp(Start->SegmentMeshOffset, End->SegmentMeshOffset, SplitFraction);
+	Point->LayerName = Segment->LayerName;
+	Point->bRaiseTerrain = Segment->bRaiseTerrain;
+	Point->bLowerTerrain = Segment->bLowerTerrain;
+
+	ULandscapeSplineSegment* NewSegment = NewObject<ULandscapeSplineSegment>(Component, NAME_None, RF_Transactional);
+	Component->GetSegments().Add(NewSegment);
+	NewSegment->Connections[0].ControlPoint = Point;
+	NewSegment->Connections[0].TangentLen = static_cast<float>(Tangent.Size() * (1.0f - SplitFraction));
+	NewSegment->Connections[1] = Segment->Connections[1];
+	NewSegment->Connections[1].TangentLen *= 1.0f - SplitFraction;
+	NewSegment->LayerName = Segment->LayerName;
+	NewSegment->SplineMeshes = Segment->SplineMeshes;
+	NewSegment->bRaiseTerrain = Segment->bRaiseTerrain;
+	NewSegment->bLowerTerrain = Segment->bLowerTerrain;
+	NewSegment->BodyInstance = Segment->BodyInstance;
+	NewSegment->bCastShadow = Segment->bCastShadow;
+	NewSegment->bHiddenInGame = Segment->bHiddenInGame;
+	NewSegment->bPlaceSplineMeshesInStreamingLevels = Segment->bPlaceSplineMeshesInStreamingLevels;
+	NewSegment->RandomSeed = Segment->RandomSeed;
+	NewSegment->LDMaxDrawDistance = Segment->LDMaxDrawDistance;
+	NewSegment->TranslucencySortPriority = Segment->TranslucencySortPriority;
+	NewSegment->RuntimeVirtualTextures = Segment->RuntimeVirtualTextures;
+	NewSegment->VirtualTextureLodBias = Segment->VirtualTextureLodBias;
+	NewSegment->VirtualTextureCullMips = Segment->VirtualTextureCullMips;
+	NewSegment->VirtualTextureMainPassMaxDrawDistance = Segment->VirtualTextureMainPassMaxDrawDistance;
+	NewSegment->VirtualTextureRenderPassType = Segment->VirtualTextureRenderPassType;
+	NewSegment->bRenderCustomDepth = Segment->bRenderCustomDepth;
+	NewSegment->CustomDepthStencilWriteMask = Segment->CustomDepthStencilWriteMask;
+	NewSegment->CustomDepthStencilValue = Segment->CustomDepthStencilValue;
+	NewSegment->HLODLayerOverrideForSplinePartitioning = Segment->HLODLayerOverrideForSplinePartitioning;
+	End->ConnectedSegments.Remove(FLandscapeSplineConnection(Segment, 1));
+	End->ConnectedSegments.Add(FLandscapeSplineConnection(NewSegment, 1));
+	Segment->Connections[0].TangentLen *= SplitFraction;
+	Segment->Connections[1].ControlPoint = Point;
+	Segment->Connections[1].TangentLen = static_cast<float>(-Tangent.Size() * SplitFraction);
+	Point->ConnectedSegments.Add(FLandscapeSplineConnection(Segment, 1));
+	Point->ConnectedSegments.Add(FLandscapeSplineConnection(NewSegment, 0));
+	Segment->UpdateSplinePoints();
+	NewSegment->UpdateSplinePoints();
+	Landscape->RequestSplineLayerUpdate();
+	Component->MarkRenderStateDirty();
+	Landscape->MarkPackageDirty();
+	Result.bSuccess = true;
+	return Result;
 }
 
 bool ULandscapeService::ApplySplinesToLandscape(const FString& LandscapeNameOrLabel)
