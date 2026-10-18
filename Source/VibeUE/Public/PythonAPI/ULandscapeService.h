@@ -6,6 +6,8 @@
 #include "ToolsetRegistry/ToolsetDefinition.h"
 #include "ULandscapeService.generated.h"
 
+class ULandscapeLayerInfoObject;
+
 /**
  * Information about a landscape paint layer
  */
@@ -1241,6 +1243,17 @@ public:
 	static bool AddLayer(
 		const FString& LandscapeNameOrLabel,
 		const FString& LayerInfoAssetPath);
+
+	/** Replace a same-name, same-blend paint LayerInfo through the native editor workflow.
+	 * Preserves weight samples; rejects a destination already painted in the same allocation
+	 * set (which would merge weights). Also rebinds rendered/mobile/collision caches.
+	 * Undoable, target-Landscape only, no automatic save. Supports repeat calls.
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Landscape")
+	static bool ReplaceLayerInfo(
+		const FString& LandscapeNameOrLabel,
+		ULandscapeLayerInfoObject* FromLayerInfo,
+		ULandscapeLayerInfoObject* ToLayerInfo);
 
 	/**
 	 * Remove a paint layer from a landscape.

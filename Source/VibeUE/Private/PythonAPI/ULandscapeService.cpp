@@ -2690,6 +2690,99 @@ bool ULandscapeService::AddLayer(
 	return true;
 }
 
+bool ULandscapeService::ReplaceLayerInfo(
+	const FString& LandscapeNameOrLabel,
+	ULandscapeLayerInfoObject* FromLayerInfo,
+	ULandscapeLayerInfoObject* ToLayerInfo)
+{
+	ALandscape* Landscape = FindLandscapeByIdentifier(LandscapeNameOrLabel);
+	ULandscapeInfo* Info = Landscape ? Landscape->GetLandscapeInfo() : nullptr;
+	if (!Info || (GEditor && GEditor->PlayWorld) || !FromLayerInfo || !ToLayerInfo ||
+		FromLayerInfo->GetLayerName().IsNone() || FromLayerInfo->GetLayerName() != ToLayerInfo->GetLayerName() ||
+		FromLayerInfo->GetBlendMethod() != ToLayerInfo->GetBlendMethod())
+	{
+		return false;
+	}
+	if (FromLayerInfo == ToLayerInfo) { return true; }
+
+	bool bFoundSource = false;
+	bool bWouldMerge = false;
+	TArray<ALandscapeProxy*> Proxies;
+	const auto Inspect = [&](const TArray<FWeightmapLayerAllocationInfo>& Allocations)
+	{
+		bool bFrom = false;
+		bool bTo = false;
+		for (const FWeightmapLayerAllocationInfo& Allocation : Allocations)
+		{
+			bFrom |= Allocation.LayerInfo == FromLayerInfo;
+			bTo |= Allocation.LayerInfo == ToLayerInfo;
+		}
+		bFoundSource |= bFrom;
+		bWouldMerge |= bFrom && bTo;
+	};
+	Info->ForEachLandscapeProxy([&](ALandscapeProxy* Proxy)
+	{
+		Proxies.Add(Proxy);
+		for (const auto& Pair : Proxy->GetTargetLayers()) { bFoundSource |= Pair.Value.LayerInfoObj == FromLayerInfo; }
+		for (ULandscapeComponent* Component : Proxy->LandscapeComponents)
+		{
+			if (!Component) { continue; }
+			Inspect(Component->GetWeightmapLayerAllocations(false));
+			Inspect(Component->MobileWeightmapLayerAllocations);
+			Component->ForEachLayer([&](const FGuid&, FLandscapeLayerComponentData& Data) { Inspect(Data.WeightmapData.LayerAllocations); });
+		}
+		return true;
+	});
+	if (bWouldMerge) { return false; }
+	if (!bFoundSource)
+	{
+		const FLandscapeTargetLayerSettings* Settings = Landscape->GetTargetLayers().Find(ToLayerInfo->GetLayerName());
+		return Settings && Settings->LayerInfoObj == ToLayerInfo;
+	}
+
+	FScopedTransaction Transaction(NSLOCTEXT("LandscapeService", "ReplaceLayerInfo", "Replace Landscape Layer Info"));
+	Info->Modify();
+	for (ALandscapeProxy* Proxy : Proxies)
+	{
+		Proxy->Modify();
+		for (ULandscapeComponent* Component : Proxy->LandscapeComponents) { if (Component) { Component->Modify(); } }
+		for (ULandscapeHeightfieldCollisionComponent* Component : Proxy->CollisionComponents) { if (Component) { Component->Modify(); } }
+	}
+	// Same call used by the Landscape Paint target-layer picker. It preserves the
+	// active edit layer and replaces all edit-layer allocations without stamping paint.
+	Info->ReplaceLayer(FromLayerInfo, ToLayerInfo);
+	const auto Rebind = [&](TArray<FWeightmapLayerAllocationInfo>& Allocations)
+	{
+		for (FWeightmapLayerAllocationInfo& Allocation : Allocations)
+		{
+			if (Allocation.LayerInfo == FromLayerInfo) { Allocation.LayerInfo = ToLayerInfo; }
+		}
+	};
+	for (ALandscapeProxy* Proxy : Proxies)
+	{
+		// Native replacement schedules a weightmap refresh; do not leave serialized
+		// derived/mobile/collision identities pointing at the old asset until that tick.
+		for (ULandscapeComponent* Component : Proxy->LandscapeComponents)
+		{
+			if (!Component) { continue; }
+			Rebind(Component->GetWeightmapLayerAllocations(false));
+			Rebind(Component->MobileWeightmapLayerAllocations);
+		}
+		for (ULandscapeHeightfieldCollisionComponent* Component : Proxy->CollisionComponents)
+		{
+			if (!Component) { continue; }
+			for (TObjectPtr<ULandscapeLayerInfoObject>& Layer : Component->ComponentLayerInfos)
+			{
+				if (Layer == FromLayerInfo) { Layer = ToLayerInfo; }
+			}
+		}
+	}
+	Info->UpdateComponentLayerAllowList();
+	UE_LOG(LogTemp, Log, TEXT("ULandscapeService::ReplaceLayerInfo: Rebound '%s' to '%s' on '%s' (not saved)"),
+		*FromLayerInfo->GetPathName(), *ToLayerInfo->GetPathName(), *LandscapeNameOrLabel);
+	return true;
+}
+
 bool ULandscapeService::RemoveLayer(
 	const FString& LandscapeNameOrLabel,
 	const FString& LayerName)

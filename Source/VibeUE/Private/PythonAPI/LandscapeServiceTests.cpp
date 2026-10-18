@@ -11,6 +11,10 @@
 #include "Engine/World.h"
 #include "Landscape.h"
 #include "LandscapeInfo.h"
+#include "LandscapeComponent.h"
+#include "LandscapeEdit.h"
+#include "LandscapeLayerInfoObject.h"
+#include "LandscapeHeightfieldCollisionComponent.h"
 #include "LandscapeEditLayer.h"
 #include "LandscapeSplineControlPoint.h"
 #include "LandscapeSplineSegment.h"
@@ -27,7 +31,7 @@ namespace
 		ULandscapeSplinesComponent* Component;
 		FString Label;
 
-		FSplineFixture()
+		FSplineFixture(bool bCreateSpline = true)
 		{
 			Label = TEXT("VibeUESplineTest_") + FGuid::NewGuid().ToString(EGuidFormats::Digits);
 			FActorSpawnParameters Params;
@@ -35,9 +39,13 @@ namespace
 			Landscape = GEditor->GetEditorWorldContext().World()->SpawnActor<ALandscape>(Params);
 			Landscape->SetActorLabel(Label);
 			Landscape->SetLandscapeGuid(FGuid::NewGuid());
-			Landscape->CreateLandscapeInfo();
-			Landscape->CreateSplineComponent();
-			Component = Landscape->GetSplinesComponent();
+			Component = nullptr;
+			if (bCreateSpline)
+			{
+				Landscape->CreateLandscapeInfo();
+				Landscape->CreateSplineComponent();
+				Component = Landscape->GetSplinesComponent();
+			}
 		}
 
 		~FSplineFixture()
@@ -252,6 +260,120 @@ bool FVibeLandscapeSplineLayerTest::RunTest(const FString&)
 	TestNull(TEXT("Undo removes specialized layer"), Fixture.Landscape->FindEditLayerOfType(ULandscapeEditLayerSplines::StaticClass()));
 	TestTrue(TEXT("Redo creation"), GEditor->RedoTransaction());
 	TestEqual(TEXT("Redo restores same layer"), Fixture.Landscape->GetEditLayer(Index)->GetGuid(), SplineGuid);
+	return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVibeLandscapeLayerInfoReplacementTest, "VibeUE.Landscape.Paint.ReplaceLayerInfo", Flags)
+bool FVibeLandscapeLayerInfoReplacementTest::RunTest(const FString&)
+{
+	if (!GEditor || GEditor->PlayWorld) { AddError(TEXT("Requires an idle Editor world")); return false; }
+	// Import must create the first edit layer after its components exist.
+	FSplineFixture Fixture(false);
+	FSplineFixture Other(false);
+	const auto MakeLayer = [](FName Name, ELandscapeTargetLayerBlendMethod Blend = ELandscapeTargetLayerBlendMethod::None)
+	{
+		ULandscapeLayerInfoObject* Layer = NewObject<ULandscapeLayerInfoObject>(GetTransientPackage(), NAME_None, RF_Transient);
+		Layer->SetLayerName(Name, false);
+		Layer->SetBlendMethod(Blend, false);
+		return Layer;
+	};
+	ULandscapeLayerInfoObject* From = MakeLayer(TEXT("RoadSoil"));
+	ULandscapeLayerInfoObject* To = MakeLayer(TEXT("RoadSoil"));
+	ULandscapeLayerInfoObject* WrongName = MakeLayer(TEXT("OtherSoil"));
+	ULandscapeLayerInfoObject* WrongBlend = MakeLayer(TEXT("RoadSoil"), ELandscapeTargetLayerBlendMethod::FinalWeightBlending);
+	const auto ImportTerrain = [&](ALandscape* Land)
+	{
+		TArray<uint16> Heights;
+		Heights.Init(32768, 64 * 64);
+		TMap<FGuid, TArray<uint16>> HeightLayers;
+		HeightLayers.Add(FGuid(), MoveTemp(Heights));
+		FLandscapeImportLayerInfo Paint;
+		Paint.LayerName = TEXT("RoadSoil");
+		Paint.LayerInfo = From;
+		Paint.LayerData.Init(113, 64 * 64);
+		TMap<FGuid, TArray<FLandscapeImportLayerInfo>> PaintLayers;
+		PaintLayers.Add(FGuid(), {Paint});
+		Land->Import(FGuid::NewGuid(), 0, 0, 63, 63, 1, 63, HeightLayers, nullptr, PaintLayers,
+			ELandscapeImportAlphamapType::Additive, {});
+		ULandscapeComponent* Component = Land->LandscapeComponents[0];
+		check(Component->GetLayerData(Land->GetEditLayer(0)->GetGuid()));
+		Component->SetFlags(RF_Transactional);
+		Component->MobileWeightmapLayerAllocations = {FWeightmapLayerAllocationInfo(From)};
+		return Component;
+	};
+	ULandscapeComponent* Component = ImportTerrain(Fixture.Landscape);
+	ULandscapeComponent* OtherComponent = ImportTerrain(Other.Landscape);
+	const FGuid BaseGuid = Fixture.Landscape->GetEditLayer(0)->GetGuid();
+	const FGuid OtherGuid = Other.Landscape->GetEditLayer(0)->GetGuid();
+	if (!TestEqual(TEXT("imported paint allocation"), Component->GetWeightmapLayerAllocations(BaseGuid).Num(), 1)) { return false; }
+	const int32 RenderedAllocationCount = Component->GetWeightmapLayerAllocations(false).Num();
+	for (const FWeightmapLayerAllocationInfo& Allocation : Component->GetWeightmapLayerAllocations(false))
+	{
+		if (!TestTrue(TEXT("rendered allocation has backing texture"), !Allocation.IsAllocated() || Component->GetWeightmapTextures(false).IsValidIndex(Allocation.WeightmapTextureIndex))) { return false; }
+	}
+	ULandscapeHeightfieldCollisionComponent* Collision = Fixture.Landscape->CollisionComponents[0];
+	Collision->SetFlags(RF_Transactional);
+	Collision->ComponentLayerInfos = {From};
+	// Undo must restore a consistent target list, or native fixup rebinds it again.
+	Fixture.Landscape->AddTargetLayer(TEXT("RoadSoil"), FLandscapeTargetLayerSettings(From), false);
+	const FGuid Editing = Fixture.Landscape->GetEditingLayer();
+	TArray<uint16> BeforeHeights;
+	BeforeHeights.SetNumZeroed(64 * 64);
+	TArray<uint8> BeforeWeights;
+	BeforeWeights.SetNumZeroed(64 * 64);
+	{
+		FLandscapeEditDataInterface Edit(Fixture.Landscape->GetLandscapeInfo(), BaseGuid);
+		Edit.GetHeightDataFast(0, 0, 63, 63, BeforeHeights.GetData(), 64);
+		Edit.GetWeightDataFast(From, 0, 0, 63, 63, BeforeWeights.GetData(), 64);
+	}
+	TestFalse(TEXT("missing target"), ULandscapeService::ReplaceLayerInfo(TEXT("NoSuchLandscape_VibeUESplineTest"), From, To));
+	TestFalse(TEXT("null source"), ULandscapeService::ReplaceLayerInfo(Fixture.Label, nullptr, To));
+	TestFalse(TEXT("null destination"), ULandscapeService::ReplaceLayerInfo(Fixture.Label, From, nullptr));
+	TestFalse(TEXT("different name rejected"), ULandscapeService::ReplaceLayerInfo(Fixture.Label, From, WrongName));
+	TestFalse(TEXT("different blend rejected"), ULandscapeService::ReplaceLayerInfo(Fixture.Label, From, WrongBlend));
+	Component->GetWeightmapLayerAllocations(BaseGuid).Add(FWeightmapLayerAllocationInfo(To));
+	TestFalse(TEXT("paint merge rejected before mutation"), ULandscapeService::ReplaceLayerInfo(Fixture.Label, From, To));
+	Component->GetWeightmapLayerAllocations(BaseGuid).Pop();
+	TestEqual(TEXT("rejections preserve allocation"), Component->GetWeightmapLayerAllocations(BaseGuid)[0].LayerInfo.Get(), From);
+	TestTrue(TEXT("replace"), ULandscapeService::ReplaceLayerInfo(Fixture.Label, From, To));
+	TestEqual(TEXT("edit layer allocation"), Component->GetWeightmapLayerAllocations(BaseGuid)[0].LayerInfo.Get(), To);
+	TestEqual(TEXT("rendered allocation count preserved"), Component->GetWeightmapLayerAllocations(false).Num(), RenderedAllocationCount);
+	for (const FWeightmapLayerAllocationInfo& Allocation : Component->GetWeightmapLayerAllocations(false))
+	{
+		TestNotEqual(TEXT("no stale rendered reference"), Allocation.LayerInfo.Get(), From);
+	}
+	TestEqual(TEXT("mobile allocation"), Component->MobileWeightmapLayerAllocations[0].LayerInfo.Get(), To);
+	TestEqual(TEXT("collision allocation"), Collision->ComponentLayerInfos[0].Get(), To);
+	TestEqual(TEXT("other landscape untouched"), OtherComponent->GetWeightmapLayerAllocations(OtherGuid)[0].LayerInfo.Get(), From);
+	TestEqual(TEXT("editing layer preserved"), Fixture.Landscape->GetEditingLayer(), Editing);
+	TArray<uint16> AfterHeights;
+	AfterHeights.SetNumZeroed(64 * 64);
+	TArray<uint8> AfterWeights;
+	AfterWeights.SetNumZeroed(64 * 64);
+	{
+		FLandscapeEditDataInterface Edit(Fixture.Landscape->GetLandscapeInfo(), BaseGuid);
+		Edit.GetHeightDataFast(0, 0, 63, 63, AfterHeights.GetData(), 64);
+		Edit.GetWeightDataFast(To, 0, 0, 63, 63, AfterWeights.GetData(), 64);
+	}
+	TestTrue(TEXT("height samples preserved"), BeforeHeights == AfterHeights);
+	TestTrue(TEXT("weight samples preserved"), BeforeWeights == AfterWeights);
+	TestEqual(TEXT("nonzero source paint"), BeforeWeights[32 * 64 + 32], static_cast<uint8>(113));
+	TestTrue(TEXT("repeat is idempotent"), ULandscapeService::ReplaceLayerInfo(Fixture.Label, From, To));
+	TestTrue(TEXT("Undo"), GEditor->UndoTransaction());
+	TestEqual(TEXT("Undo edit allocation"), Component->GetWeightmapLayerAllocations(BaseGuid)[0].LayerInfo.Get(), From);
+	TestEqual(TEXT("Undo rendered count"), Component->GetWeightmapLayerAllocations(false).Num(), RenderedAllocationCount);
+	TestEqual(TEXT("Undo mobile"), Component->MobileWeightmapLayerAllocations[0].LayerInfo.Get(), From);
+	TestEqual(TEXT("Undo collision"), Collision->ComponentLayerInfos[0].Get(), From);
+	TestTrue(TEXT("Redo"), GEditor->RedoTransaction());
+	TestEqual(TEXT("Redo edit allocation"), Component->GetWeightmapLayerAllocations(BaseGuid)[0].LayerInfo.Get(), To);
+	TestEqual(TEXT("Redo rendered count"), Component->GetWeightmapLayerAllocations(false).Num(), RenderedAllocationCount);
+	for (const FWeightmapLayerAllocationInfo& Allocation : Component->GetWeightmapLayerAllocations(false))
+	{
+		TestNotEqual(TEXT("Redo no stale rendered reference"), Allocation.LayerInfo.Get(), From);
+	}
+	TestEqual(TEXT("Redo mobile"), Component->MobileWeightmapLayerAllocations[0].LayerInfo.Get(), To);
+	TestEqual(TEXT("Redo collision"), Collision->ComponentLayerInfos[0].Get(), To);
+
 	return true;
 }
 
