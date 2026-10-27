@@ -5,6 +5,7 @@
 #if WITH_AUTOMATION_TESTS
 
 #include "PythonAPI/UInputService.h"
+#include "Application/ThrottleManager.h"
 #include "Dom/JsonObject.h"
 #include "Editor.h"
 #include "Editor/EditorEngine.h"
@@ -24,6 +25,26 @@
 
 static const EAutomationTestFlags kInjectTestFlags =
 	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter;
+
+// Friend accessor: UInputService's private, non-UFUNCTION test surface (hold bookkeeping without PIE, hook state).
+struct FInputServiceTestAccess
+{
+	struct FState
+	{
+		bool bEndPieHooked = false;
+		bool bThrottleHooked = false;
+		int32 Holds = 0;
+		bool bReleaseGrace = false;
+	};
+	static void TrackKeyHold(const FName Key, float Seconds) { UInputService::TrackKeyHoldForTest(Key, Seconds); }
+	static bool ReleaseKeyHold(const FName Key)               { return UInputService::ReleaseKeyHoldForTest(Key); }
+	static FState State()
+	{
+		FState S;
+		UInputService::GetInjectionStateForTest(S.bEndPieHooked, S.bThrottleHooked, S.Holds, S.bReleaseGrace);
+		return S;
+	}
+};
 
 namespace VibeInjectTest
 {
@@ -95,11 +116,86 @@ bool FVibeInputInjectionGuardsTest::RunTest(const FString&)
 	return true;
 }
 
+// Without PIE: the hooks a hold registers (the FEditorDelegates::EndPIE handler, the ShouldDisableCPUThrottlingDelegates
+// entry, the release and grace tickers) are code in this DLL. On 5-8 only the end of PIE or the last release grace
+// removed them; ShutdownModule left them registered. ShutdownInjectionHooks must end every hold and remove both
+// registrations, during a hold and during its release grace alike, and a second call must be a no-op. The hold's
+// bookkeeping is filed through the test surface (no key event is sent) because the public API refuses without PIE.
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVibeInputShutdownInjectionHooksTest,
+	"VibeUE.Input.ShutdownInjectionHooks", kInjectTestFlags)
+bool FVibeInputShutdownInjectionHooksTest::RunTest(const FString&)
+{
+	using namespace VibeInjectTest;
+	using FAccess = FInputServiceTestAccess;
+	if (!GEditor || GEditor->PlayWorld)
+	{
+		AddError(TEXT("Needs the editor with no PIE session running."));
+		return false;
+	}
+	const FAccess::FState Before = FAccess::State();
+	if (Before.Holds > 0 || Before.bEndPieHooked || Before.bThrottleHooked || Before.bReleaseGrace)
+	{
+		AddError(TEXT("An injection hold (or its release grace) is already active; run this test with none running."));
+		return false;
+	}
+	const int32 Baseline = ThrottleDelegates();
+	// A key no game binds; its 60 s release never comes due inside the test.
+	const FName Key(TEXT("F24"));
+
+	auto ExpectUnhooked = [this, Baseline](const TCHAR* When)
+	{
+		const FAccess::FState S = FAccess::State();
+		TestFalse(FString::Printf(TEXT("the EndPIE hook is removed %s"), When), S.bEndPieHooked);
+		TestFalse(FString::Printf(TEXT("the throttling entry's handle is reset %s"), When), S.bThrottleHooked);
+		TestEqual(FString::Printf(TEXT("the throttling entry is off GEditor %s"), When), ThrottleDelegates(), Baseline);
+		TestEqual(FString::Printf(TEXT("no hold remains %s"), When), S.Holds, 0);
+		TestFalse(FString::Printf(TEXT("no release grace remains %s"), When), S.bReleaseGrace);
+	};
+
+	// During a hold.
+	FAccess::TrackKeyHold(Key, 60.0f);
+	{
+		const FAccess::FState S = FAccess::State();
+		TestTrue(TEXT("a hold binds the EndPIE hook"), S.bEndPieHooked);
+		TestTrue(TEXT("a hold registers the throttling entry"), S.bThrottleHooked);
+		TestEqual(TEXT("one throttling entry on GEditor during the hold"), ThrottleDelegates(), Baseline + 1);
+		TestEqual(TEXT("one hold is filed"), S.Holds, 1);
+	}
+	UInputService::ShutdownInjectionHooks();
+	ExpectUnhooked(TEXT("after ShutdownInjectionHooks during a hold"));
+	UInputService::ShutdownInjectionHooks();
+	ExpectUnhooked(TEXT("after a second ShutdownInjectionHooks"));
+
+	// During the release grace: the hold is gone but its scope (and the grace ticker) is not.
+	FAccess::TrackKeyHold(Key, 60.0f);
+	TestTrue(TEXT("the hold is released (no key-up sent)"), FAccess::ReleaseKeyHold(Key));
+	{
+		const FAccess::FState S = FAccess::State();
+		TestTrue(TEXT("the release grace runs"), S.bReleaseGrace);
+		TestTrue(TEXT("the throttling entry stays through the grace"), S.bThrottleHooked);
+		TestTrue(TEXT("the EndPIE hook stays through the grace"), S.bEndPieHooked);
+	}
+	UInputService::ShutdownInjectionHooks();
+	ExpectUnhooked(TEXT("after ShutdownInjectionHooks during the release grace"));
+
+	// The hooks are lazy: a later hold registers them again, and its own teardown still works.
+	FAccess::TrackKeyHold(Key, 60.0f);
+	TestTrue(TEXT("a hold after shutdown registers the throttling entry again"), FAccess::State().bThrottleHooked);
+	UInputService::ShutdownInjectionHooks();
+	ExpectUnhooked(TEXT("after the final ShutdownInjectionHooks"));
+	return true;
+}
+
 // In PIE: inject_action_for holds the action across frames for its time, then releases it; stop_injection
 // releases early, finding the hold by the action and world it names (whatever the path spelling, -1 or the
 // instance number); while a hold (or a held key) runs, one extra throttling delegate keeps the editor off its
 // background frame rate, and it is gone after the release grace; a second hold of a held key extends it;
 // ending PIE drops every hold and the throttling delegate at once.
+//
+// What reads the PIE player input waits for PIE frames as well as seconds. An injection reaches the player input
+// only when a PIE world ticks, and UEditorEngine::Tick ticks no PIE world while a Slate responsive-mode request is
+// held: in the full suite an earlier test left one held, no frame ran, and "the value is held" failed while the same
+// test passed alone (2026-10-03). Seconds only prove that the wall clock moved.
 //
 // PIE runs the host project's game code in whatever map is open, and its own Error logs (a game's BeginPlay
 // complaints; Proteus' PlaytestSandbox logs five on PIE start) are not what this test is about: every outcome
@@ -135,6 +231,8 @@ bool FVibeInputHoldInPIETest::RunTest(const FString&)
 		double Started = 0.0;
 		double Released = 0.0;
 		double EndRequested = 0.0;
+		double WorldClock = -1.0;
+		int32 Ticks = 0;
 	};
 	const TSharedRef<FState> S = MakeShared<FState>();
 
@@ -149,6 +247,61 @@ bool FVibeInputHoldInPIETest::RunTest(const FString&)
 			return nullptr;
 		}
 		return Subsystem;
+	};
+
+	// A PIE world ticks at most once per engine frame and a latent command runs once per engine frame, so each change
+	// of the world's real-time clock between two runs is one ticked frame. Real time, because a host game that pauses
+	// stops GetTimeSeconds while its player controllers still tick and process input.
+	auto CountPieTicks = [S]()
+	{
+		const UWorld* World = GEditor ? GEditor->PlayWorld.Get() : nullptr;
+		if (World && World->GetRealTimeSeconds() != S->WorldClock)
+		{
+			S->WorldClock = World->GetRealTimeSeconds();
+			++S->Ticks;
+		}
+	};
+
+	// A step that waits for Seconds of wall-clock time and for PIE to tick MinTicks frames, both counted from when the
+	// step starts. Without them by MaxSeconds it is an error that names the usual cause, and the steps after it are
+	// skipped: they read the player input, which needs the frames.
+	auto WaitForPie = [this, S, CountPieTicks](const double Seconds, const int32 MinTicks, const double MaxSeconds, const TCHAR* ToDo)
+	{
+		struct FWait
+		{
+			double Started = 0.0;
+			int32 TicksAtStart = 0;
+		};
+		const TSharedRef<FWait> Wait = MakeShared<FWait>();
+		return [this, S, CountPieTicks, Wait, Seconds, MinTicks, MaxSeconds, ToDo]()
+		{
+			if (!S->bReady)
+			{
+				return true;
+			}
+			CountPieTicks();
+			const double Now = FPlatformTime::Seconds();
+			if (Wait->Started == 0.0)
+			{
+				Wait->Started = Now;
+				Wait->TicksAtStart = S->Ticks;
+				return false;
+			}
+			const double Waited = Now - Wait->Started;
+			const int32 Ticked = S->Ticks - Wait->TicksAtStart;
+			// The cap comes first: frames that arrive after it are too late for the step that follows to be what it says.
+			if (Waited > MaxSeconds)
+			{
+				AddError(FString::Printf(TEXT("PIE ticked %d frame(s) in %.1f s; %d are needed %s within %.1f s.%s"),
+					Ticked, Waited, MinTicks, ToDo, MaxSeconds,
+					FSlateThrottleManager::Get().IsAllowingExpensiveTasks() ? TEXT("") :
+					TEXT(" A Slate responsive-mode request is held (FSlateThrottleManager::IsAllowingExpensiveTasks() is false)")
+					TEXT(" and the editor ticks no PIE world while one is: an earlier test left it.")));
+				S->bReady = false;
+				return true;
+			}
+			return Waited >= Seconds && Ticked >= MinTicks;
+		};
 	};
 
 	// An in-memory action: LoadObject finds it by path, and nothing reaches the disk. The name is unique so
@@ -179,7 +332,7 @@ bool FVibeInputHoldInPIETest::RunTest(const FString&)
 		}
 		return false;
 	}));
-	ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(0.5f));
+	ADD_LATENT_AUTOMATION_COMMAND(FFunctionLatentCommand(WaitForPie(0.5, 3, 60.0, TEXT("to start the hold"))));
 
 	// Hold for 1 s.
 	ADD_LATENT_AUTOMATION_COMMAND(FFunctionLatentCommand([this, S]()
@@ -200,7 +353,10 @@ bool FVibeInputHoldInPIETest::RunTest(const FString&)
 		TestEqual(TEXT("one throttling delegate while the hold runs"), ThrottleDelegates(), S->Baseline + 1);
 		return true;
 	}));
-	ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(0.4f));
+	// The injection is queued when the hold starts, put into the player input on the next PIE tick and processed on the
+	// one after: three ticks leave one to spare. The cap keeps the look inside the hold: a third tick that arrives after
+	// it is an error, never a late read.
+	ADD_LATENT_AUTOMATION_COMMAND(FFunctionLatentCommand(WaitForPie(0.4, 3, 0.9, TEXT("to read the held value"))));
 	ADD_LATENT_AUTOMATION_COMMAND(FFunctionLatentCommand([this, S, LivePieSubsystem]()
 	{
 		UEnhancedInputLocalPlayerSubsystem* Subsystem = S->bReady ? LivePieSubsystem() : nullptr;
@@ -208,8 +364,8 @@ bool FVibeInputHoldInPIETest::RunTest(const FString&)
 		{
 			return true;
 		}
-		TestTrue(TEXT("still injected 0.4 s into a 1 s hold"), Subsystem->HasContinuousInputInjectionForAction(S->Action.Get()));
-		TestTrue(TEXT("the action's value is held on 0.4 s in"), Subsystem->GetPlayerInput()->GetActionValue(S->Action.Get()).Get<bool>());
+		TestTrue(TEXT("still injected 0.4 s or more into a 1 s hold"), Subsystem->HasContinuousInputInjectionForAction(S->Action.Get()));
+		TestTrue(TEXT("the action's value is held 0.4 s or more in"), Subsystem->GetPlayerInput()->GetActionValue(S->Action.Get()).Get<bool>());
 		return true;
 	}));
 
@@ -234,7 +390,9 @@ bool FVibeInputHoldInPIETest::RunTest(const FString&)
 		}
 		return false;
 	}));
-	ADD_LATENT_AUTOMATION_COMMAND(FWaitLatentCommand(0.8f));
+	// The release grace is wall-clock time; the value is only cleared on the PIE tick after the one that still saw the
+	// injection, so three ticks again.
+	ADD_LATENT_AUTOMATION_COMMAND(FFunctionLatentCommand(WaitForPie(0.8, 3, 20.0, TEXT("to read the released value"))));
 	ADD_LATENT_AUTOMATION_COMMAND(FFunctionLatentCommand([this, S, LivePieSubsystem]()
 	{
 		UEnhancedInputLocalPlayerSubsystem* Subsystem = S->bReady ? LivePieSubsystem() : nullptr;
