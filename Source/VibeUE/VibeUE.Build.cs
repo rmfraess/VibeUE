@@ -20,34 +20,6 @@ public class VibeUE : ModuleRules
 		// See issues #491 and #569.
 		bWarningsAsErrors = false;
 
-		// FabService (issue #517) talks to fab.com via the signed-in Epic account's EOS auth token,
-		// reusing the login the editor/launcher already holds. EOSSDK provides the SDK headers and the
-		// WITH_EOS_SDK=1 define; EOSShared provides IEOSSDKManager. bRequiresPlatformSDK mirrors the
-		// engine Fab plugin's own Build.cs so the platform SDK is available.
-		//
-		// Some engine installs ship without the Fab plugin entirely (issue #525), so all of this is
-		// conditional on it existing: without it, WITH_VIBEUE_FAB=0 compiles FabService down to stubs
-		// that report the feature as unavailable, and the rest of VibeUE builds normally.
-		bool bFabPluginPresent = File.Exists(
-			Path.Combine(EngineDirectory, "Plugins", "Fab", "Fab.uplugin"));
-		PrivateDefinitions.Add("WITH_VIBEUE_FAB=" + (bFabPluginPresent ? "1" : "0"));
-		if (bFabPluginPresent)
-		{
-			bRequiresPlatformSDK = true;
-			PrivateDependencyModuleNames.AddRange(
-				new string[]
-				{
-					"EOSSDK",                 // FabService (#517): Epic Online Services SDK — headers + WITH_EOS_SDK=1 for Fab auth token
-					"EOSShared",              // FabService (#517): IEOSSDKManager (create/enumerate + auto-tick EOS platforms)
-					"Fab",                    // FabService (#517): reuse the engine Fab plugin's FAB_API downloader (FFabDownloadRequest / queue)
-					"WebBrowser",             // Reuse native Fab's authenticated request context for individual source listings.
-					"InterchangeEngine",      // Observe completion of native Fab source imports.
-					"BuildPatchServices",
-					"FileUtilities",          // FabService: safely extract public free-asset ZIP downloads
-				}
-			);
-		}
-
 		// EnvironmentQueryEditor is a PLUGIN (Engine/Plugins/AI/EnvironmentQueryEditor), not an
 		// engine module like BehaviorTreeEditor. It is EnabledByDefault, but a project may disable
 		// it, so the EQS service compiles to stubs rather than breaking the whole plugin's build.
@@ -127,7 +99,7 @@ public class VibeUE : ModuleRules
 				"SkeletalMeshEditor",     // For SkeletalMeshEditorSubsystem
 				"InputBlueprintNodes",    // For UK2Node_EnhancedInputAction (Enhanced Input event nodes)
 				"Landscape",              // For ALandscape, ULandscapeInfo, ULandscapeComponent
-				"PhysicsCore",            // For physical-material validation in Landscape tests
+				"PhysicsCore",            // UPhysicalMaterial / EPhysicalSurface in LandscapeService + FoliageService
 				"LandscapeEditor",        // For landscape editor factories and utilities
 				"Foliage",                // Required by LandscapeEdit.h (InstancedFoliageActor)
 				"ModelViewViewModel",     // For MVVM ViewModel base classes (UMVVMViewModelBase)
@@ -137,12 +109,10 @@ public class VibeUE : ModuleRules
 				"PropertyBindingUtils",    // For FPropertyBindingBindableStructDescriptor (base of FStateTreeBindableStructDesc)
 				"GameplayTags",           // For FGameplayTag (required by StateTree)
 				"AudioEditor",            // For SoundCue graph classes (USoundCueGraphNode, USoundCueGraph, USoundCueFactoryNew)
-				"MetasoundEngine",        // For UMetaSoundSource, UMetaSoundBuilderSubsystem, UMetaSoundSourceBuilder
-				"MetasoundFrontend",      // For FMetaSoundFrontendDocumentBuilder, FMetasoundFrontendClassName, ISearchEngine
-				"MetasoundGraphCore",     // For core MetaSound graph types
 				"MeshDescription",        // For FMeshDescription / TVertexInstanceAttributesRef (UV editing)
 				"StaticMeshDescription",  // For FStaticMeshAttributes / FStaticMeshOperations / FUVMapParameters
 				"ToolsetRegistry",        // UE 5.8 native AI toolset registry — exposes services as AICallable tools on Epic's MCP endpoint
+				"AsyncFunctionResult",    // UE 5.9: UAsyncFunctionResultString (was UToolCallAsyncResultString, removed in 5.9) returned by UToolsetRegistry::ExecuteTool
 				"ModelContextProtocol",   // UE 5.8 native MCP server — VibeUE's dynamic tools are bridged onto Epic's endpoint
 				"ModelContextProtocolEngine", // UE::ModelContextProtocol::GetServerPortNumber() — configured MCP port + -ModelContextProtocolPort= override (B6)
 				"Sockets",                // FSocket / ISocketSubsystem bind probe for the MCP port-fight cross-check (B6)
@@ -164,7 +134,6 @@ public class VibeUE : ModuleRules
 					"LevelEditor",         // For global keyboard shortcuts
 					"StatusBar",           // For panel drawer integration
 					"ContentBrowser",      // For content browser selection queries
-					"MetasoundEditor",     // For UMetaSoundEditorSubsystem (FindOrBeginBuilding, BuildToAsset)
 					"AIGraph",             // UAIGraphNode, FGraphNodeClassHelper (BT node class discovery)
 					"BehaviorTreeEditor",  // UBehaviorTreeGraph / UBehaviorTreeGraphNode_* — the BT EdGraph write path
 				"GameplayTagsEditor",  // For IGameplayTagsEditorModule (add/remove/rename tags at editor time)

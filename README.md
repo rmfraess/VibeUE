@@ -2,11 +2,11 @@
 
 # VibeUE — AI-Powered Unreal Engine Development
 
-### 🧩 MCP Expansion + AI Editor Toolset for Unreal Engine 5.8+
+### 🧩 MCP Expansion + AI Editor Toolset for Unreal Engine 5.9+
 
 https://www.vibeue.com/
 
-[![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.8%2B-orange)](https://www.unrealengine.com)
+[![Unreal Engine](https://img.shields.io/badge/Unreal%20Engine-5.9%2B-orange)](https://www.unrealengine.com)
 [![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-blue)](https://modelcontextprotocol.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white)](https://discord.gg/hZs73ST59a)
@@ -14,10 +14,10 @@ https://www.vibeue.com/
 
 </div>
 
-**VibeUE is the MCP Expansion + AI Editor Toolset for Unreal Engine 5.8+.** Unreal 5.8 added a
+**VibeUE is the MCP Expansion + AI Editor Toolset for Unreal Engine 5.9+.** Unreal 5.8 added a
 built-in MCP server and AI toolsets; VibeUE is an **MCP Expansion** that plugs straight into them and
 adds a deep **AI Editor Toolset** — a library of editor capabilities — Blueprints, materials, landscape, foliage, animation, Niagara, UMG, audio, StateTree,
-Behavior Trees & Blackboards, gameplay tags, input, UVs, **performance/profiling**, and more — registered into the engine's own
+StateTrees, input, UVs, **performance/profiling**, and more — registered into the engine's own
 `ToolsetRegistry` and `ModelContextProtocol` server, plus rich domain **skills** served through
 Unreal's native `AgentSkill` system. Any MCP-capable agent (Claude Code, Cursor, Copilot, …) drives
 your editor through Unreal's standard MCP endpoint.
@@ -33,7 +33,7 @@ your editor through Unreal's standard MCP endpoint.
 
 ## ✨ What VibeUE adds
 
-Unreal 5.8 ships its own AI toolsets (Blueprints, materials, actors, assets, meshes, data tables, …).
+Unreal 5.9 ships its own AI toolsets (Blueprints, materials, actors, assets, meshes, data tables, …).
 VibeUE **complements** them — it focuses on the domains and depth the engine doesn't cover:
 
 - **Terrain & world** — Landscape sculpting/heightmaps/splines, landscape auto-materials + RVT,
@@ -45,11 +45,13 @@ VibeUE **complements** them — it focuses on the domains and depth the engine d
 - **UI** — UMG widgets with MVVM bindings, animation authoring, and preview/PIE validation.
 - **Higher-order Blueprint authoring** — timelines, event dispatchers, delegates, custom-event pins,
   comment boxes, and a batch `build_graph` builder.
-- **AI behavior authoring** — Behavior Tree node/decorator/service editing by structural path with
-  blackboard key binding, JSON tree round-trips, and validate/repair; full Blackboard asset + key
-  CRUD. Writes go through the editor EdGraph with PIE- and open-editor-aware refusal guards.
-- **Editor safety** — `TransactionService` wraps the editor's transaction buffer (undo / redo /
-  checkpoints) so an agent can group and roll back its own edits — the engine's toolsets expose none.
+- **AI behavior repair** -- Behavior Tree and EQS authoring is Epic's `AIModuleToolset`; VibeUE adds
+  only what it lacks: rebuilding a BT or EQS graph that has gone sparse while the runtime data is
+  intact, renaming a blackboard key with BT selector fix-ups, sweeping a key's references, and
+  **running** an EQS query (Epic's EQS tools author and inspect, but never run).
+- **Editor safety** -- `TransactionService` exposes the undo/redo *stepping* (undo / redo /
+  multiple / can-undo / reset) that neither Python nor the engine toolsets expose; history reading is
+  Epic's `UndoHistoryToolset` and scoping is `unreal.ScopedEditorTransaction`.
 - **Verified workflows** — `WorkflowService` adds an authoritative engine/build manifest, durable
   task journals with affected-asset provenance, asynchronous PIE scenarios (compile → input →
   assertion → capture → guaranteed teardown), and dry-run-first resumable bulk maintenance.
@@ -92,18 +94,20 @@ Pair with the `profiling` and `frame-rate` skills for the full CPU/GPU drill-dow
 
 ## 🏗️ Architecture
 
-VibeUE plugs into three native UE 5.8+ systems:
+VibeUE plugs into three native UE 5.9+ systems:
 
 1. **Toolsets** (`ToolsetRegistry`) — VibeUE's services register as `UToolsetDefinition`s, so their
    methods become AICallable tools on the MCP endpoint. They're also `BlueprintCallable`, so the same
    methods are callable from Python as `unreal.<Name>Service.<method>()`.
-2. **MCP server** (`ModelContextProtocol`) — a small set of VibeUE utility tools are registered
-   directly on the endpoint: `execute_python_code`, `discover_python_module`/`_class`/`_function`,
-   `list_python_subsystems`, `deep_research`, `terrain_data`.
-3. **Skills** (`AgentSkillToolset`) — ~36 markdown skill packs register as native `UAgentSkill`s,
-   discoverable via `ListSkills` and loaded lazily via `GetSkills`, alongside the engine's own skills.
+2. **MCP server** (`ModelContextProtocol`) — only two VibeUE utility tools are registered directly on
+   the endpoint, both things the engine has no tool for: `deep_research` and `terrain_data`. Python
+   execution and API discovery are engine-native in 5.9 (`EditorToolset.PythonScriptingTools`:
+   `execute_python`, `read_me`, `search_symbols`, `get_symbol`), so VibeUE no longer ships its own.
+3. **Skills** (`AgentSkillToolset`) — 35 markdown skill packs under `Skills/`, discovered natively by
+   5.9 (`<Plugin>/Skills/**/SKILL.md`), listed by `ListSkills` and loaded lazily via `GetSkills`,
+   alongside the engine's own skills.
 
-**Efficient usage (for agents):** `execute_python_code` is the workhorse — it batches a whole
+**Efficient usage (for agents):** the engine's `execute_python` is the workhorse — it batches a whole
 multi-step task into one round-trip and reaches every VibeUE service plus the full `unreal.*` API. Use
 `call_tool` only for skills and the few engine toolsets with no Python path (screenshots, etc.). See
 [`Content/samples/AGENTS.md.sample`](Content/samples/AGENTS.md.sample) for the full agent guide.
@@ -112,7 +116,7 @@ multi-step task into one round-trip and reaches every VibeUE service plus the fu
 
 ## 🚀 Installation & setup
 
-**Requirements:** Unreal Engine **5.8+** · Git
+**Requirements:** Unreal Engine **5.9+** · Git
 
 ### Step 1 — Set up Unreal's native MCP (do this FIRST)
 
@@ -171,7 +175,7 @@ don't resolve imports, so they always get a copy).
 
 > The MCP server is loopback-only with no authentication — same-machine use only (per Epic's docs).
 
-The guide teaches: discover before you call (`discover_python_class`), batch with `execute_python_code`,
+The guide teaches: discover before you call (`get_symbol` / `search_symbols`), batch with `execute_python`,
 load skills via `ListSkills`/`GetSkills`, and when to reach for `deep_research` / `terrain_data`.
 
 ---
@@ -191,7 +195,7 @@ call_tool(tool_name="GetSkills", toolset_name="ToolsetRegistry.AgentSkillToolset
 ```
 
 `ListSkills` is the **live source of truth** for what's available (it reads each pack's `SKILL.md`).
-Skills tell you *what* to do and *why*; use `discover_python_class('unreal.<Name>Service', method_filter='…')`
+Skills tell you *what* to do and *why*; use `get_symbol('unreal.<Name>Service')`
 for exact signatures before writing code.
 
 ---
@@ -230,7 +234,7 @@ relaunches:
 VibeUE intentionally keeps **no static method catalog** in this README — the surface evolves with the
 engine. The authoritative, always-current references are:
 - **`ListSkills`** → which domains exist and when to use them.
-- **`discover_python_class('unreal.<Name>Service')`** → exact method signatures.
+- **`get_symbol('unreal.<Name>Service')`** → exact method signatures (engine-native).
 - **`describe_toolset('VibeUE.<Name>Service')`** → the toolset's tools + JSON schemas (token-heavy;
   prefer skills + discovery).
 

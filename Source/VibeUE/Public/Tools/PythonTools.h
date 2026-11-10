@@ -6,23 +6,11 @@
 #include "UObject/Object.h"
 #include "PythonTools.generated.h"
 
-// Forward declarations - in VibeUE namespace
-namespace VibeUE
-{
-	class FPythonExecutionService;
-	class FPythonDiscoveryService;
-	class FPythonSchemaService;
-	struct FPythonModuleInfo;
-	struct FPythonClassInfo;
-	struct FPythonFunctionInfo;
-	struct FPythonExecutionResult;
-}
-
 /**
- * MCP tools for Python code execution and discovery in Unreal Engine
+ * Editor-safety helpers for scripts run through the engine's execute_python.
  *
- * These tools are automatically exposed to MCP clients via the ToolRegistry.
- * They allow AI assistants to execute Python code and discover Python APIs.
+ * Registered as AICallable tools via ToolsetRegistry. Python execution and API discovery
+ * themselves are engine-native in 5.9 (EditorToolset.PythonScriptingTools).
  */
 UCLASS(meta=(ToolCategory="Python"))
 class VIBEUE_API UPythonTools : public UObject
@@ -30,121 +18,6 @@ class VIBEUE_API UPythonTools : public UObject
 	GENERATED_BODY()
 
 public:
-	UPythonTools();
-
-	/**
-	 * Execute Python code in the Unreal Engine Python environment
-	 *
-	 * @param Code - Python code to execute
-	 * @param bAutoSave - When true (default) every dirty content and world package is saved headlessly
-	 *                    before the script runs; pass false to run the script without that sweep.
-	 *                    The result JSON always reports the OUTCOME: auto_save (true only when the
-	 *                    sweep really ran), auto_save_note and the saved_packages list.
-	 *                    It also always carries dirtied_packages / cleaned_packages: the packages the
-	 *                    SCRIPT left dirty / clean, from snapshots taken after the sweep and right
-	 *                    after the script (on an error reply too).
-	 * @param bFreshNamespace - Run in a namespace of its own, dropped when the script ends, instead of the
-	 *                    globals every call shares (a global left there can keep a level or asset alive).
-	 * @return Execution result including output, errors, and success status
-	 */
-	UFUNCTION(BlueprintCallable, Category="VibeUE|Python", meta=(
-		ToolName="execute_python_code",
-		ToolDescription="Execute Python code in Unreal Engine. Returns stdout, stderr, and execution status.",
-		ParamDescription_Code="Python code to execute",
-		ParamDescription_bAutoSave="Save all dirty content and world packages before running (default true). Pass false to skip the pre-run save sweep.",
-		ParamDescription_bFreshNamespace="Run in a new namespace dropped when the script ends, instead of the globals every call shares (default false)."
-	))
-	static FString ExecutePythonCode(const FString& Code, bool bAutoSave = true, bool bFreshNamespace = false);
-
-	/**
-	 * Whether Code can only run as a coroutine: it has a top-level await, async for or async with. Such a
-	 * script goes to StartAwaitRun; ExecutePythonCode would report a SyntaxError for it. A script that merely
-	 * defines async functions, or that does not compile, is false.
-	 */
-	static bool NeedsAwaitRun(const FString& Code);
-
-	/**
-	 * Start a script that NeedsAwaitRun. The editor keeps ticking at each await, and OnDone gets the same
-	 * JSON reply ExecutePythonCode returns, on the game thread, when the script has ended (immediately when
-	 * it is refused). Game thread only.
-	 *
-	 * @param CancelKey - What CancelAwaitRuns finds this run by
-	 */
-	static void StartAwaitRun(const FString& Code, bool bAutoSave, bool bFreshNamespace, const FString& CancelKey, TFunction<void(const FString&)> OnDone);
-
-	/** Raise CancelledError at the current await of every run started with CancelKey. Game thread only. */
-	static void CancelAwaitRuns(const FString& CancelKey);
-
-	/** Answer every run as cancelled and stop advancing them, without calling into Python: for editor exit. */
-	static void AbandonAwaitRuns();
-
-	/** How many scripts are paused at an await right now. */
-	static int32 GetAwaitRunCount();
-
-	/**
-	 * Discover a Python module and list its contents
-	 *
-	 * @param ModuleName - Name of the module to discover (e.g. "unreal")
-	 * @return JSON string with module information including classes, functions, and attributes
-	 */
-	UFUNCTION(BlueprintCallable, Category="VibeUE|Python", meta=(
-		ToolName="discover_python_module",
-		ToolDescription="Discover contents of a Python module. Returns classes, functions, and attributes.",
-		ParamDescription_ModuleName="Name of the Python module (e.g. 'unreal', 'unreal.BlueprintEditorLibrary')"
-	))
-	static FString DiscoverPythonModule(const FString& ModuleName);
-
-	/**
-	 * Discover a Python class and list its methods and attributes
-	 *
-	 * @param ClassName - Fully qualified class name (e.g. "unreal.BlueprintFactory")
-	 * @return JSON string with class information including methods, properties, and docstrings
-	 */
-	UFUNCTION(BlueprintCallable, Category="VibeUE|Python", meta=(
-		ToolName="discover_python_class",
-		ToolDescription="Discover methods and attributes of a Python class.",
-		ParamDescription_ClassName="Fully qualified class name (e.g. 'unreal.BlueprintFactory')"
-	))
-	static FString DiscoverPythonClass(const FString& ClassName);
-
-	/**
-	 * Discover a Python function signature and documentation
-	 *
-	 * @param FunctionName - Fully qualified function name (e.g. "unreal.load_asset")
-	 * @return JSON string with function signature, parameters, and docstring
-	 */
-	UFUNCTION(BlueprintCallable, Category="VibeUE|Python", meta=(
-		ToolName="discover_python_function",
-		ToolDescription="Get signature and documentation for a Python function.",
-		ParamDescription_FunctionName="Fully qualified function name (e.g. 'unreal.load_asset')"
-	))
-	static FString DiscoverPythonFunction(const FString& FunctionName);
-
-	/**
-	 * List all Unreal Engine subsystems accessible from Python
-	 *
-	 * @return JSON array of subsystem names and descriptions
-	 */
-	UFUNCTION(BlueprintCallable, Category="VibeUE|Python", meta=(
-		ToolName="list_python_subsystems",
-		ToolDescription="List all Unreal Engine subsystems accessible from Python."
-	))
-	static FString ListPythonSubsystems();
-
-	// Helper functions for converting service results to JSON - made public for use in registration
-	static FString ConvertModuleInfoToJson(const VibeUE::FPythonModuleInfo& Info);
-	static FString ConvertClassInfoToJson(const VibeUE::FPythonClassInfo& Info);
-	static FString ConvertFunctionInfoToJson(const VibeUE::FPythonFunctionInfo& Info);
-	static FString ConvertExecutionResultToJson(const VibeUE::FPythonExecutionResult& Result);
-
-	// Helper to get or create service instances
-	static TSharedPtr<VibeUE::FPythonDiscoveryService> GetDiscoveryService();
-	
-	/**
-	 * Clean up all static service instances.
-	 * Must be called before Python shuts down to avoid access violations.
-	 */
-	static void Shutdown();
 
 	/**
 	 * Map worlds currently resident besides the open level, as full object paths.
@@ -209,7 +82,4 @@ public:
 	static void ComputeDirtyPackageDelta(const TArray<FString>& Before, const TArray<FString>& After,
 		TArray<FString>& OutDirtied, TArray<FString>& OutCleaned);
 
-private:
-	static TSharedPtr<VibeUE::FPythonExecutionService> GetExecutionService();
-	static TSharedPtr<VibeUE::FPythonSchemaService> GetSchemaService();
 };

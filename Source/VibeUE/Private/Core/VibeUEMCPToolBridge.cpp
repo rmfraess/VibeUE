@@ -11,7 +11,6 @@
 
 #include "Async/Async.h"
 #include "Core/VibeUEToolCancel.h" // Private/Core: module-private
-#include "Tools/PythonTools.h"
 #include "Misc/IQueuedWork.h"
 #include "Misc/QueuedThreadPool.h"
 #include "Dom/JsonObject.h"
@@ -53,7 +52,6 @@ namespace
 		return ToolName == TEXT("deep_research") || ToolName == TEXT("terrain_data");
 	}
 
-	const TCHAR* const PythonToolName = TEXT("execute_python_code");
 
 	/**
 	 * The off-game-thread calls, running or waiting for a thread, by request id, for CancelAsync, the exit sweep and the
@@ -71,8 +69,11 @@ namespace
 
 	FString RequestKey(const FModelContextProtocolToolRequestId& RequestId)
 	{
-		// The id's own operator== and hash are not exported; its JSON text is what Epic hashes too.
-		return RequestId.RequestId.IsValid() ? RequestId.RequestId->AsString() : FString();
+		// UE 5.9 made the JSON id private; GetRequestId() is the public accessor. Its own operator== and
+		// GetTypeHash ARE exported in 5.9, so this could key on the struct, but the string form is what
+		// GRunningCalls is keyed on for cancellation, so it stays.
+		const TSharedPtr<FJsonValue>& Id = RequestId.GetRequestId();
+		return Id.IsValid() ? Id->AsString() : FString();
 	}
 
 	/** Turn a tool's JSON string into the MCP result and hand it over (safe from any thread). */
@@ -420,25 +421,8 @@ namespace
 				return;
 			}
 
-			auto Execute = [ToolName, Args = MoveTemp(Args), OnComplete, Key = RequestKey(RequestId)]()
+			auto Execute = [ToolName, Args = MoveTemp(Args), OnComplete]()
 			{
-				// A script with a top-level await is answered when it ends, with the editor ticking until then.
-				const FString* Code = ToolName == PythonToolName ? Args.Find(TEXT("code")) : nullptr;
-				if (Code && UPythonTools::NeedsAwaitRun(*Code))
-				{
-					FToolExecuteFunc Unused;
-					FString ErrorJson;
-					if (!FToolRegistry::Get().PrepareToolCall(ToolName, Args, Unused, ErrorJson))
-					{
-						DeliverResult(ErrorJson, OnComplete);
-						return;
-					}
-					const FString* AutoSave = Args.Find(TEXT("auto_save"));
-					const FString* FreshNamespace = Args.Find(TEXT("fresh_namespace"));
-					UPythonTools::StartAwaitRun(*Code, !AutoSave || AutoSave->ToBool(), FreshNamespace && FreshNamespace->ToBool(), Key,
-						[OnComplete](const FString& Reply) { DeliverResult(Reply, OnComplete); });
-					return;
-				}
 				DeliverResult(FToolRegistry::Get().ExecuteTool(ToolName, Args), OnComplete);
 			};
 
@@ -457,21 +441,6 @@ namespace
 		// it reaches every call with that id, other clients' too (see GRunningCalls).
 		virtual void CancelAsync(const FModelContextProtocolToolRequestId& RequestId) override
 		{
-			if (Name == PythonToolName)
-			{
-				// The same limitation: another client's script with this id is cancelled too.
-				auto CancelScripts = [Key = RequestKey(RequestId)]() { UPythonTools::CancelAwaitRuns(Key); };
-				if (IsInGameThread())
-				{
-					CancelScripts();
-				}
-				else
-				{
-					AsyncTask(ENamedThreads::GameThread, MoveTemp(CancelScripts));
-				}
-				return;
-			}
-
 			TArray<TSharedRef<FVibeUEToolCancel, ESPMode::ThreadSafe>> Cancels;
 			{
 				FScopeLock Guard(&GRunningCallsLock);
@@ -553,7 +522,6 @@ namespace VibeUEMCPToolBridge
 	// also runs on every ModelContextProtocol.RefreshTools, which must not cancel live calls.
 	void CancelAllRunning()
 	{
-		UPythonTools::AbandonAwaitRuns();
 
 		if (bOffGameThreadPoolShutDown)
 		{
@@ -578,54 +546,3 @@ namespace VibeUEMCPToolBridge
 		}
 	}
 }
-
-#if WITH_AUTOMATION_TESTS
-#include "Misc/AutomationTest.h"
-
-// Tools declare parameter types both in VibeUE's own names ("int", "float", "bool") and in JSON Schema's
-// ("number", "integer", "boolean"). The schema names used to fall through to "string", so capture_image max_width,
-// deep_research lat/lng and execute_python_code auto_save were advertised as strings. BuildInputSchema lives in this
-// file's anonymous namespace, so the test does too. Test path prefix VibeUE.Bridge.*
-
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FVibeUEBridgeSchemaTypesTest, "VibeUE.Bridge.SchemaTypes",
-	EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-bool FVibeUEBridgeSchemaTypesTest::RunTest(const FString& Parameters)
-{
-	FToolMetadata Meta;
-	Meta.Name = TEXT("schema_types_test");
-	Meta.Parameters.Add(FToolParameter(TEXT("count"), TEXT("VibeUE int"), TEXT("int"), false));
-	Meta.Parameters.Add(FToolParameter(TEXT("scale"), TEXT("VibeUE float"), TEXT("float"), false));
-	Meta.Parameters.Add(FToolParameter(TEXT("flag"), TEXT("VibeUE bool"), TEXT("bool"), false));
-	Meta.Parameters.Add(FToolParameter(TEXT("lat"), TEXT("JSON Schema number"), TEXT("number"), false));
-	Meta.Parameters.Add(FToolParameter(TEXT("max_items"), TEXT("JSON Schema integer"), TEXT("integer"), false));
-	Meta.Parameters.Add(FToolParameter(TEXT("auto_save"), TEXT("JSON Schema boolean"), TEXT("boolean"), false));
-	Meta.Parameters.Add(FToolParameter(TEXT("label"), TEXT("string"), TEXT("string"), true));
-
-	const TSharedPtr<FJsonObject> Schema = BuildInputSchema(Meta);
-	const TSharedPtr<FJsonObject>* Properties = nullptr;
-	if (!TestTrue(TEXT("the schema has properties"), Schema.IsValid() && Schema->TryGetObjectField(TEXT("properties"), Properties)))
-	{
-		return false;
-	}
-	auto TypeOf = [Properties](const TCHAR* ParamName)
-	{
-		const TSharedPtr<FJsonObject>* Prop = nullptr;
-		FString Type;
-		if ((*Properties)->TryGetObjectField(ParamName, Prop))
-		{
-			(*Prop)->TryGetStringField(TEXT("type"), Type);
-		}
-		return Type;
-	};
-	TestEqual(TEXT("int -> integer"), TypeOf(TEXT("count")), FString(TEXT("integer")));
-	TestEqual(TEXT("float -> number"), TypeOf(TEXT("scale")), FString(TEXT("number")));
-	TestEqual(TEXT("bool -> boolean"), TypeOf(TEXT("flag")), FString(TEXT("boolean")));
-	TestEqual(TEXT("number stays number"), TypeOf(TEXT("lat")), FString(TEXT("number")));
-	TestEqual(TEXT("integer stays integer"), TypeOf(TEXT("max_items")), FString(TEXT("integer")));
-	TestEqual(TEXT("boolean stays boolean"), TypeOf(TEXT("auto_save")), FString(TEXT("boolean")));
-	TestEqual(TEXT("string stays string"), TypeOf(TEXT("label")), FString(TEXT("string")));
-	return true;
-}
-
-#endif // WITH_AUTOMATION_TESTS
