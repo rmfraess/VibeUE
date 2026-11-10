@@ -28,6 +28,12 @@ public class VibeUE : ModuleRules
 				"EnvironmentQueryEditor.uplugin"));
 		PrivateDefinitions.Add("WITH_VIBEUE_EQS=" + (bEqsEditorPresent ? "1" : "0"));
 
+		// FabManifestService reads owned-pack manifests through the engine Fab plugin. Some engine
+		// installs ship without it, so the service compiles to a stub there.
+		bool bFabPluginPresent = File.Exists(
+			Path.Combine(EngineDirectory, "Plugins", "Fab", "Fab.uplugin"));
+		PrivateDefinitions.Add("WITH_VIBEUE_FAB=" + (bFabPluginPresent ? "1" : "0"));
+
 		// Ensure proper debug symbol generation for PDB files
 		if (Target.Configuration == UnrealTargetConfiguration.Debug || 
 		    Target.Configuration == UnrealTargetConfiguration.DebugGame ||
@@ -144,6 +150,12 @@ public class VibeUE : ModuleRules
 			if (bEqsEditorPresent)
 			{
 				PrivateDependencyModuleNames.Add("EnvironmentQueryEditor");  // EQS service: UEnvironmentQueryGraph / GraphNode_{Root,Option,Test}
+			}
+
+			if (bFabPluginPresent)
+			{
+				PrivateDependencyModuleNames.Add("Fab");                 // FabManifestService: IFabModule::GetDownloadInfo
+				PrivateDependencyModuleNames.Add("BuildPatchServices");  // FabManifestService: parse the BuildPatch manifest
 			}
 		}
 		

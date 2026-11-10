@@ -5,35 +5,45 @@ This read-only workflow indexes owned Fab product provenance, BuildPatch manifes
 ## Refresh
 
 1. Build and relaunch the project with `BuildAndLaunchGame.ps1`.
-2. Through the configured Unreal MCP Adapter, call `VibeUE.FabService.InspectOwnedManifest` for a single owned product, or use `direct.execute_python_code` to run bounded batches from `scripts/export_fab_manifests.py`:
+2. In the Editor's `execute_python`, save the owned Unreal-format library, then inspect manifests in bounded batches with `scripts/export_fab_manifests.py`. Fetching the library first also restores the Fab sign-in, which the manifest call needs:
 
    ```python
-   import sys
-   sys.path.insert(0, r"D:\Dev\Personal\Wheel of Time\WOT\Plugins\VibeUE\scripts")
+   import json, sys
+   sys.path.insert(0, r"H:\Projects\Personal\Wheel of Time\WOT\Plugins\VibeUE\scripts")
    import export_fab_manifests
+   listings = r"D:\Dev\Personal\Asset Catalog\Fab\fab-library.json"
+   results, cursor = [], ""
+   while True:
+       page = json.loads(await call_tool("FabToolset.FabToolset.SearchFabMyLibrary",
+                                         assetFormats="unreal-engine", sortBy="oldest", count=50, cursor=cursor))
+       results += page["results"]
+       cursor = page.get("nextCursor") or ""
+       if not cursor:
+           break
+   with open(listings, "w", encoding="utf-8") as f:
+       json.dump({"results": results}, f)
    export_fab_manifests.export_batch(
-       r"D:\Dev\Personal\Asset Catalog\Fab\fab-library-2026-08-28.json",
+       listings,
        r"D:\Dev\Personal\Asset Catalog\Unified Unreal Catalog\manifest-results.jsonl",
        start=0,
        count=10,
-       engine_version="5.8",
    )
    ```
 
-   Continue at `start=10,20,...` and finish with `validate_export(...)`. Batch zero intentionally replaces the prior JSONL export; later batches append and reject duplicate artifacts.
-3. Export the current project's already-mounted, on-disk Asset Registry evidence through `direct.execute_python_code` and the Unreal MCP Adapter:
+   Continue at `start=10,20,...` in separate calls and finish with `validate_export(listings, output)`. Batch zero intentionally replaces the prior JSONL export; later batches append and reject repeated listings. For one pack, call `unreal.FabManifestService.inspect_owned_manifest(listing_id, engine_version, max_files)` directly. Rows carry the same `product_id` and `artifact_id` the 5.8 export produced; a listing that could not be resolved gets `artifact_id` `unresolved:<listing_id>`, which step 4 rejects as unknown, so drop those rows before syncing.
+3. Export the current project's already-mounted, on-disk Asset Registry evidence through `execute_python`:
 
    ```python
    import sys
-   sys.path.insert(0, r"D:\Dev\Personal\Wheel of Time\WOT\Plugins\VibeUE\scripts")
+   sys.path.insert(0, r"H:\Projects\Personal\Wheel of Time\WOT\Plugins\VibeUE\scripts")
    import export_asset_registry
    export_asset_registry.export_current_project(
-       r"D:\Dev\Personal\Wheel of Time\WOT",
+       r"H:\Projects\Personal\Wheel of Time\WOT",
        r"D:\Dev\Personal\Asset Catalog\Unified Unreal Catalog\asset-registry-results.jsonl",
    )
    ```
 
-   This calls `InspectAssetRegistryPackage` without loading packages and records package/object paths, classes, tags, and on-disk dependency/referencer evidence. Packages outside the running project are not mounted; they receive a classified unavailable status during synchronization.
+   This reads the native Asset Registry without loading packages and records package/object paths, classes, tags, and on-disk dependency/referencer evidence. Packages outside the running project are not mounted; they receive a classified unavailable status during synchronization.
 4. Rebuild the SQLite/FTS database from the read-only inputs:
 
    ```text
@@ -78,6 +88,6 @@ Example: `python scripts/fab_asset_catalog.py search trees --fidelity asset-regi
 
 ## Safety and unsupported-contract risk
 
-The Fab listing and artifact endpoints are unofficial and may change. Inspection fails closed on malformed responses/manifests. The new operation performs one artifact-metadata request and one BuildPatch-manifest request, does not create an installer, and reports `payload_chunk_requests=0`.
+Manifest inspection resolves a pack through the engine Fab plugin's own `IFabModule::GetDownloadInfo` and sign-in, which may change between engine versions. Inspection fails closed on malformed responses/manifests. It performs one download-info request and one BuildPatch-manifest request, does not create an installer, and reports `payload_chunk_requests=0`.
 
-Signed manifest/CDN locations and EOS/account data remain transient in memory. Manifest export rejects every URL and auth/identity field; the catalog permits only public snapshot listing/preview references and rejects credential/signature markers. Endpoint response bodies are not included in errors. Do not add token, cookie, account, entitlement, signed URL, CDN query, or credential fields to generated output. Vault Cache, other projects, and vendor payloads are read-only.
+Signed manifest/CDN locations and EOS/account data remain transient in memory. Manifest export rejects every URL and auth/identity field; the catalog permits only public snapshot listing/preview references and rejects credential/signature markers. Fab's own failure text can quote server detail; a result that carries a URL is replaced by a classified failure row, never written. Do not add token, cookie, account, entitlement, signed URL, CDN query, or credential fields to generated output. Vault Cache, other projects, and vendor payloads are read-only.

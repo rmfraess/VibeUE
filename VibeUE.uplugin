@@ -73,6 +73,11 @@
 			"Name": "EnvironmentQueryEditor",
 			"Enabled": true,
 			"Optional": true
+		},
+		{
+			"Name": "Fab",
+			"Enabled": true,
+			"Optional": true
 		}
 	]
 }
