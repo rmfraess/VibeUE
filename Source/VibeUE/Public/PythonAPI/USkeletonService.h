@@ -97,27 +97,6 @@ struct FBoneNodeInfo
 };
 
 /**
- * Information about curve metadata in a skeleton
- */
-USTRUCT(BlueprintType)
-struct FCurveMetaInfo
-{
-	GENERATED_BODY()
-
-	/** Name of the curve */
-	UPROPERTY(BlueprintReadWrite, Category = "Skeleton")
-	FString CurveName;
-
-	/** Whether this curve drives a morph target */
-	UPROPERTY(BlueprintReadWrite, Category = "Skeleton")
-	bool bIsMorphTarget = false;
-
-	/** Whether this curve drives a material parameter */
-	UPROPERTY(BlueprintReadWrite, Category = "Skeleton")
-	bool bIsMaterial = false;
-};
-
-/**
  * Information about a blend profile in a skeleton
  */
 USTRUCT(BlueprintType)
@@ -567,105 +546,6 @@ public:
 		const FString& SkeletonPath,
 		const FString& BoneName,
 		const FString& Mode);
-
-	// ============================================================================
-	// CURVE METADATA
-	// ============================================================================
-
-	/**
-	 * List all curve metadata in a skeleton.
-	 *
-	 * @param SkeletonPath - Path to the Skeleton asset
-	 * @return Array of curve metadata information
-	 *
-	 * Example:
-	 *   curves = unreal.SkeletonService.list_curve_meta_data("/Game/SK_Mannequin")
-	 *   for c in curves:
-	 *       print(f"{c.curve_name} - Morph: {c.is_morph_target}, Material: {c.is_material}")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Curves")
-	static TArray<FCurveMetaInfo> ListCurveMetaData(const FString& SkeletonPath);
-
-	/**
-	 * Add a curve metadata entry to a skeleton.
-	 *
-	 * @param SkeletonPath - Path to the Skeleton asset
-	 * @param CurveName - Name for the new curve
-	 * @return True if curve was added successfully
-	 *
-	 * Example:
-	 *   unreal.SkeletonService.add_curve_meta_data("/Game/SK_Mannequin", "BrowsUp")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Curves")
-	static bool AddCurveMetaData(
-		const FString& SkeletonPath,
-		const FString& CurveName);
-
-	/**
-	 * Remove a curve metadata entry from a skeleton.
-	 *
-	 * @param SkeletonPath - Path to the Skeleton asset
-	 * @param CurveName - Name of the curve to remove
-	 * @return True if curve was removed successfully
-	 *
-	 * Example:
-	 *   unreal.SkeletonService.remove_curve_meta_data("/Game/SK_Mannequin", "OldCurve")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Curves")
-	static bool RemoveCurveMetaData(
-		const FString& SkeletonPath,
-		const FString& CurveName);
-
-	/**
-	 * Rename a curve metadata entry.
-	 *
-	 * @param SkeletonPath - Path to the Skeleton asset
-	 * @param OldName - Current curve name
-	 * @param NewName - New curve name
-	 * @return True if curve was renamed successfully
-	 *
-	 * Example:
-	 *   unreal.SkeletonService.rename_curve_meta_data("/Game/SK_Mannequin", "Old", "New")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Curves")
-	static bool RenameCurveMetaData(
-		const FString& SkeletonPath,
-		const FString& OldName,
-		const FString& NewName);
-
-	/**
-	 * Set whether a curve is used for morph targets.
-	 *
-	 * @param SkeletonPath - Path to the Skeleton asset
-	 * @param CurveName - Name of the curve
-	 * @param bIsMorphTarget - Whether curve drives morph targets
-	 * @return True if property was set successfully
-	 *
-	 * Example:
-	 *   unreal.SkeletonService.set_curve_morph_target("/Game/SK_Mannequin", "BrowsUp", True)
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Curves")
-	static bool SetCurveMorphTarget(
-		const FString& SkeletonPath,
-		const FString& CurveName,
-		bool bIsMorphTarget);
-
-	/**
-	 * Set whether a curve is used for material parameters.
-	 *
-	 * @param SkeletonPath - Path to the Skeleton asset
-	 * @param CurveName - Name of the curve
-	 * @param bIsMaterial - Whether curve drives material parameters
-	 * @return True if property was set successfully
-	 *
-	 * Example:
-	 *   unreal.SkeletonService.set_curve_material("/Game/SK_Mannequin", "EyeGlow", True)
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Curves")
-	static bool SetCurveMaterial(
-		const FString& SkeletonPath,
-		const FString& CurveName,
-		bool bIsMaterial);
 
 	// ============================================================================
 	// BLEND PROFILES

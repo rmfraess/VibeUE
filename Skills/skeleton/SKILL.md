@@ -1,7 +1,7 @@
 ---
 name: skeleton
 display_name: Skeleton & Skeletal Mesh Management
-description: Edit skeleton bone transforms/hierarchy, retargeting modes, curve metadata, blend profiles, bone constraints, and learn constraints from animations (VibeUE SkeletonService). Socket CRUD, bone enumeration, physics-asset, and material/LOD inspection are owned by the engine SkeletalMeshTools. Use when the user asks to add/transform bones, set retargeting, manage blend profiles or curves, or set bone constraints. For animation bone edits, also load animation-editing.
+description: Edit skeleton bone transforms/hierarchy, retargeting modes, blend profiles, bone constraints, and learn constraints from animations (VibeUE SkeletonService). Socket CRUD, bone enumeration, physics-asset, and material/LOD inspection are owned by the engine SkeletalMeshTools. Use when the user asks to add/transform bones, set retargeting, manage blend profiles or curves, or set bone constraints. For animation bone edits, also load animation-editing.
 vibeue_classes:
   - SkeletonService
 unreal_classes:
@@ -31,7 +31,7 @@ keywords:
 > enumeration, physics-asset assignment, and material/LOD/morph inspection** are owned by the **engine**
 > toolset `EditorToolset.SkeletalMeshToolset` (called via `call_tool`). VibeUE's
 > `SkeletonService` was trimmed to what the engine doesn't cover: **bone transform/hierarchy editing,
-> retargeting config, curve metadata, blend profiles, bone constraints, and learn-from-animations**.
+> retargeting config, blend profiles, bone constraints, and learn-from-animations**.
 >
 > **Loading skills:** skills load through the engine's `AgentSkillToolset` (`ListSkills`/`GetSkills`) —
 > there is no `vibeue-skills-manager` tool. Run VibeUE services with `execute_python`
@@ -112,7 +112,7 @@ the skeletal mesh; set its offset with `set_socket_transform`. There is no `bAdd
 
 ### Skeleton vs SkeletalMesh Paths
 
-- **Skeleton** operations (retargeting, curves, blend profiles, constraints) use `SK_` assets → VibeUE `SkeletonService`
+- **Skeleton** operations (retargeting, blend profiles, constraints) use `SK_` assets → VibeUE `SkeletonService`; curve metadata → native `unreal.AnimationLibrary`
 - **SkeletalMesh** bone *transform/hierarchy edits* use `SKM_` assets → VibeUE `SkeletonService`
 - **SkeletalMesh** sockets / bone listing / inspection use `SKM_` assets → engine `SkeletalMeshTools`
 
@@ -308,18 +308,20 @@ unreal.EditorAssetLibrary.save_asset(skeleton_path)
 import unreal
 
 skeleton_path = "/Game/Characters/SK_Character"
+skeleton = unreal.load_asset(skeleton_path)
+lib = unreal.AnimationLibrary
 
 # Add facial expression curves
 facial_curves = ["BrowsUp", "BrowsDown", "EyesClosed", "Smile", "Frown"]
 for curve in facial_curves:
-    unreal.SkeletonService.add_curve_meta_data(skeleton_path, curve)
-    unreal.SkeletonService.set_curve_morph_target(skeleton_path, curve, True)
+    lib.add_curve_meta_data(skeleton, curve)
+    lib.set_curve_meta_data_morph_target(skeleton, curve, True)
 
 # Add material parameter curves
 material_curves = ["EyeGlow", "SkinWetness", "BlushAmount"]
 for curve in material_curves:
-    unreal.SkeletonService.add_curve_meta_data(skeleton_path, curve)
-    unreal.SkeletonService.set_curve_material(skeleton_path, curve, True)
+    lib.add_curve_meta_data(skeleton, curve)
+    lib.set_curve_meta_data_material(skeleton, curve, True)
 
 unreal.EditorAssetLibrary.save_asset(skeleton_path)
 ```
