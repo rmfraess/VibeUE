@@ -413,97 +413,6 @@ bool UAnimGraphService::FocusNode(const FString& AnimBlueprintPath, const FStrin
 	return false;
 }
 
-// ============================================================================
-// GRAPH INTROSPECTION
-// ============================================================================
-
-TArray<FAnimGraphInfo> UAnimGraphService::ListGraphs(const FString& AnimBlueprintPath)
-{
-	TArray<FAnimGraphInfo> GraphInfos;
-
-	UAnimBlueprint* AnimBlueprint = LoadAnimBlueprint(AnimBlueprintPath);
-	if (!AnimBlueprint)
-	{
-		return GraphInfos;
-	}
-
-	TArray<UEdGraph*> Graphs;
-	AnimBlueprint->GetAllGraphs(Graphs);
-
-	for (UEdGraph* Graph : Graphs)
-	{
-		if (!Graph)
-		{
-			continue;
-		}
-
-		FAnimGraphInfo Info;
-		Info.GraphName = Graph->GetName();
-		Info.NodeCount = Graph->Nodes.Num();
-
-		// Determine graph type
-		if (Cast<UAnimationGraph>(Graph))
-		{
-			Info.GraphType = TEXT("AnimGraph");
-		}
-		else if (Cast<UAnimationStateMachineGraph>(Graph))
-		{
-			Info.GraphType = TEXT("StateMachine");
-		}
-		else if (Graph->GetName().Contains(TEXT("EventGraph")))
-		{
-			Info.GraphType = TEXT("EventGraph");
-		}
-		else
-		{
-			// Check if this is a state's bound graph
-			bool bIsStateGraph = false;
-			for (UEdGraph* OuterGraph : Graphs)
-			{
-				if (!OuterGraph)
-				{
-					continue;
-				}
-
-				for (UEdGraphNode* Node : OuterGraph->Nodes)
-				{
-					UAnimStateNode* StateNode = Cast<UAnimStateNode>(Node);
-					if (StateNode && StateNode->BoundGraph == Graph)
-					{
-						Info.GraphType = TEXT("State");
-						Info.ParentGraphName = OuterGraph->GetName();
-						bIsStateGraph = true;
-						break;
-					}
-
-					UAnimStateTransitionNode* TransNode = Cast<UAnimStateTransitionNode>(Node);
-					if (TransNode && TransNode->BoundGraph == Graph)
-					{
-						Info.GraphType = TEXT("Transition");
-						Info.ParentGraphName = OuterGraph->GetName();
-						bIsStateGraph = true;
-						break;
-					}
-				}
-
-				if (bIsStateGraph)
-				{
-					break;
-				}
-			}
-
-			if (!bIsStateGraph)
-			{
-				Info.GraphType = TEXT("Other");
-			}
-		}
-
-		GraphInfos.Add(Info);
-	}
-
-	return GraphInfos;
-}
-
 TArray<FAnimStateMachineInfo> UAnimGraphService::ListStateMachines(const FString& AnimBlueprintPath)
 {
 	TArray<FAnimStateMachineInfo> Machines;
@@ -898,37 +807,6 @@ FString UAnimGraphService::GetPreviewMesh(const FString& AnimBlueprintPath)
 	if (PreviewMesh)
 	{
 		return PreviewMesh->GetPathName();
-	}
-
-	return FString();
-}
-
-// ============================================================================
-// UTILITY
-// ============================================================================
-
-bool UAnimGraphService::IsAnimBlueprint(const FString& AssetPath)
-{
-	if (AssetPath.IsEmpty())
-	{
-		return false;
-	}
-
-	UObject* LoadedObject = UEditorAssetLibrary::LoadAsset(AssetPath);
-	return Cast<UAnimBlueprint>(LoadedObject) != nullptr;
-}
-
-FString UAnimGraphService::GetParentClass(const FString& AnimBlueprintPath)
-{
-	UAnimBlueprint* AnimBlueprint = LoadAnimBlueprint(AnimBlueprintPath);
-	if (!AnimBlueprint)
-	{
-		return FString();
-	}
-
-	if (AnimBlueprint->ParentClass)
-	{
-		return AnimBlueprint->ParentClass->GetName();
 	}
 
 	return FString();

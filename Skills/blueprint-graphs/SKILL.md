@@ -568,7 +568,7 @@ Load the matching file from this same folder:
   local reference. `null` clears such a pin.
 - Script-baked BP-CDO `TArray<TSubclassOf<...>>` defaults can be LOST on editor reload — read them
   back after a restart to confirm they persisted.
-- `ListGraphs` legitimately returns `[]` for Anim Blueprints — use `AnimGraphService.list_graphs`.
+- `BlueprintToolset.ListGraphs` lists non-transient graphs on a Blueprint, including Anim Blueprints.
   A Blueprint can hold several graph objects with the same `GraphName`; name-keyed code must reject
   the ambiguity rather than overwrite, and `FBlueprintGraphInfo.GraphPath` disambiguates.
 - Everything returning empty across a long session is usually a stale editor session, not a

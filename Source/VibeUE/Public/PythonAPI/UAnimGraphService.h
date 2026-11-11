@@ -147,31 +147,6 @@ struct FAnimStateMachineValidationResult
 };
 
 /**
- * Information about an animation graph (AnimGraph, state graph, etc.)
- */
-USTRUCT(BlueprintType)
-struct FAnimGraphInfo
-{
-	GENERATED_BODY()
-
-	/** Name of the graph */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	FString GraphName;
-
-	/** Type of graph: "AnimGraph", "StateMachine", "State", "Transition", "EventGraph" */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	FString GraphType;
-
-	/** Number of nodes in this graph */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	int32 NodeCount = 0;
-
-	/** Parent graph name (if this is a sub-graph) */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	FString ParentGraphName;
-};
-
-/**
  * Information about an animation sequence reference in an AnimBP
  */
 USTRUCT(BlueprintType)
@@ -305,24 +280,6 @@ public:
 		const FString& AnimBlueprintPath,
 		const FString& NodeId);
 
-	// ============================================================================
-	// GRAPH INTROSPECTION
-	// ============================================================================
-
-	/**
-	 * List all graphs in an Animation Blueprint.
-	 *
-	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
-	 * @return Array of graph information
-	 *
-	 * Example:
-	 *   graphs = unreal.AnimGraphService.list_graphs("/Game/ABP_Character")
-	 *   for g in graphs:
-	 *       print(f"{g.graph_name} ({g.graph_type}): {g.node_count} nodes")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Introspection")
-	static TArray<FAnimGraphInfo> ListGraphs(const FString& AnimBlueprintPath);
-
 	/**
 	 * List all state machines in an Animation Blueprint.
 	 *
@@ -450,35 +407,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Assets")
 	static FString GetPreviewMesh(const FString& AnimBlueprintPath);
-
-	// ============================================================================
-	// UTILITY
-	// ============================================================================
-
-	/**
-	 * Check if an asset is an Animation Blueprint.
-	 *
-	 * @param AssetPath - Full path to the asset
-	 * @return True if the asset is an Animation Blueprint
-	 *
-	 * Example:
-	 *   if unreal.AnimGraphService.is_anim_blueprint("/Game/ABP_Character"):
-	 *       print("It's an AnimBP!")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Utility")
-	static bool IsAnimBlueprint(const FString& AssetPath);
-
-	/**
-	 * Get the parent class of an Animation Blueprint.
-	 *
-	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
-	 * @return Name of the parent class (e.g., "AnimInstance")
-	 *
-	 * Example:
-	 *   parent = unreal.AnimGraphService.get_parent_class("/Game/ABP_Character")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Utility")
-	static FString GetParentClass(const FString& AnimBlueprintPath);
 
 	// ============================================================================
 	// ANIMGRAPH NODE CREATION

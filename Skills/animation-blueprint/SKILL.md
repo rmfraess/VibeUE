@@ -31,7 +31,7 @@ keywords:
 > (`unreal.AnimGraphService.<method>()`); reach engine toolsets with `call_tool`.
 
 > An AnimBP **is a Blueprint**. The state-machine/AnimGraph authoring here is VibeUE
-> `AnimGraphService` (intact, 48 tools). Everything else about it as a Blueprint is the engine's:
+> `AnimGraphService`. Everything else about it as a Blueprint is the engine's:
 > `BlueprintToolsets.BlueprintToolset` owns variables, components, interfaces, events, function
 > graphs, node CRUD and compiling (`AddVariable`, `AddObjectVariable`, `AddStructVariable`,
 > `ListVariables`, `GetVariableTooltip`/`SetVariableTooltip` and the other flag accessors,
@@ -184,15 +184,11 @@ import unreal
 
 abp_path = "/Game/Blueprints/SandboxCharacter_CMC_ABP"
 
-# Get overview
-parent = unreal.AnimGraphService.get_parent_class(abp_path)
+# Get skeleton; use BlueprintToolsets.BlueprintToolset.GetParent for the parent class.
 skeleton = unreal.AnimGraphService.get_skeleton(abp_path)
-print(f"Parent: {parent}, Skeleton: {skeleton}")
+print(f"Skeleton: {skeleton}")
 
-# List all graphs
-graphs = unreal.AnimGraphService.list_graphs(abp_path)
-for g in graphs:
-    print(f"Graph: {g.graph_name} ({g.graph_type}), Nodes: {g.node_count}")
+# List graphs with BlueprintToolsets.BlueprintToolset.ListGraphs.
 ```
 
 ### List State Machines and States
@@ -527,9 +523,9 @@ print(ai.get_editor_property("SailAngle"), comp.get_socket_rotation("sails").rol
 ```python
 import unreal
 
-if unreal.AnimGraphService.is_anim_blueprint("/Game/SomeAsset"):
-    # It's an AnimBP, safe to use AnimGraphService
-    machines = unreal.AnimGraphService.list_state_machines("/Game/SomeAsset")
+# Check the asset class first with EditorToolset.AssetToolset.GetAssetClass.
+# Once confirmed as an AnimBP:
+machines = unreal.AnimGraphService.list_state_machines("/Game/SomeAsset")
 ```
 
 ### Iterate All States Across All Machines
