@@ -26,12 +26,12 @@ and remapping through the existing engine Python API; no native service rebuild.
 > The old **`manage_asset` MCP tool is GONE.** VibeUE's `AssetDiscoveryService` was trimmed to only
 > the crash-safe delta the engine doesn't provide:
 >
-> **MCP tools still on `AssetDiscoveryService` (just two):**
+> **MCP tool still on `AssetDiscoveryService`:**
 >
 > | Tool | Why it survives |
 > |---|---|
 > | `reimport_asset(asset_path, new_source_path)` | Nothing in Epic's toolset surface reimports an asset |
-> | `export_texture(asset_path, file_path)` | Epic's `TextureToolset.ExportPng` is **PNG-only and `UTexture2D`-only**; this goes through `AssetTools::ExportAssets`, so it uses whichever registered exporter matches the asset and format. Use `ExportPng` when a PNG of a 2D texture is all you need. Note only the **directory** part of the path is used -- the exporter names the file |
+> Export assets with native `unreal.AssetToolsHelpers.get_asset_tools().export_assets`; the destination is a directory.
 >
 > **Python-only helpers** (still callable as `unreal.AssetDiscoveryService.*` from `execute_python`,
 > but no longer MCP tools, so don't look for them in `list_toolsets`):
@@ -177,7 +177,7 @@ level. Non-Blueprint assets you never loaded (textures, meshes written by a fact
 | Referencers / dependencies | `unreal.AssetRegistryHelpers.get_asset_registry().get_referencers(...)` |
 | Open an asset / list ALL open editors | Epic `EditorAppToolset` via `call_tool` (see below) |
 | Import a file from disk (image, mesh, …) | `unreal.AssetDiscoveryService.import_asset` / `TextureToolset.import_file` (**see below**) |
-| Export a texture to disk | `unreal.AssetDiscoveryService.export_texture` |
+| Export a texture to disk | `unreal.AssetToolsHelpers.get_asset_tools().export_assets` |
 | Primary Content Browser selection | `EditorAppToolset.GetSelectedAssets` |
 | Is an asset open in an editor | `EditorAppToolset.GetOpenAssets` (check the path in the result) |
 
@@ -452,7 +452,7 @@ print(path or err)
 vibeue.exec_tool("EditorToolset.TextureToolset", "import_file", {"file": "C:/Textures/logo.png", "destination": "/Game/Textures"})
 
 # Export (project → file system)
-unreal.AssetDiscoveryService.export_texture("/Game/Textures/T_Logo", "C:/Exports/logo.png")
+unreal.AssetToolsHelpers.get_asset_tools().export_assets(["/Game/Textures/T_Logo"], "C:/Exports")
 ```
 
 ### Editor State & Content Browser (VibeUE)

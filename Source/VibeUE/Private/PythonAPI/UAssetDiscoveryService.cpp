@@ -366,47 +366,6 @@ bool UAssetDiscoveryService::ReimportAsset(
 	return true;
 }
 
-bool UAssetDiscoveryService::ExportTexture(const FString& AssetPath, const FString& ExportFilePath)
-{
-	if (AssetPath.IsEmpty() || ExportFilePath.IsEmpty())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UAssetDiscoveryService::ExportTexture: AssetPath or ExportFilePath is empty"));
-		return false;
-	}
-
-	// Load the texture
-	UObject* LoadedAsset = UEditorAssetLibrary::LoadAsset(AssetPath);
-	UTexture2D* Texture = Cast<UTexture2D>(LoadedAsset);
-	if (!Texture)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UAssetDiscoveryService::ExportTexture: Failed to load texture: %s"), *AssetPath);
-		return false;
-	}
-
-	// Use Unreal's built-in export via asset tools
-	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
-	IAssetTools& AssetTools = AssetToolsModule.Get();
-
-	// Get the export path directory
-	FString ExportDir = FPaths::GetPath(ExportFilePath);
-	
-	// Ensure directory exists
-	if (!FPaths::DirectoryExists(ExportDir))
-	{
-		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
-		PlatformFile.CreateDirectoryTree(*ExportDir);
-	}
-
-	// Export the asset
-	TArray<UObject*> AssetsToExport;
-	AssetsToExport.Add(Texture);
-	
-	AssetTools.ExportAssets(AssetsToExport, ExportDir);
-
-	UE_LOG(LogTemp, Log, TEXT("UAssetDiscoveryService::ExportTexture: Exported texture to %s"), *ExportDir);
-	return true;
-}
-
 // ========== Open Assets & Content Browser ==========
 
 

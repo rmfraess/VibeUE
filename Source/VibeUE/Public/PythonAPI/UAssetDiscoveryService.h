@@ -89,9 +89,9 @@ struct FUnattendedDeleteResult
  *    SetContentBrowserPath / GetOpenAssets)
  *  - files on disk: `FileSystemToolset` (ReadTextFile / WriteTextFile / ListDirectory / DeleteFile)
  *
- * What is left is four calls. Two are MCP tools: ReimportAsset, because nothing in the engine
- * surface reimports an asset, and ExportTexture, because the engine's export is PNG-only while
- * this goes through the asset's registered exporter.
+ * What is left is three calls. One is an MCP tool: ReimportAsset, because nothing in the engine
+ * surface reimports an asset. (Export through an asset's registered exporter is native:
+ * unreal.AssetToolsHelpers.get_asset_tools().export_assets.)
  *
  * Two are DEMOTED -- no longer MCP tools, still callable from execute_python:
  *   path, err = unreal.AssetDiscoveryService.import_asset(
@@ -230,22 +230,5 @@ public:
 		const FString& NewSourcePath,
 		FString& OutSourceFileUsed,
 		FString& OutError);
-
-	/**
-	 * Export a texture to the file system for external analysis, through the asset's registered
-	 * exporter (AssetTools::ExportAssets). For a plain PNG the engine's
-	 * `EditorToolset.TextureToolset` ExportPng does the same job; this one survives because the
-	 * exporter also writes the formats ExportPng cannot.
-	 *
-	 * @param AssetPath - Path to the texture asset
-	 * @param ExportFilePath - Absolute path in the target directory. Only its DIRECTORY is used
-	 *        (created if missing); the exporter names the file after the asset and its own format.
-	 * @return True if export was successful
-	 *
-	 * Example:
-	 *   unreal.AssetDiscoveryService.export_texture("/Game/Textures/MyTexture", "C:/Exports/texture.png")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Assets")
-	static bool ExportTexture(const FString& AssetPath, const FString& ExportFilePath);
 
 };
