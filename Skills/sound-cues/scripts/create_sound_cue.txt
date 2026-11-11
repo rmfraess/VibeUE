@@ -1,18 +1,15 @@
 # Copyright Buckley Builds LLC 2026 All Rights Reserved.
 
-# create_sound_cue.txt — Create a SoundCue (optionally from a wave) and add nodes.
+# create_sound_cue.txt — Create a SoundCue and add a delay node.
 #
 # Sample script for the sound-cues skill. Run via execute_python.
 import unreal
-scs = unreal.SoundCueService
-
+scs = unreal.get_editor_subsystem(unreal.SoundCueEditorSubsystem)
 ASSET = "/Game/Audio/SC_SkillTest"
-WAVE = ""   # optional: "/Game/Audio/SW_Footstep"
-if unreal.EditorAssetLibrary.does_asset_exist(ASSET):
-    unreal.EditorAssetLibrary.delete_asset(ASSET)
-
-r = scs.create_sound_cue(ASSET, WAVE)   # SoundCueResult
-print("create:", r)
-# Add nodes (e.g. random, mixer, delay, attenuation) then connect them, e.g.:
-# scs.add_delay_node(ASSET, ...)
+assert not unreal.EditorAssetLibrary.does_asset_exist(ASSET), ASSET
+cue = scs.create_sound_cue("/Game/Audio", "SC_SkillTest")
+assert cue
+delay = scs.add_node(cue, unreal.SoundNodeDelay)
+assert delay
+scs.set_root_node(cue, delay)
 unreal.EditorAssetLibrary.save_asset(ASSET)
