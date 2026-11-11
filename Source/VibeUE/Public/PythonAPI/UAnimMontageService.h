@@ -1134,36 +1134,6 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage|Editor")
 	static bool RefreshMontageEditor(const FString& MontagePath);
 
-	/**
-	 * Jump the editor preview to a specific section.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @param SectionName - Name of the section to jump to
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage|Editor")
-	static bool JumpToSection(const FString& MontagePath, const FString& SectionName);
-
-	/**
-	 * Set the editor preview time.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @param Time - Time in seconds
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage|Editor")
-	static bool SetPreviewTime(const FString& MontagePath, float Time);
-
-	/**
-	 * Play the montage in the editor preview.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @param StartSection - Optional section to start from (empty = beginning)
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage|Editor")
-	static bool PlayPreview(const FString& MontagePath, const FString& StartSection = TEXT(""));
-
 private:
 	// ============================================================================
 	// PRIVATE HELPERS

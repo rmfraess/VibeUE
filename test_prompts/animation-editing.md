@@ -22,7 +22,6 @@ This file contains sequential test prompts for the animation editing workflow.
 5. Validate and Bake Edits
 6. Constraint Violation Detection
 7. Copy and Mirror Pose Utilities
-8. Retarget Preview
 9. Complex Animation Creation
 
 ---
@@ -476,75 +475,6 @@ Get the pose at the mirrored frame and compare left vs right arm bone rotations.
 - upperarm_l now has the rotation that upperarm_r had
 - upperarm_r now has the rotation that upperarm_l had
 - Same for other arm bones
-
----
-
-# 8. Retarget Preview
-
-## Goal
-Test previewing an animation on a different skeleton (retargeting).
-
----
-
-## Prompt 8.1: Find a second compatible skeleton
-
-List all skeletons in the project. Find one that is different from the UE5 Mannequin but might be compatible (similar bone structure).
-
-If no second skeleton exists, note that retarget preview requires a second skeleton to test.
-
----
-
-## Expected Result
-- List of available skeletons
-- Identification of a potential target skeleton (or note if only one exists)
-
----
-
-## Prompt 8.2: Set up retarget preview
-
-If a second skeleton exists, preview a run or walk animation on the target skeleton. Show:
-- Whether preview was set up successfully
-- Any warnings or compatibility issues
-
----
-
-## Expected Result (if second skeleton exists)
-- `success` indicates whether retarget is possible
-- `messages` contain any bone mapping issues
-- Animation Editor shows preview on target skeleton
-
----
-
-## Prompt 8.3: Check for missing bones
-
-If retarget preview reports issues, list:
-- Bones that exist in source but not target
-- Bones that exist in target but not source
-- Suggested remapping
-
----
-
-## Expected Result
-- Clear report of bone mismatches
-- Suggestions for manual bone mapping if needed
-
----
-
-## Note
-
-If the project only has one skeleton, this test can be skipped or used to verify that retarget_preview correctly reports the error when source and target are the same.
-
----
-
-## Prompt 8.4: Cancel retarget preview
-
-If a preview was set up, cancel it to return to normal editing mode.
-
----
-
-## Expected Result
-- Retarget preview cancelled
-- Animation Editor returns to source skeleton view
 
 ---
 

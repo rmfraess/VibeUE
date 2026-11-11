@@ -2211,46 +2211,6 @@ int32 UAnimSequenceService::GetNotifyTrackCount(const FString& AnimPath)
 	return MaxTrackIndex + 1;
 }
 
-int32 UAnimSequenceService::AddNotifyTrack(
-	const FString& AnimPath,
-	const FString& TrackName)
-{
-	UAnimSequence* AnimSeq = LoadAnimSequence(AnimPath);
-	if (!AnimSeq)
-	{
-		return -1;
-	}
-
-	// In UE 5.7, notify tracks are implicit - they're created when you place a notify on a higher track index.
-	// Find the current max track index and return the next one.
-	// The track will become "active" when a notify is placed on it.
-	int32 MaxTrackIndex = -1;
-	for (const FAnimNotifyEvent& Notify : AnimSeq->Notifies)
-	{
-		MaxTrackIndex = FMath::Max(MaxTrackIndex, Notify.TrackIndex);
-	}
-
-	int32 NewTrackIndex = MaxTrackIndex + 1;
-	
-	UE_LOG(LogTemp, Log, TEXT("UAnimSequenceService::AddNotifyTrack: New track index %d available (name: '%s' is informational only - UE uses implicit tracks)"), 
-		NewTrackIndex, *TrackName);
-
-	// Note: The track doesn't truly exist until a notify is placed on it.
-	// Return the next available track index.
-	return NewTrackIndex;
-}
-
-bool UAnimSequenceService::RenameNotifyTrack(
-	const FString& AnimPath,
-	int32 TrackIndex,
-	const FString& NewName)
-{
-	// In UE 5.7, notify tracks don't have editable names - they're just indexed.
-	// This operation is not supported in the current engine version.
-	UE_LOG(LogTemp, Warning, TEXT("UAnimSequenceService::RenameNotifyTrack: Notify tracks in UE 5.7 are implicitly named by index. Custom names are not supported."));
-	return false;
-}
-
 bool UAnimSequenceService::RemoveNotifyTrack(
 	const FString& AnimPath,
 	int32 TrackIndex)
@@ -2795,53 +2755,6 @@ bool UAnimSequenceService::OpenAnimationEditor(const FString& AnimPath)
 	}
 
 	return false;
-}
-
-bool UAnimSequenceService::SetPreviewTime(const FString& AnimPath, float Time)
-{
-	// Note: This would require access to the animation editor's viewport
-	// Currently just validates the path and time
-	UAnimSequence* AnimSeq = LoadAnimSequence(AnimPath);
-	if (!AnimSeq)
-	{
-		return false;
-	}
-
-	if (Time < 0.0f || Time > AnimSeq->GetPlayLength())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UAnimSequenceService::SetPreviewTime: Time out of range: %f"), Time);
-		return false;
-	}
-
-	// TODO: Implement through IPersonaToolkit if editor is open
-	UE_LOG(LogTemp, Log, TEXT("UAnimSequenceService::SetPreviewTime: Would set preview time to %f for %s"), Time, *AnimPath);
-	return true;
-}
-
-bool UAnimSequenceService::PlayPreview(const FString& AnimPath, bool bLoop)
-{
-	UAnimSequence* AnimSeq = LoadAnimSequence(AnimPath);
-	if (!AnimSeq)
-	{
-		return false;
-	}
-
-	// TODO: Implement through IPersonaToolkit if editor is open
-	UE_LOG(LogTemp, Log, TEXT("UAnimSequenceService::PlayPreview: Would play preview for %s (loop: %d)"), *AnimPath, bLoop);
-	return true;
-}
-
-bool UAnimSequenceService::StopPreview(const FString& AnimPath)
-{
-	UAnimSequence* AnimSeq = LoadAnimSequence(AnimPath);
-	if (!AnimSeq)
-	{
-		return false;
-	}
-
-	// TODO: Implement through IPersonaToolkit if editor is open
-	UE_LOG(LogTemp, Log, TEXT("UAnimSequenceService::StopPreview: Would stop preview for %s"), *AnimPath);
-	return true;
 }
 
 // ============================================================================
@@ -4384,88 +4297,6 @@ FAnimationEditResult UAnimSequenceService::InterpolateBoneFrames(
 	OutResult.StartFrame = FromFrame;
 	OutResult.EndFrame = ToFrame;
 	return OutResult;
-}
-
-// ============================================================================
-// RETARGETING
-// ============================================================================
-
-bool UAnimSequenceService::RetargetPreview(
-	const FString& AnimPath,
-	const FString& TargetSkeletonPath,
-	FAnimationEditResult& OutResult)
-{
-	OutResult.bSuccess = false;
-
-	UAnimSequence* AnimSeq = LoadAnimSequence(AnimPath);
-	if (!AnimSeq)
-	{
-		OutResult.ErrorMessage = TEXT("Failed to load animation");
-		return false;
-	}
-
-	USkeleton* SourceSkeleton = AnimSeq->GetSkeleton();
-	USkeleton* TargetSkeleton = Cast<USkeleton>(LoadAssetAnyState(TargetSkeletonPath));
-
-	if (!SourceSkeleton || !TargetSkeleton)
-	{
-		OutResult.ErrorMessage = TEXT("Failed to load source or target skeleton");
-		return false;
-	}
-
-	if (SourceSkeleton == TargetSkeleton)
-	{
-		OutResult.ErrorMessage = TEXT("Source and target skeletons are the same");
-		return false;
-	}
-
-	// Check bone compatibility
-	const FReferenceSkeleton& SourceRef = SourceSkeleton->GetReferenceSkeleton();
-	const FReferenceSkeleton& TargetRef = TargetSkeleton->GetReferenceSkeleton();
-
-	TArray<FString> MissingInTarget;
-	TArray<FString> MissingInSource;
-
-	for (int32 i = 0; i < SourceRef.GetNum(); i++)
-	{
-		FString BoneName = SourceRef.GetBoneName(i).ToString();
-		if (TargetRef.FindBoneIndex(FName(*BoneName)) == INDEX_NONE)
-		{
-			MissingInTarget.Add(BoneName);
-		}
-	}
-
-	for (int32 i = 0; i < TargetRef.GetNum(); i++)
-	{
-		FString BoneName = TargetRef.GetBoneName(i).ToString();
-		if (SourceRef.FindBoneIndex(FName(*BoneName)) == INDEX_NONE)
-		{
-			MissingInSource.Add(BoneName);
-		}
-	}
-
-	if (MissingInTarget.Num() > 0)
-	{
-		OutResult.Messages.Add(FString::Printf(TEXT("Bones in source but not in target: %s"), 
-			*FString::Join(MissingInTarget, TEXT(", "))));
-	}
-
-	if (MissingInSource.Num() > 0)
-	{
-		OutResult.Messages.Add(FString::Printf(TEXT("Bones in target but not in source: %s"), 
-			*FString::Join(MissingInSource, TEXT(", "))));
-	}
-
-	// Open animation editor with the target skeleton context
-	// Note: Full retarget preview requires IPersonaToolkit integration
-	if (GEditor)
-	{
-		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(AnimSeq);
-		OutResult.Messages.Add(TEXT("Animation editor opened. Manual retarget preview required."));
-	}
-
-	OutResult.bSuccess = true;
-	return true;
 }
 
 // ============================================================================

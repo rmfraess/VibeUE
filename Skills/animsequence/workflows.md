@@ -1,6 +1,6 @@
 ---
 name: animsequence-workflows
-description: Editing workflows (inspect skeleton, preview/validate single bone, multi-bone atomic edit, manual constraints, learn from animations, copy/mirror pose, retarget preview) and creation workflows (from reference pose, from keyframe data, simple keyframes, rotation keyframes, wave animation example).
+description: Editing workflows (inspect skeleton, preview/validate single bone, multi-bone atomic edit, manual constraints, learn from animations, copy/mirror pose) and creation workflows (from reference pose, from keyframe data, simple keyframes, rotation keyframes, wave animation example).
 ---
 
 # Animation Sequence Workflows
@@ -215,28 +215,6 @@ if result.success:
     print(f"Mirrored {len(result.modified_bones)} bones")
     # Bones like "hand_r" now have "hand_l" transforms and vice versa
 ```
-
-### 8. Preview on Different Skeleton (Retargeting)
-
-Test how an animation looks on a different character:
-
-```python
-import unreal
-
-result = unreal.AnimSequenceService.retarget_preview(
-    "/Game/Anims/AS_Run",
-    "/Game/MetaHumans/SK_MetaHuman"
-)
-
-if result.success:
-    print("Retarget preview active - check Animation Editor")
-else:
-    print(f"Retarget failed: {result.error_message}")
-    for msg in result.messages:
-        print(f"  - {msg}")
-```
-
----
 
 ## Creation Workflows
 

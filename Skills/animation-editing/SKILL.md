@@ -106,7 +106,6 @@ read the reference pose first (`get_reference_pose`).
 | Set manual joint constraints | `workflows.md` → set constraints | — |
 | Learn constraints from animations | `workflows.md` → learn constraints | `scripts/learn_constraints.txt` |
 | Copy / mirror a pose | `workflows.md` → copy/mirror | `scripts/mirror_pose.txt` |
-| Retarget preview | `workflows.md` → retargeting | — |
 
 ## Sub-docs
 

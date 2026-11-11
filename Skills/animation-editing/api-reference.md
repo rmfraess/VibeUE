@@ -44,7 +44,6 @@ copy_pose(src_path, src_frame, dst_path, dst_frame, bone_filter) -> AnimationEdi
 mirror_pose(anim_path, frame, mirror_axis) -> AnimationEditResult   # axis "X"/"Y"/"Z"
 get_reference_pose(skeleton_path) -> Array[BonePose]
 quat_to_euler(quat) -> Rotator
-retarget_preview(anim_path, target_skeleton) -> AnimationEditResult
 ```
 
 ## Safe discovery (no asset loading)

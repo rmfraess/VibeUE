@@ -174,12 +174,6 @@ AnimMontageService.open_montage_editor(montage_path) -> bool
 
 # Refresh editor UI: call this ONCE, AFTER all edits are done (see crash warning below)
 AnimMontageService.refresh_montage_editor(montage_path) -> bool
-
-# Jump to section in preview
-AnimMontageService.jump_to_section(montage_path, section_name) -> bool
-
-# Play preview
-AnimMontageService.play_preview(montage_path, start_section) -> bool
 ```
 
 > ⚠️ **CRASH WARNING — never structurally edit a montage while its editor is open.**

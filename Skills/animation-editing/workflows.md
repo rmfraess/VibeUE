@@ -111,10 +111,3 @@ unreal.AnimSequenceService.mirror_pose("/Game/Anims/AS_Wave_Right", 15, "X")
 
 Runnable: `scripts/mirror_pose.txt`.
 
-## Preview on a different skeleton (retargeting)
-
-```python
-import unreal
-r = unreal.AnimSequenceService.retarget_preview("/Game/Anims/AS_Run", "/Game/MetaHumans/SK_MetaHuman")
-print(r.success, list(r.messages))
-```

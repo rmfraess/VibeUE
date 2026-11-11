@@ -1208,36 +1208,6 @@ public:
 	static int32 GetNotifyTrackCount(const FString& AnimPath);
 
 	/**
-	 * Get the next available notify track index.
-	 * In UE 5.7, tracks are implicit - place a notify on any track index to "create" it.
-	 * The TrackName parameter is informational only (UE uses indexed tracks).
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param TrackName - Informational name (not stored, UE uses track indices)
-	 * @return Next available track index, or -1 on failure
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|NotifyTracks")
-	static int32 AddNotifyTrack(
-		const FString& AnimPath,
-		const FString& TrackName);
-
-	/**
-	 * Rename an existing notify track.
-	 * NOTE: Not supported in UE 5.7 - notify tracks are implicitly named by index.
-	 * Always returns false.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param TrackIndex - Index of the track to rename
-	 * @param NewName - New name for the track (ignored)
-	 * @return Always false - operation not supported
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|NotifyTracks")
-	static bool RenameNotifyTrack(
-		const FString& AnimPath,
-		int32 TrackIndex,
-		const FString& NewName);
-
-	/**
 	 * Remove a notify track from an animation.
 	 * Moves all notifies on this track to track 0, then decrements
 	 * track indices for notifies on higher tracks.
@@ -1500,35 +1470,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Editor")
 	static bool OpenAnimationEditor(const FString& AnimPath);
-
-	/**
-	 * Set preview playback time in the Animation Editor.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param Time - Time in seconds
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Editor")
-	static bool SetPreviewTime(const FString& AnimPath, float Time);
-
-	/**
-	 * Start preview playback in the Animation Editor.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param bLoop - Whether to loop playback
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Editor")
-	static bool PlayPreview(const FString& AnimPath, bool bLoop = false);
-
-	/**
-	 * Stop preview playback in the Animation Editor.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Editor")
-	static bool StopPreview(const FString& AnimPath);
 
 	// ============================================================================
 	// PREVIEW EDITING (Inspect → Preview → Validate → Bake workflow)
@@ -1888,33 +1829,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Helpers")
 	static void QuatToEuler(const FQuat& Quat, FRotator& OutRotator);
-
-	// ============================================================================
-	// RETARGETING
-	// ============================================================================
-
-	/**
-	 * Preview an animation on a different skeleton (retarget preview).
-	 * Does not modify the original animation.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param TargetSkeletonPath - Path to the target skeleton
-	 * @param OutResult - Result with any retargeting issues
-	 * @return True if preview was set up successfully
-	 *
-	 * Example:
-	 *   result = unreal.AnimSequenceService.retarget_preview(
-	 *       "/Game/Anims/AS_Run",
-	 *       "/Game/MetaHumans/SK_MetaHuman"
-	 *   )
-	 *   if result.success:
-	 *       print("Preview active - check animation editor")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Retarget")
-	static bool RetargetPreview(
-		const FString& AnimPath,
-		const FString& TargetSkeletonPath,
-		FAnimationEditResult& OutResult);
 
 	// ============================================================================
 	// ANIMATION POSE CAPTURE (Visual Feedback)

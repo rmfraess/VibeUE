@@ -67,9 +67,6 @@ poses = AnimSequenceService.get_reference_pose(skeleton_path) -> Array[BonePose]
 
 # Convert quaternion to Euler
 euler = AnimSequenceService.quat_to_euler(quat) -> Rotator
-
-# Preview on different skeleton
-result = AnimSequenceService.retarget_preview(anim_path, target_skeleton) -> AnimationEditResult
 ```
 
 ### Pose Authoring Methods (AnimSequenceService)
