@@ -39,12 +39,14 @@ struct FLandscapeMaterialLayerConfig
 	UPROPERTY(BlueprintReadWrite, Category = "LandscapeMaterial")
 	FString LayerName;
 
+	/** "LB_WeightBlend", "LB_AlphaBlend" or "LB_HeightBlend". Empty: taken from bUseHeightBlend (height or weight). */
 	UPROPERTY(BlueprintReadWrite, Category = "LandscapeMaterial")
 	FString BlendType;
 
 	UPROPERTY(BlueprintReadWrite, Category = "LandscapeMaterial")
 	float PreviewWeight = 1.0f;
 
+	/** Height blend (adds the layer's Height pin). Contradicting a non-height BlendType is an error. */
 	UPROPERTY(BlueprintReadWrite, Category = "LandscapeMaterial")
 	bool bUseHeightBlend = false;
 };

@@ -218,6 +218,14 @@ FLandscapeLayerBlendInfo ULandscapeMaterialService::CreateLayerBlendNode(
 	return Result;
 }
 
+static bool ParseLayerBlendType(const FString& Name, ELandscapeLayerBlendType& Out)
+{
+	if (Name.Equals(TEXT("LB_WeightBlend"), ESearchCase::IgnoreCase)) { Out = LB_WeightBlend; return true; }
+	if (Name.Equals(TEXT("LB_AlphaBlend"), ESearchCase::IgnoreCase)) { Out = LB_AlphaBlend; return true; }
+	if (Name.Equals(TEXT("LB_HeightBlend"), ESearchCase::IgnoreCase)) { Out = LB_HeightBlend; return true; }
+	return false;
+}
+
 FLandscapeLayerBlendInfo ULandscapeMaterialService::CreateLayerBlendNodeWithLayers(
 	const FString& MaterialPath,
 	const TArray<FLandscapeMaterialLayerConfig>& Layers,
@@ -230,6 +238,31 @@ FLandscapeLayerBlendInfo ULandscapeMaterialService::CreateLayerBlendNodeWithLaye
 	if (!Material)
 	{
 		return Result;
+	}
+
+	// Resolve every layer's blend type before creating anything: an empty BlendType takes bUseHeightBlend,
+	// and an unknown type or a contradiction fails instead of silently becoming a weight blend.
+	TArray<ELandscapeLayerBlendType> BlendTypes;
+	for (const FLandscapeMaterialLayerConfig& LayerConfig : Layers)
+	{
+		ELandscapeLayerBlendType BlendTypeEnum;
+		if (LayerConfig.BlendType.IsEmpty())
+		{
+			BlendTypeEnum = LayerConfig.bUseHeightBlend ? LB_HeightBlend : LB_WeightBlend;
+		}
+		else if (!ParseLayerBlendType(LayerConfig.BlendType, BlendTypeEnum))
+		{
+			UE_LOG(LogTemp, Error, TEXT("ULandscapeMaterialService::CreateLayerBlendNodeWithLayers: Layer '%s' has unknown BlendType '%s' (use LB_WeightBlend, LB_AlphaBlend or LB_HeightBlend)"),
+				*LayerConfig.LayerName, *LayerConfig.BlendType);
+			return Result;
+		}
+		if (LayerConfig.bUseHeightBlend && BlendTypeEnum != LB_HeightBlend)
+		{
+			UE_LOG(LogTemp, Error, TEXT("ULandscapeMaterialService::CreateLayerBlendNodeWithLayers: Layer '%s' sets bUseHeightBlend but BlendType '%s'"),
+				*LayerConfig.LayerName, *LayerConfig.BlendType);
+			return Result;
+		}
+		BlendTypes.Add(BlendTypeEnum);
 	}
 
 	FScopedTransaction Transaction(NSLOCTEXT("LandscapeMaterialService", "CreateLayerBlendWithLayers", "Create Landscape Layer Blend With Layers"));
@@ -253,21 +286,12 @@ FLandscapeLayerBlendInfo ULandscapeMaterialService::CreateLayerBlendNodeWithLaye
 	BlendNode->Modify();
 
 	// Add all layers in one go
-	for (const FLandscapeMaterialLayerConfig& LayerConfig : Layers)
+	for (int32 i = 0; i < Layers.Num(); ++i)
 	{
-		ELandscapeLayerBlendType BlendTypeEnum = LB_WeightBlend;
-		if (LayerConfig.BlendType.Equals(TEXT("LB_AlphaBlend"), ESearchCase::IgnoreCase))
-		{
-			BlendTypeEnum = LB_AlphaBlend;
-		}
-		else if (LayerConfig.BlendType.Equals(TEXT("LB_HeightBlend"), ESearchCase::IgnoreCase))
-		{
-			BlendTypeEnum = LB_HeightBlend;
-		}
-
+		const FLandscapeMaterialLayerConfig& LayerConfig = Layers[i];
 		FLayerBlendInput NewLayer;
 		NewLayer.LayerName = FName(*LayerConfig.LayerName);
-		NewLayer.BlendType = BlendTypeEnum;
+		NewLayer.BlendType = BlendTypes[i];
 		NewLayer.PreviewWeight = LayerConfig.PreviewWeight;
 		BlendNode->Layers.Add(NewLayer);
 	}
@@ -281,6 +305,7 @@ FLandscapeLayerBlendInfo ULandscapeMaterialService::CreateLayerBlendNodeWithLaye
 		FLandscapeMaterialLayerConfig Config;
 		Config.LayerName = Layer.LayerName.ToString();
 		Config.BlendType = UEnum::GetValueAsString(Layer.BlendType);
+		Config.bUseHeightBlend = Layer.BlendType == LB_HeightBlend;
 		Config.PreviewWeight = Layer.PreviewWeight;
 		Result.Layers.Add(Config);
 	}
@@ -319,15 +344,11 @@ bool ULandscapeMaterialService::AddLayerToBlendNode(
 		}
 	}
 
-	// Determine blend type
 	ELandscapeLayerBlendType BlendTypeEnum = LB_WeightBlend;
-	if (BlendType.Equals(TEXT("LB_AlphaBlend"), ESearchCase::IgnoreCase))
+	if (!BlendType.IsEmpty() && !ParseLayerBlendType(BlendType, BlendTypeEnum))
 	{
-		BlendTypeEnum = LB_AlphaBlend;
-	}
-	else if (BlendType.Equals(TEXT("LB_HeightBlend"), ESearchCase::IgnoreCase))
-	{
-		BlendTypeEnum = LB_HeightBlend;
+		UE_LOG(LogTemp, Error, TEXT("ULandscapeMaterialService::AddLayerToBlendNode: Unknown BlendType '%s' (use LB_WeightBlend, LB_AlphaBlend or LB_HeightBlend)"), *BlendType);
+		return false;
 	}
 
 	FScopedTransaction Transaction(NSLOCTEXT("LandscapeMaterialService", "AddLayer", "Add Layer to Blend Node"));
