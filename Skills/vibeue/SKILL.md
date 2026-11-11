@@ -230,6 +230,9 @@ unreal.find_object(None, "/Game/Maps/Foo.Foo")
 ```
 
 `EditorAssetLibrary.rename_asset` on a map also leaves it resident (verified 5.9): run the
+Copying a map does too: `duplicate_asset` and a Save As leave the copy resident, and the next
+`load_level` hits the World Memory Leaks fatal. Save the copy with
+`EditorLoadingAndSavingUtils.save_map(world, new_path)`, quit with nothing dirty, and relaunch on it.
 `get_resident_maps()` guard and collect garbage before the next level change. A map rename can
 also fail with `False` when a class default object soft-references the map (an auto-cancelled
 confirmation); then rename it by hand in the Content Browser and verify by script.

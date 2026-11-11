@@ -324,6 +324,11 @@ unreal.EditorAssetLibrary.rename_asset(
 
 (The engine `AssetTools` toolset exposes an equivalent move/rename action via `call_tool`.)
 
+A rename can pass saved-count and cold-load checks while leaving references that only break at
+render or generation time (by-name settings, material texture parameters, Nanite Assembly parts).
+After any rename, run a fresh generation/render and grep the Editor log for
+`Failed to compile Material`, `Failed to find object` and `Failed to load`.
+
 ### Creating Widget Blueprints
 
 Use the engine's `WidgetBlueprintFactory` — a plain `BlueprintFactory` with a UserWidget
