@@ -3,6 +3,8 @@
 #include "PythonAPI/URuntimeVirtualTextureService.h"
 #include "VT/RuntimeVirtualTexture.h"
 #include "Components/RuntimeVirtualTextureComponent.h"
+#include "VT/RuntimeVirtualTextureVolume.h"
+#include "RuntimeVirtualTextureSetBounds.h"
 #include "VT/VirtualTextureBuilder.h"
 #include "Landscape.h"
 #include "LandscapeInfo.h"
@@ -297,45 +299,43 @@ FRVTVolumeResult URuntimeVirtualTextureService::CreateRVTVolume(
 		return Result;
 	}
 
-	// Get landscape bounds for volume sizing
+	// Get landscape bounds for the result log; the volume is fitted by the engine's own Set Bounds below
 	FVector Origin, Extent;
 	LandscapeProxy->GetActorBounds(false, Origin, Extent);
 
-	// Spawn the RuntimeVirtualTextureComponent on a new actor
-	// We create the actor with a RuntimeVirtualTextureComponent
 	FString ActorLabel = VolumeName.IsEmpty()
 		? FString::Printf(TEXT("RVT_Volume_%s"), *LandscapeProxy->GetActorLabel())
 		: VolumeName;
 
 	FScopedTransaction Transaction(NSLOCTEXT("RVTService", "CreateRVTVolume", "Create RVT Volume"));
 
-	// Spawn a generic actor with RVT component
+	// Spawn the engine's RVT volume actor (it owns a RuntimeVirtualTextureComponent and its bounds box)
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	AActor* VolumeActor = World->SpawnActor<AActor>(AActor::StaticClass(), Origin, FRotator::ZeroRotator, SpawnParams);
-	if (!VolumeActor)
+	ARuntimeVirtualTextureVolume* VolumeActor = World->SpawnActor<ARuntimeVirtualTextureVolume>(
+		ARuntimeVirtualTextureVolume::StaticClass(), Origin, FRotator::ZeroRotator, SpawnParams);
+	URuntimeVirtualTextureComponent* RVTComponent = VolumeActor ? VolumeActor->VirtualTextureComponent.Get() : nullptr;
+	if (!RVTComponent)
 	{
+		if (VolumeActor)
+		{
+			World->EditorDestroyActor(VolumeActor, true);
+		}
 		Result.ErrorMessage = TEXT("Failed to spawn RVT volume actor");
 		return Result;
 	}
 
 	VolumeActor->SetActorLabel(ActorLabel);
+	VolumeActor->Modify();
+	RVTComponent->Modify();
+	RVTComponent->SetVirtualTexture(RVT);
 
-	// Add RuntimeVirtualTextureComponent
-	URuntimeVirtualTextureComponent* RVTComponent = NewObject<URuntimeVirtualTextureComponent>(
-		VolumeActor, URuntimeVirtualTextureComponent::StaticClass(), TEXT("RuntimeVirtualTexture"));
-
-	if (RVTComponent)
-	{
-		RVTComponent->SetVirtualTexture(RVT);
-
-		// Size the component to cover the landscape
-		RVTComponent->SetWorldTransform(FTransform(FRotator::ZeroRotator, Origin, FVector::OneVector));
-
-		VolumeActor->AddInstanceComponent(RVTComponent);
-		RVTComponent->RegisterComponent();
-	}
+	// Fit the volume to the whole landscape (unloaded components included) the way the details-panel
+	// "Set Bounds" button does: align to the landscape actor, then let the engine compute the transform.
+	ALandscape* LandscapeActor = LandscapeProxy->GetLandscapeActor();
+	RVTComponent->SetBoundsAlignActor(LandscapeActor ? static_cast<AActor*>(LandscapeActor) : static_cast<AActor*>(LandscapeProxy));
+	RuntimeVirtualTexture::SetBounds(RVTComponent);
 
 	Result.bSuccess = true;
 	Result.VolumeName = VolumeActor->GetName();

@@ -107,6 +107,7 @@ public class VibeUE : ModuleRules
 				"Landscape",              // For ALandscape, ULandscapeInfo, ULandscapeComponent
 				"PhysicsCore",            // UPhysicalMaterial / EPhysicalSurface in LandscapeService + FoliageService
 				"LandscapeEditor",        // For landscape editor factories and utilities
+				"VirtualTexturingEditor", // RuntimeVirtualTexture::SetBounds (the RVT volume's "Set Bounds" button) for CreateRVTVolume
 				"Foliage",                // Required by LandscapeEdit.h (InstancedFoliageActor)
 				"ModelViewViewModel",     // For MVVM ViewModel base classes (UMVVMViewModelBase)
 				"ModelViewViewModelBlueprint", // For MVVM Blueprint View and bindings
