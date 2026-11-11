@@ -376,8 +376,6 @@ struct FVibeCOCompileResult
  *
  * Methods:
  * - is_mutable_available: whether the Mutable plugin is loaded
- * - list_customizable_objects: Customizable Object assets under a directory
- * - create_customizable_object: new asset with its graph and Base Object node
  * - get_object_info: parent/children, parameters, states, components, compile status
  * - get_graph / get_node: nodes, pins and connections
  * - discover_node_types / get_node_type_properties: node class catalog and class defaults
@@ -401,18 +399,6 @@ public:
 	/** True when the Mutable plugin (CustomizableObject + CustomizableObjectEditor modules) is loaded. */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
 	static bool IsMutableAvailable();
-
-	/** Package paths of every Customizable Object asset under DirectoryPath (recursive), sorted. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
-	static TArray<FString> ListCustomizableObjects(const FString& DirectoryPath = TEXT("/Game"));
-
-	/**
-	 * Create a Customizable Object at AssetPath (e.g. "/Game/Characters/CO_Hero") through the engine's
-	 * own factory, so it gets its graph and the undeletable Base Object node. Saved immediately.
-	 * Refuses to overwrite an existing asset. NodeId in the result is the Base Object node.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
-	static FVibeCOEditResult CreateCustomizableObject(const FString& AssetPath);
 
 	/**
 	 * Parent/child relationships, graph parameters, and — when the object is compiled — its compiled

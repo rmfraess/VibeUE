@@ -52,8 +52,9 @@ path = "/Game/Characters/CO_Hero"
 MESH = "/Game/Characters/Meshes/SK_Body.SK_Body"          # any skeletal mesh WITH a skeleton
 MAT  = "/Game/Characters/Materials/M_Body.M_Body"
 
-base = CO.create_customizable_object(path)                # graph + Base Object node
-b = base.node_id
+# Create the asset with unreal.CustomizableObjectEditorFunctionLibrary.new_customizable_object,
+# then inspect CO.get_graph(path) and supply its Base Object node id.
+b = "<base node id>"
 
 # Nodes. Pass properties that shape pins AT CREATION (see "Pins depend on properties" below).
 sk   = CO.add_node(path, "CustomizableObjectNodeSkeletalMesh", -1200, 0, json.dumps({"SkeletalMesh": MESH}))
@@ -139,8 +140,10 @@ grp = CO.add_node(root, "CustomizableObjectNodeObjectGroup", 0, 300,
                   json.dumps({"GroupName": "Hat", "GroupType": "COGT_ONE_OR_NONE"}))
 CO.connect_pins(root, grp.node_id, "Group", root_base_id, "Children")
 
-cap = CO.create_customizable_object("/Game/Characters/CO_Hat_Cap")
-CO.set_node_property("/Game/Characters/CO_Hat_Cap", cap.node_id, "ObjectName", "Cap")
+# Create the child with unreal.CustomizableObjectEditorFunctionLibrary.new_customizable_object,
+# then inspect CO.get_graph("/Game/Characters/CO_Hat_Cap") for its Base Object node id.
+cap_base_id = "<child base node id>"
+CO.set_node_property("/Game/Characters/CO_Hat_Cap", cap_base_id, "ObjectName", "Cap")
 CO.set_parent_object("/Game/Characters/CO_Hat_Cap", root, grp.node_id)   # "" parent detaches
 # ...build the cap's own mesh chain into ITS base node's Components...
 CO.compile_object(root)     # compile the ROOT; the "Hat" parameter gains the option "Cap"
