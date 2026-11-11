@@ -620,16 +620,11 @@ struct FLineTraceHit
  *
  * Properties:
  * - set_landscape_material: Assign material to landscape
- * - get_landscape_property: Get a property value
- * - set_landscape_property: Set a property value
  *
  * Visibility:
- * - set_landscape_visibility: Show/hide landscape
- * - set_landscape_collision: Enable/disable collision
  *
  * Existence:
  * - landscape_exists: Check if landscape exists
- * - layer_exists: Check if layer exists on landscape
  *
  * Splines:
  * - create_spline_point: Create a control point (param: world_location, NOT location)
@@ -1355,64 +1350,6 @@ public:
 		const FString& LandscapeNameOrLabel,
 		const FString& MaterialPath);
 
-	/**
-	 * Get a landscape property value.
-	 * Maps to action="get_landscape_property"
-	 *
-	 * @param LandscapeNameOrLabel - Name or label of the landscape
-	 * @param PropertyName - Property name
-	 * @return Property value as string
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Landscape")
-	static FString GetLandscapeProperty(
-		const FString& LandscapeNameOrLabel,
-		const FString& PropertyName);
-
-	/**
-	 * Set a landscape property value.
-	 * Maps to action="set_landscape_property"
-	 *
-	 * @param LandscapeNameOrLabel - Name or label of the landscape
-	 * @param PropertyName - Property name
-	 * @param Value - Value as string
-	 * @return True if property was set
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Landscape")
-	static bool SetLandscapeProperty(
-		const FString& LandscapeNameOrLabel,
-		const FString& PropertyName,
-		const FString& Value);
-
-	// =================================================================
-	// Visibility & Collision
-	// =================================================================
-
-	/**
-	 * Set visibility of a landscape.
-	 * Maps to action="set_landscape_visibility"
-	 *
-	 * @param LandscapeNameOrLabel - Name or label of the landscape
-	 * @param bVisible - Whether the landscape should be visible
-	 * @return True if visibility was set
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Landscape")
-	static bool SetLandscapeVisibility(
-		const FString& LandscapeNameOrLabel,
-		bool bVisible);
-
-	/**
-	 * Enable or disable collision on a landscape.
-	 * Maps to action="set_landscape_collision"
-	 *
-	 * @param LandscapeNameOrLabel - Name or label of the landscape
-	 * @param bEnableCollision - Whether collision should be enabled
-	 * @return True if collision setting was changed
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Landscape")
-	static bool SetLandscapeCollision(
-		const FString& LandscapeNameOrLabel,
-		bool bEnableCollision);
-
 	// =================================================================
 	// Existence Checks
 	// =================================================================
@@ -1427,18 +1364,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Landscape|Exists")
 	static bool LandscapeExists(const FString& LandscapeNameOrLabel);
-
-	/**
-	 * Check if a layer exists on a landscape.
-	 *
-	 * @param LandscapeNameOrLabel - Name or label of the landscape
-	 * @param LayerName - Layer name to check
-	 * @return True if layer exists
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Landscape|Exists")
-	static bool LayerExists(
-		const FString& LandscapeNameOrLabel,
-		const FString& LayerName);
 
 	// =================================================================
 	// Batch Painting Operations

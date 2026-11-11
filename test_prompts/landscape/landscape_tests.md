@@ -919,7 +919,7 @@ This is the core of the test. Every expression from M_Landscape must be created 
 ### 3.1 Batch Create — Simple Expression Nodes
 
 From the export, collect all expressions that are NOT:
-- MaterialFunctionCall (needs `create_function_call`)
+- MaterialFunctionCall (create and initialize with native Unreal Python)
 - Custom (needs `create_custom_expression`)
 - CollectionParameter (needs `create_collection_parameter`)
 
@@ -934,7 +934,7 @@ Map every old ID to its new ID.
 
 ### 3.2 Create MaterialFunctionCall Nodes
 
-For each MaterialFunctionCall in the export, use `create_function_call` with:
+For each MaterialFunctionCall in the export, use `unreal.MaterialEditingLibrary.create_material_expression` with `unreal.MaterialExpressionMaterialFunctionCall`, then `node.set_material_function(unreal.load_asset(function_path))`, using:
 - The exact function_path from the export
 - The exact position (pos_x, pos_y)
 

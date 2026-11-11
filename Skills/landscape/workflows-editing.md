@@ -345,7 +345,10 @@ if not unreal.LandscapeService.landscape_exists("MyTerrain"):
         landscape_label="MyTerrain"
     )
 
-if not unreal.LandscapeService.layer_exists("MyTerrain", "Grass"):
+le = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+landscape = next(a for a in unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
+                 if isinstance(a, unreal.Landscape) and a.get_actor_label() == "MyTerrain")
+if unreal.Name("Grass") not in le.get_target_layer_names(landscape):
     unreal.LandscapeService.add_layer("MyTerrain", "/Game/Landscape/LI_Grass")
 ```
 
