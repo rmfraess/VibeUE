@@ -103,7 +103,7 @@ are `call_tool`; VibeUE services are `unreal.<Service>.<method>()` inside `execu
 | Old scenario step | What to call now |
 |---|---|
 | `start_pie` / `stop_pie` / `wait_for_pie` | `call_tool` → `EditorAppToolset.StartPIE` / `StopPIE` / `IsPIERunning` (poll `IsPIERunning` from a later call) |
-| `inject_action` / `inject_key` | `call_tool` → `InputToolset.ApplyInput` (`Entries` + `DurationSeconds`). VibeUE keeps `unreal.InputService.inject_action(...)` / `stop_injection(...)` in `execute_python` for an **indefinite** hold released later |
+| Input injection | `call_tool` → `InputToolset.ApplyInput` (`Entries` + `DurationSeconds`) |
 | `wait` | a later tool call, or a top-level `await asyncio.sleep(...)` in one `execute_python` script |
 | `assert_log` | `call_tool` → `ConsoleToolset.LogsToolset.GetLogEntries` (it requires a `pattern`). Read the log before the run and compare, since nothing scopes it to your run now |
 | `capture_game` | `call_tool` → `SceneCaptureToolset.CaptureGameViewport` |
@@ -269,7 +269,7 @@ engine/world commands; PlayerController exec functions and cheats are not routed
 with `call_function` on the controller).
 
 **When to use which:**
-- **Input injection** (`InputService`, below) when you are testing the player-facing path: the key or
+- **Input injection** (`InputToolset`, below) when you are testing the player-facing path: the key or
   action, the input binding, and the code that decides to send the RPC.
 - **`call_function`** when you need one specific function or RPC with chosen arguments: a server RPC from
   a client, a server-side flow that sends client RPCs (respawn, possession, travel), or a gate fixture.
@@ -340,50 +340,18 @@ log.
 > `ClientRestart_Implementation` printed in the server's frame. Scoping the guard to false around the
 > flow fixed it, and `call_function` does exactly that for you.
 
-## Driving gameplay input in PIE — `InputService` (issue #550)
+## Driving gameplay input in PIE — `InputToolset` (issue #550)
 
 Never remap game input assets or send OS keystrokes (SendKeys/AppActivate) to test a mechanic —
-inject input directly; no OS window focus needed:
+use `InputToolset.ApplyInput` via `call_tool`. Pass `Entries` and `DurationSeconds`: each entry
+sets exactly one of `Action` or legacy `Key` and a nonzero `Value` (X/Y/Z for actions, X for keys).
+A zero duration is a one-tick tap; a positive duration holds then releases. The asynchronous call
+completes after release. The tool selects a local player automatically; it has no `pie_instance`
+parameter. For indefinite Enhanced Input holds, use the native `EnhancedInputLocalPlayerSubsystem`
+continuous injection APIs and explicitly stop them.
 
-```python
-import unreal
-
-# VibeUE keeps exactly two of these, for an INDEFINITE hold you release later:
-# hold an Enhanced Input action down (QUEUED for the next input tick; X/Y/Z map onto the action's
-# value type, Boolean uses X != 0) ...
-print(unreal.InputService.inject_action("/Game/Input/IA_Fire_Secondary"))
-# ... and release it, in a LATER call, whenever the test says to:
-print(unreal.InputService.stop_injection("/Game/Input/IA_Fire_Secondary"))
-```
-
-**Every bounded press or hold is Epic's now** — `inject_action_for` and `inject_key` are gone. Use
-`InputToolset.ApplyInput` via `call_tool`, which takes `Entries` plus a `DurationSeconds`
-(`0` = a tap: down then up; `> 0` = held for that long, then released):
-
-```
-call_tool ApplyInput {"Entries": [{"Action": "/Game/Input/IA_Block", "Value": [1,0,0]}],
-                      "DurationSeconds": 1.5}
-call_tool ApplyInput {"Entries": [{"Key": "SpaceBar", "Value": [1,0,0]}], "DurationSeconds": 0}
-```
-
-A Python call blocks the game thread, so PIE does not tick while it runs: inject in one call and
-read the game state in a LATER call, two or more frames on, or in the same call after a top-level
-`await asyncio.sleep(...)`, which lets the editor tick. While a hold is active the editor stays
-off its background frame rate, so an unfocused editor does not starve the hold. The action calls
-take `pie_instance` to pick a PIE world: -1, the default, is the first PIE world with a local player
-(the lowest instance number — the listen server's window, or client 1 under a dedicated server), and
-replies report the instance actually used. A hold is one hold per action and PIE world whatever the
-path spelling; holding a held key again extends it; `StopPIE` drops every hold, so nothing from an
-ended session is released into the editor or reported active in the next one.
-
-All return JSON with `success` and an `error_code` naming the problem (PIE not running,
-`NO_LOCAL_PLAYER` / `NO_PLAYER_CONTROLLER` while PIE or a client's join is still starting — retry on
-a later call —, unknown key, ...). Epic `ApplyInput` additionally rejects a **Simulate In Editor** session
-with `SIMULATE_NOT_PLAY`: Simulate has no player game viewport, so the Slate key events would be
-dropped. Use `StartPIE` (Play), not Simulate, when driving keys. Its `handled_down` / `handled_up`
-fields report whether a Slate widget *consumed* the event, not whether the key reached the player — a
-key the game polls with `WasInputKeyJustPressed` lands with `handled_down: false`. Verify from game
-state, not from those flags.
+A Python call blocks the game thread, so read gameplay state in a later call or after a top-level
+`await asyncio.sleep(...)` that lets the editor tick. Verify gameplay state, not just tool completion.
 
 ## Seeing the game — `CaptureGameViewport` (engine-native in 5.9)
 

@@ -127,9 +127,9 @@ engine toolset first and use these only for the named delta:
 | `BlackboardService` | `rename_blackboard_key`, `find_blackboard_key_references` | `BehaviorTreeToolset` blackboard tools + `ObjectToolset` |
 | `EnvQueryService` | `run_query`, `repair_graph_from_options` | `AIModuleToolset.EnvironmentQueryToolset` (14 tools) |
 | `ActorService` | `rerun_construction_scripts` | `ActorToolset` / `LevelToolset` / `ObjectToolset` / `EditorAppToolset` |
-| `AssetDiscoveryService` | `reimport_asset`, `export_texture` | `AssetToolset` / `TextureToolset` / `FileSystemToolset` |
+| `AssetDiscoveryService` | `reimport_asset` | `AssetToolset` / `TextureToolset` / `FileSystemToolset` |
 | `TransactionService` | undo/redo stepping only | `UndoHistoryToolset` + `unreal.ScopedEditorTransaction` |
-| `GameplayTagService` | `request_tag`, `request_tag_container` | `GameplayTagsToolset` |
+| Gameplay tags | — | `GameplayTagsToolset`; Python values: `unreal.GameplayTag.import_text` / `unreal.GameplayTagContainer.import_text` |
 | `NiagaraEmitterService` | the three colour-curve tools | `NiagaraToolsets` (57 tools) |
 | `MaterialNodeService` | `create_function_call`, `create_collection_parameter` | `MaterialToolset` / `MaterialInstanceToolset` / `ObjectToolset` (`MaterialService` is deleted) |
 | `WorkflowService` | `get_environment` — engine version, build config, toolchain, build staleness | nothing: Epic reports none of it. `run_scenario` → `AutomationTestToolset`; the run journal → `FileSystemToolset` + `UndoHistoryToolset`; `run_bulk_maintenance` → `BlueprintToolset` / `AssetToolset`, batched by you |
@@ -313,19 +313,13 @@ unreal.PerformanceService.set_background_throttling(False)   # full rate while u
 # ... run your PIE verification ...
 unreal.PerformanceService.set_background_throttling(True)    # restore when done
 ```
-To drive gameplay in PIE without OS focus or input-asset remapping, **every bounded press or hold is
-Epic's** (`inject_action_for` and `inject_key` are gone):
-```
-call_tool InputToolset.ApplyInput {"Entries": [{"Action": "/Game/Input/IA_Block", "Value": [1,0,0]}],
-                                   "DurationSeconds": 1.5}       # 0 = a tap (down then up)
-call_tool InputToolset.ApplyInput {"Entries": [{"Key": "SpaceBar", "Value": [1,0,0]}], "DurationSeconds": 0}
-```
-VibeUE keeps exactly two input-injection calls, for an **indefinite** hold released later:
-`unreal.InputService.inject_action("/Game/Input/IA_Fire")` (Enhanced Input, queued for the next input
-tick: read the result in a later call) and `unreal.InputService.stop_injection("/Game/Input/IA_Fire")`.
-Holds keep the editor off its background frame rate and end with PIE. Both take `pie_instance` to
-pick the PIE world (-1 = the first PIE world with a local player). Never hand-roll a slate-tick loop
-around `inject_input_vector_for_action`.
+To drive gameplay in PIE without OS focus or input-asset remapping, call Epic's
+`InputToolset.ApplyInput` with `Entries` and `DurationSeconds`: each entry sets exactly one of
+`Action` or legacy `Key`, and a nonzero `Value` (X/Y/Z for actions, X for keys). A zero duration is
+a one-tick tap; a positive duration holds then releases. The asynchronous call completes on release.
+For an indefinite Enhanced Input hold, use `unreal.EnhancedInputLocalPlayerSubsystem` continuous
+injection APIs and release it explicitly. The tool selects a local player automatically; it has no
+`pie_instance` parameter. Verify gameplay state after input.
 PIE net mode and client count: `unreal.EngineSettingsService.set_pie_settings("ListenServer", 3, True)`
 (net mode, clients 1-10, run under one process; it is saved to the user's ini), read back with
 `get_pie_settings()` — these two are **Python-only helpers**, not MCP tools.

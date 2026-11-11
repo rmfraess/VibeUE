@@ -1,20 +1,8 @@
 # Copyright Buckley Builds LLC 2026 All Rights Reserved.
 
-# setup_input.txt — Create an Input Action + Mapping Context and bind a key.
+# setup_input.txt — Native APIs for creating input assets and binding a key.
 #
-# Sample script for the enhanced-input skill. Run via execute_python.
-import unreal
-isvc = unreal.InputService
-
-IA = "/Game/Input/IA_Jump"
-IMC = "/Game/Input/IMC_Default"
-
-ia = isvc.create_action("IA_Jump", IA, "Digital")        # value_type: Digital(bool)/Axis1D/Axis2D/Axis3D
-print("action:", ia)
-imc = isvc.create_mapping_context("IMC_Default", IMC, 0)  # priority 0
-print("context:", imc)
-
-print("bind SpaceBar:", isvc.add_key_mapping(IMC, IA, "SpaceBar"))
-print("mappings:", [str(m) for m in isvc.get_mappings(IMC)])
-unreal.EditorAssetLibrary.save_asset(IA)
-unreal.EditorAssetLibrary.save_asset(IMC)
+# Native API pointers for the enhanced-input skill; consult the API signatures before running.
+# Create InputAction and InputMappingContext assets with unreal.AssetTools.create_asset.
+# Set the action value type, then use unreal.InputMappingContext.map_key to bind SpaceBar.
+# Inspect DefaultKeyMappings.Mappings with ObjectToolset.GetProperties and save both assets.

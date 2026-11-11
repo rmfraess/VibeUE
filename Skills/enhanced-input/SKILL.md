@@ -16,27 +16,18 @@ unreal_classes:
 
 ### 🚨 Real Python method names — do NOT search for the docstring's "action" names
 
-The `InputService` class docstring lists MCP-style action ids (`action_create`,
-`mapping_list_contexts`, `action_configure`, ...). Those are **not** the Python method
-names — `get_symbol(method_filter=...)` matches nothing for them. The complete
-real API is below; you rarely need a discovery call at all:
+The remaining `InputService` Python methods are:
 
 | Area | Methods |
 |------|---------|
-| Reflection | `discover_types()`, `get_available_keys(filter="")`, `get_available_modifier_types()`, `get_available_trigger_types()` |
-| Actions | `create_action(name, path, value_type="Axis1D")`, `list_input_actions()`, `get_input_action_info(action_path)` → info or None, `configure_action(action_path, consume_input=True, trigger_when_paused=False, description="")`, `input_action_exists(action_path)` |
-| Contexts | `create_mapping_context(name, path, priority=0)`, `list_mapping_contexts()`, `get_mapping_context_info(context_path)` → info or None, `mapping_context_exists(context_path)` |
-| Mappings | `get_mappings(context_path)`, `add_key_mapping(context_path, action_path, key_name)`, `remove_mapping(context_path, mapping_index)`, `key_mapping_exists(context_path, action_path)` |
-| Modifiers | `add_modifier(context_path, mapping_index, modifier_type)`, `remove_modifier(context_path, mapping_index, modifier_index)`, `get_modifiers(context_path, mapping_index)` |
-| Triggers | `add_trigger(context_path, mapping_index, trigger_type, properties_json="")`, `add_action_trigger(action_path, trigger_type, properties_json="")` → JSON, `remove_trigger(context_path, mapping_index, trigger_index)`, `get_triggers(context_path, mapping_index)` |
+| Reflection | `discover_types()`, `get_available_keys(filter="")` |
+| Modifiers | `add_modifier(context_path, mapping_index, modifier_type)` |
+| Triggers | `add_trigger(context_path, mapping_index, trigger_type, properties_json="")`, `add_action_trigger(action_path, trigger_type, properties_json="")` → JSON |
 
-`create_action` value types are the strings `discover_types()` returns: `"Boolean"`
-(alias `"Digital"`), `"Axis1D"`, `"Axis2D"`, `"Axis3D"`. The `create_*` folder may be a bare
-folder (`"Input"` goes under `/Game`) or start with its mount point (`/Game/...`, a plugin root);
-`/Engine`, `/Script` and `/Temp` are refused, and so is an invalid asset name (empty, a space,
-`.`), each with the reason in `error_message`. Modifiers and triggers are
-addressed by **index on the mapping**, so `get_mappings` / `get_modifiers` /
-`get_triggers` first, then add/remove by index.
+Create assets with native `unreal.AssetTools.create_asset`; inspect them with `ObjectToolset.GetProperties`,
+including `DefaultKeyMappings.Mappings` for mapping indices. Use `InputMappingContext.map_key` /
+`unmap_key` for mappings and `ObjectToolset.SearchSubclasses` for modifier and trigger types.
+Modifiers and triggers are addressed by **index on the mapping**.
 
 ### ⚠️ Property Names on Info Structs
 
@@ -68,7 +59,7 @@ Verify any other name with `get_available_keys("thumb")` (substring filter) inst
 ### ⚠️ Triggers and Modifiers
 
 **Triggers:** `Pressed`, `Released`, `Down`, `Hold`, `Tap`, `Pulse`  
-**Modifiers:** `Negate`, `DeadZone`, `Scalar`, `SwizzleAxis` (also: `Smooth`, `SmoothDelta`, `ScaleByDeltaTime` — use `get_available_modifier_types()` for the full set)
+**Modifiers:** `Negate`, `DeadZone`, `Scalar`, `SwizzleAxis` (also: `Smooth`, `SmoothDelta`, `ScaleByDeltaTime` — use `ObjectToolset.SearchSubclasses` for the full set)
 
 ---
 
@@ -76,33 +67,15 @@ Verify any other name with `get_available_keys("thumb")` (substring filter) inst
 
 ### Create Input Action
 
-```python
-import unreal
-
-result = unreal.InputService.create_action("Jump", "/Game/Input", "Boolean")
-if result.success:
-    unreal.EditorAssetLibrary.save_asset(result.asset_path)
-```
+Use native `unreal.AssetTools.create_asset` with `unreal.InputAction`, set its value type, and save it.
 
 ### Create Mapping Context
 
-```python
-import unreal
-
-result = unreal.InputService.create_mapping_context("Default", "/Game/Input", 0)
-unreal.EditorAssetLibrary.save_asset(result.asset_path)
-```
+Use native `unreal.AssetTools.create_asset` with `unreal.InputMappingContext` and save it.
 
 ### Add Key Mapping
 
-```python
-import unreal
-
-context_path = "/Game/Input/IMC_Default"
-action_path = "/Game/Input/IA_Jump"
-unreal.InputService.add_key_mapping(context_path, action_path, "SpaceBar")
-unreal.EditorAssetLibrary.save_asset(context_path)
-```
+Load the context and action, then use native `unreal.InputMappingContext.map_key` and save the context.
 
 ### Add Triggers and Modifiers
 
@@ -110,13 +83,10 @@ unreal.EditorAssetLibrary.save_asset(context_path)
 import unreal
 
 context_path = "/Game/Input/IMC_Default"
-action_path = "/Game/Input/IA_Fire"
-
-unreal.InputService.add_key_mapping(context_path, action_path, "LeftMouseButton")
-
-# Get mapping index
-mappings = unreal.InputService.get_mappings(context_path)
-mapping_index = len(mappings) - 1
+# Inspect DefaultKeyMappings.Mappings with ObjectToolset.GetProperties first.
+# Replace None with the index of the existing mapping to edit.
+mapping_index = None
+assert mapping_index is not None, "Choose the mapping index before editing"
 
 # Add trigger/modifier using mapping index
 unreal.InputService.add_trigger(context_path, mapping_index, "Pressed")
@@ -153,17 +123,7 @@ unreal.EditorAssetLibrary.save_asset("/Game/Input/IA_Dash")
 
 ### Get Mappings Info
 
-```python
-import unreal
-
-mappings = unreal.InputService.get_mappings("/Game/Input/IMC_Default")
-for m in mappings:
-    print(f"Action: {m.action_name}, Key: {m.key_name}")
-
-info = unreal.InputService.get_input_action_info("/Game/Input/IA_Jump")
-if info:
-    print(f"Action: {info.action_name}, ValueType: {info.value_type}")
-```
+Use `ObjectToolset.GetProperties` on the context (`DefaultKeyMappings.Mappings`) or action.
 
 ### Discover Available Types
 
@@ -178,44 +138,22 @@ print(f"Triggers: {types.trigger_types}")
 keys = unreal.InputService.get_available_keys()
 ```
 
-## Sample scripts (run via `execute_python`)
+## Sample scripts
 
-- **`scripts/setup_input.txt`** — create an Input Action + Mapping Context and bind a key.
+- **`scripts/setup_input.txt`** — native API pointers for creating input assets and binding a key.
 
 ## PIE input injection (issue #550)
 
-Test input-driven gameplay WITHOUT remapping game assets or OS-level SendKeys — inject directly
-into the running PIE session (no OS window focus needed):
-
-```python
-import unreal
-
-# Enhanced Input action, QUEUED for the next input tick and released on the one after.
-# X/Y/Z map to the value type. Read the result in a later call: nothing ticks while this one runs.
-print(unreal.InputService.inject_action("/Game/Input/IA_Fire", 1.0))
-
-# Hold an action for 1.5 s of real time (a guard, a charge, a Hold trigger); returns at once.
-# inject_action_for is gone: use Epic InputToolset.ApplyInput (entries + DurationSeconds)
-# call_tool ApplyInput {"Entries": [{"Action": <IA path>, "Value": [1,0,0]}], "DurationSeconds": 1.0}
-print(unreal.InputService.stop_injection("/Game/Input/IA_Block"))   # release early
-
-# Raw key through Slate to the game viewport: "tap" (default), "down", "up", or "hold".
-# inject_key is no longer a tool: Epic InputToolset.ApplyInput takes a legacy Key entry
-# call_tool ApplyInput {"Entries": [{"Key": "SpaceBar", "Value": [1,0,0]}], "DurationSeconds": 0}
-# hold: ApplyInput with DurationSeconds > 0 -- {"Key": "RightMouseButton"}, duration 1.5))
-```
-
-All return JSON with `success`/`error_code` (PIE not running, `NO_LOCAL_PLAYER` /
-`NO_PLAYER_CONTROLLER` while PIE or a client's join is still starting — retry on a later call —,
-unknown key, `BAD_DURATION` outside 0.05 to 60 s). `inject_action` reports `queued: true`: it was
-queued, not yet applied. The action calls take `pie_instance` to pick a PIE world: -1, the default,
-is the first PIE world with a local player (the lowest instance number), and replies report the
-instance actually used. A hold is one hold per action and PIE world whatever the path spelling, so
-`stop_injection` finds it either way; holding a held key again extends it (`extended: true`); ending
-PIE drops every hold. See the `pie-testing` skill for the full verification loop.
+Test input-driven gameplay without remapping assets or OS-level SendKeys using Epic's
+`InputToolset.ApplyInput` via `call_tool`. Pass `Entries` and `DurationSeconds`: each entry sets
+exactly one of `Action` or legacy `Key` and a nonzero `Value` (X/Y/Z for actions, X for keys).
+Zero duration is a one-tick tap; a positive duration holds then releases. The async call completes
+on release. The tool selects a local player automatically and has no `pie_instance` parameter.
+For an indefinite action hold, use the native `EnhancedInputLocalPlayerSubsystem` continuous
+injection APIs and explicitly stop it. See the `pie-testing` skill for the verification loop.
 
 ## Reference pages
 
 Open these with the paths below; UE rewrites them to absolute paths when it serves this skill.
 
-- [scripts/setup_input.txt](scripts/setup_input.txt) - runnable sample
+- [scripts/setup_input.txt](scripts/setup_input.txt) - native API pointers

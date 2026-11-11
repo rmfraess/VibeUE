@@ -207,7 +207,7 @@ Configuration keywords (`:consume`, `:paused`, `:overrideparent`) are emitted on
 non-default, and an omitted key **resets to its default** — so preserve the ones `Read` gave you.
 
 **The Input Action asset must exist first.** Create it with
-`unreal.InputService.create_action(...)` (see the `enhanced-input` skill), then reference its path.
+native `unreal.AssetTools.create_asset` (see the `enhanced-input` skill), then reference its path.
 Run `Schema` on the entry type if you need the exact exec and data pin names for the family you are
 using.
 
