@@ -16,14 +16,16 @@ https://www.vibeue.com/
 
 **VibeUE is the MCP Expansion + AI Editor Toolset for Unreal Engine 5.9+.** Unreal 5.8 added a
 built-in MCP server and AI toolsets; VibeUE is an **MCP Expansion** that plugs straight into them and
-adds a deep **AI Editor Toolset** — a library of editor capabilities — Blueprints, materials, landscape, foliage, animation, Niagara, UMG, audio, StateTree,
-StateTrees, input, UVs, **performance/profiling**, and more — registered into the engine's own
+adds a deep **AI Editor Toolset** — a library of editor capabilities the engine's own toolsets
+don't reach: landscape, foliage, animation, Niagara, StateTree bindings, enhanced input, UVs,
+**performance/profiling**, real-world terrain, and more — registered into the engine's own
 `ToolsetRegistry` and `ModelContextProtocol` server, plus rich domain **skills** served through
 Unreal's native `AgentSkill` system. Any MCP-capable agent (Claude Code, Cursor, Copilot, …) drives
 your editor through Unreal's standard MCP endpoint.
 
 > ⚠️ **VibeUE requires Unreal's native MCP to be set up first** — enable the **Unreal MCP** plugin
-> (which auto-enables **Toolset Registry**) and the **Editor Tools** plugin, then start the MCP server.
+> (which auto-enables **Toolset Registry**), then start the MCP server. Enabling VibeUE pulls in
+> **Editor Tools** and the other engine toolsets its skills use.
 > Follow Epic's guide: **[Unreal MCP in the Unreal Editor](https://dev.epicgames.com/documentation/unreal-engine/unreal-mcp-in-unreal-editor)**.
 > VibeUE then expands that endpoint — **no separate server and no in-editor chat.** A free API key
 > (set in **Editor Preferences → Plugins → VibeUE**) unlocks the real-world **terrain** tools; everything
@@ -38,25 +40,29 @@ VibeUE **complements** them — it focuses on the domains and depth the engine d
 
 - **Terrain & world** — Landscape sculpting/heightmaps/splines, landscape auto-materials + RVT,
   Foliage, procedural FPS **Map Blockout**, and **real-world terrain** (heightmaps + water from GPS).
-- **Audio** — MetaSound and SoundCue graph authoring.
+- **Audio** — SoundCue graph authoring.
 - **Animation assets** — AnimSequence keyframe editing, AnimMontage authoring, AnimBP state machines,
   Skeleton bone/socket/retarget/blend-profile editing.
-- **FX depth** — Niagara emitter color/curve authoring and **Custom-HLSL scratch-pad** modules.
-- **UI** — UMG widgets with MVVM bindings, animation authoring, and preview/PIE validation.
-- **Higher-order Blueprint authoring** — timelines, event dispatchers, delegates, custom-event pins,
-  comment boxes, and a batch `build_graph` builder.
+- **FX depth** — Niagara emitter colour/curve authoring and **Custom-HLSL scratch-pad** modules.
+- **UI** — the UMG work Epic's `WidgetStaticAnalysisToolset` / `WidgetAnimationToolset` / `MVVMToolset`
+  don't reach. Those own widget inspection, animation and view-model binding now; VibeUE keeps the
+  remainder.
+- **Higher-order Blueprint authoring** — timelines, event dispatchers, delegates, custom-event pins
+  and comment boxes. Variables, components, interfaces, compile and node CRUD are Epic's
+  `BlueprintToolsets.BlueprintToolset`.
 - **AI behavior repair** -- Behavior Tree and EQS authoring is Epic's `AIModuleToolset`; VibeUE adds
   only what it lacks: rebuilding a BT or EQS graph that has gone sparse while the runtime data is
   intact, renaming a blackboard key with BT selector fix-ups, sweeping a key's references, and
   **running** an EQS query (Epic's EQS tools author and inspect, but never run).
+- **StateTree** — Epic's `StateTreeToolset` owns states, tasks, conditions and node data. VibeUE keeps
+  property **binding** (24 tools), asset creation, node-type discovery, theme colours and root
+  parameters — see `Skills/state-trees/`.
 - **Editor safety** -- `TransactionService` exposes the undo/redo *stepping* (undo / redo /
   multiple / can-undo / reset) that neither Python nor the engine toolsets expose; history reading is
   Epic's `UndoHistoryToolset` and scoping is `unreal.ScopedEditorTransaction`.
-- **Verified workflows** — `WorkflowService` adds an authoritative engine/build manifest, durable
-  task journals with affected-asset provenance, asynchronous PIE scenarios (compile → input →
-  assertion → capture → guaranteed teardown), and dry-run-first resumable bulk maintenance.
-- **⚡ Performance & profiling** — VibeUE's standout: see the dedicated section below.
-- **Python-first access** — run any `unreal.*` Python in the editor and introspect the whole API.
+- **Build manifest** — `WorkflowService.get_environment` reports engine version, build config and
+  toolchain in one authoritative call.
+- **Performance & profiling** — the parts Epic's 5.9 profiling toolsets still don't cover: see below.
 - **Web research** — search / fetch / geocode for in-context research and terrain workflows.
 
 It deliberately **does not duplicate** the engine's general tools (basic asset/actor/blueprint/material
@@ -64,31 +70,39 @@ CRUD, screenshots, logs, PIE) — agents use Unreal's native toolsets for those.
 
 ---
 
-## ⚡ Performance & Profiling (flagship)
+## ⚡ Performance & Profiling
 
-**Unreal's native AI toolsets have *zero* performance tooling** — they can start PIE/Simulate but can't
-measure anything. VibeUE's `PerformanceService` fills that gap so an agent can actually *diagnose and
-fix* frame rate:
+UE 5.9 added real profiling toolsets of its own — `PerfToolset` (`StatsToolset.GetFrameTimings`),
+`CsvProfilerToolset`, `GpuProfilerToolset` and `RewindDebuggerToolset` — so start there:
 
-- **`frame_timing()`** — Game/Render/GPU/RHI thread split + a **CPU-vs-GPU-bound verdict** and a
-  concrete next-step hint. *Run this first* — optimising the GPU does nothing on a CPU-bound frame.
-- **Unreal Insights capture** — `start_trace` / `stop_trace` / `get_trace_status`, with `bookmark`
-  and `region_start` / `region_end` markers.
-- **`analyse()`** — reads the trace **and** log back and returns a perf summary (frame stats, worst
-  frames, hitches, notable log lines).
-- **Trace-attached `start_standalone`** — profile a representative standalone build, not just the
-  editor viewport.
+```
+call_tool GetFrameTimings {}        # FrameMs + Game/Render/RHI thread + GPU split
+```
+
+The verdict is arithmetic you do yourself: the largest of the thread/GPU figures gates the frame and
+should sit near `FrameMs`. **If none of them comes near `FrameMs`, that is the signature of a cap**
+rather than a bottleneck — see `Skills/frame-rate/`.
+
+`PerformanceService` now covers only what that surface still can't do:
+
+- **`analyse()`** — reads a finished `.utrace` **and** the log back and returns a perf summary (frame
+  stats, worst frames, hitches, notable log lines). Nothing in Epic's surface parses a trace file.
+  Capture the trace with the engine's own `Trace.*` console commands via
+  `ConsoleToolset.RunConsoleCommand`.
+- **Trace-attached `start_standalone` / `stop_standalone` / `get_standalone_status`** — profile a
+  representative out-of-process standalone build. Epic's `EditorAppToolset.StartPIE` downgrades
+  standalone play modes to in-viewport PIE, which is not what you want to measure.
+- **`set_background_throttling()`** — registers the `ShouldDisableCPUThrottlingDelegates` override.
+  Clearing `bThrottleCPUWhenNotForeground` is not enough: `UEditorEngine::ShouldThrottleCPUUsage`
+  falls through to `AreAllWindowsHidden()`, so a minimized editor throttles anyway. This is the one
+  that matters for unattended runs.
+- **`force_hitch()`** — inject a deliberate stall to validate that your capture and analysis pipeline
+  actually catches one.
 
 ```python
 import unreal
-print(unreal.PerformanceService.frame_timing())   # CPU vs GPU bound — diagnose FIRST
-unreal.PerformanceService.start_trace("cap", "")   # Insights trace
-# … reproduce the workload (ideally under PIE / standalone) …
-unreal.PerformanceService.stop_trace()
 print(unreal.PerformanceService.analyse("both", ""))
 ```
-
-Pair with the `profiling` and `frame-rate` skills for the full CPU/GPU drill-down.
 
 ---
 
@@ -101,9 +115,9 @@ VibeUE plugs into three native UE 5.9+ systems:
    methods are callable from Python as `unreal.<Name>Service.<method>()`.
 2. **MCP server** (`ModelContextProtocol`) — only two VibeUE utility tools are registered directly on
    the endpoint, both things the engine has no tool for: `deep_research` and `terrain_data`. Python
-   execution and API discovery are engine-native in 5.9 (`EditorToolset.PythonScriptingTools`:
+   execution and API discovery are engine-native in 5.9 (`editor_toolset.toolsets.python_scripting.PythonScriptingTools`:
    `execute_python`, `read_me`, `search_symbols`, `get_symbol`), so VibeUE no longer ships its own.
-3. **Skills** (`AgentSkillToolset`) — 35 markdown skill packs under `Skills/`, discovered natively by
+3. **Skills** (`AgentSkillToolset`) — 32 markdown skill packs under `Skills/`, discovered natively by
    5.9 (`<Plugin>/Skills/**/SKILL.md`), listed by `ListSkills` and loaded lazily via `GetSkills`,
    alongside the engine's own skills.
 
@@ -123,8 +137,11 @@ multi-step task into one round-trip and reaches every VibeUE service plus the fu
 VibeUE is an **expansion** of Unreal's built-in MCP support, so enable that first. Full details in
 Epic's guide: **[Unreal MCP in the Unreal Editor](https://dev.epicgames.com/documentation/unreal-engine/unreal-mcp-in-unreal-editor)**.
 
-1. **Edit → Plugins** → enable **Unreal MCP** (this auto-enables **Toolset Registry**) and **Editor
-   Tools** (the engine's own AI toolsets, so agents get both). These are Experimental. Restart when prompted.
+1. **Edit → Plugins** → enable **Unreal MCP** (this auto-enables **Toolset Registry**). It is
+   Experimental. Restart when prompted. You do **not** need to hunt down **Editor Tools** or the other
+   engine toolsets by hand: VibeUE declares the eighteen its skills route to, so enabling VibeUE in
+   Step 2 switches them on. None of them is enabled by default on a stock engine, which is exactly
+   why VibeUE declares them.
 2. **Edit → Editor Preferences → General → Model Context Protocol** → enable **Auto Start Server**
    (or run the console command `ModelContextProtocol.StartServer`). Default endpoint
    `http://127.0.0.1:8000/mcp` (port/path configurable). Enabling **Tool Search** keeps an agent's
@@ -191,7 +208,7 @@ call_tool(tool_name="ListSkills", toolset_name="ToolsetRegistry.AgentSkillToolse
 
 # load the packs you need (full markdown, lazy)
 call_tool(tool_name="GetSkills", toolset_name="ToolsetRegistry.AgentSkillToolset",
-          arguments={"skillPaths": ["/VibeUE/Python/init_unreal_PY.VibeUE_blueprints"]})
+          arguments={"skillPaths": ["/Skills/VibeUE/blueprints"]})
 ```
 
 `ListSkills` is the **live source of truth** for what's available (it reads each pack's `SKILL.md`).
@@ -208,14 +225,31 @@ for exact signatures before writing code.
 |--------|---------|
 | **Unreal MCP** (`ModelContextProtocol`) | The native MCP server endpoint |
 | **Toolset Registry** (`ToolsetRegistry`) | Native AI toolset + `AgentSkill` registration (auto-enabled by Unreal MCP) |
-| **Editor Tools** (`EditorToolset`) | The engine's own AI toolsets — VibeUE complements these |
 
-**Enabled automatically by VibeUE:** `PythonScriptPlugin` (the `unreal.*` API),
-`EditorScriptingUtilities`, and the domain plugins its services need — `Niagara`, `MetaSound`,
-`EnhancedInput`, `ModelViewViewModel`, `StateTree`, `MeshModelingToolset`,
-`GameplayTagsEditor`. (VibeUE also depends on
-`ToolsetRegistry` + `ModelContextProtocol`, so enabling VibeUE pulls them in — but you still enable
-**Editor Tools** and start the server per Step 1.)
+**Enabled automatically by VibeUE.** Enabling VibeUE pulls in `ToolsetRegistry` and
+`ModelContextProtocol`, `PythonScriptPlugin` (the `unreal.*` API), `EditorScriptingUtilities`, the
+domain plugins its services need (`Niagara`, `EnhancedInput`, `ModelViewViewModel`, `StateTree`,
+`MeshModelingToolset`, `GameplayTagsEditor`, `EnvironmentQueryEditor`), **and the engine toolsets
+VibeUE's skills route to**:
+
+`EditorToolset` · `BlueprintToolsets` · `ConsoleToolset` · `ConfigSettingsToolset` ·
+`FileSystemToolset` · `StateTreeToolset` · `AIModuleToolset` · `NiagaraToolsets` · `MVVMToolset` ·
+`WidgetStaticAnalysisToolset` · `WidgetAnimationToolset` · `SlateInspectorToolset` ·
+`SceneCaptureToolset` · `PerfToolset` · `InputToolset` · `GameplayTagsToolset` ·
+`AutomationTestToolset` · `GASToolsets`
+
+> Those eighteen matter more than they look. **None of Epic's toolset plugins is enabled by
+> default** — `FPlugin::IsEnabledByDefault` disables an engine plugin whose `EnabledByDefault` is
+> absent, not just one that sets it to `false` — and VibeUE's skills now deliberately send you to
+> them for everything the engine does better. Without them enabled, those calls just are not there.
+> They are declared `Optional`, so a future engine version renaming or dropping an experimental
+> toolset cannot stop VibeUE loading; if one is missing you simply lose that domain's engine tools.
+>
+> A handful of toolsets the skills mention only in passing (`RewindDebuggerToolset`,
+> `CommonUIToolset`, `NavMeshToolset`, `PCGToolset`, `PluginToolset`, `GameFeaturesToolset`,
+> `MediaToolset`, `ChaosClothAssetToolset`, `LiveCodingToolset`) are **not** declared, to avoid
+> switching on a pile of experimental plugins nobody asked for. Enable those yourself if you want
+> them.
 
 ---
 

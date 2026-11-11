@@ -6,77 +6,7 @@
 #include "ToolsetRegistry/ToolsetDefinition.h"
 #include "UEngineSettingsService.generated.h"
 
-/**
- * Result of an engine settings operation.
- * Python access: result = unreal.EngineSettingsService.set_engine_ini_value(section, key, value, config_file)
- *
- * Properties:
- * - success (bool): Whether the operation succeeded
- * - error_message (str): Error message if failed (empty if success)
- * - modified_settings (Array[str]): Settings that were successfully modified
- * - failed_settings (Array[str]): Settings that failed to modify with reasons
- * - requires_restart (bool): Whether changes require editor restart
- */
-USTRUCT(BlueprintType)
-struct FEngineSettingResult
-{
-	GENERATED_BODY()
 
-	UPROPERTY(BlueprintReadWrite, Category = "EngineSettings")
-	bool bSuccess = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = "EngineSettings")
-	FString ErrorMessage;
-
-	UPROPERTY(BlueprintReadWrite, Category = "EngineSettings")
-	TArray<FString> ModifiedSettings;
-
-	UPROPERTY(BlueprintReadWrite, Category = "EngineSettings")
-	TArray<FString> FailedSettings;
-
-	UPROPERTY(BlueprintReadWrite, Category = "EngineSettings")
-	bool bRequiresRestart = false;
-};
-
-/**
- * Information about a console variable (cvar).
- * Python access: cvar = unreal.EngineSettingsService.get_console_variable_info(name)
- *
- * Properties:
- * - name (str): Console variable name (e.g., "r.ReflectionMethod")
- * - value (str): Current value as string
- * - default_value (str): Default value as string
- * - description (str): Help text/description
- * - type (str): Value type: "int", "float", "string", "bool"
- * - flags (str): CVar flags (e.g., "ECVF_RenderThreadSafe")
- * - is_read_only (bool): Whether the cvar is read-only
- */
-USTRUCT(BlueprintType)
-struct FConsoleVariableInfo
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, Category = "EngineSettings")
-	FString Name;
-
-	UPROPERTY(BlueprintReadWrite, Category = "EngineSettings")
-	FString Value;
-
-	UPROPERTY(BlueprintReadWrite, Category = "EngineSettings")
-	FString DefaultValue;
-
-	UPROPERTY(BlueprintReadWrite, Category = "EngineSettings")
-	FString Description;
-
-	UPROPERTY(BlueprintReadWrite, Category = "EngineSettings")
-	FString Type;
-
-	UPROPERTY(BlueprintReadWrite, Category = "EngineSettings")
-	FString Flags;
-
-	UPROPERTY(BlueprintReadWrite, Category = "EngineSettings")
-	bool bIsReadOnly = false;
-};
 
 /**
  * Play-In-Editor multiplayer settings snapshot.
@@ -123,36 +53,23 @@ struct FPIESettingsInfo
 };
 
 /**
- * Engine Settings Service - Python API for Unreal Engine configuration manipulation.
+ * Engine Settings Service - two Python-only PIE helpers. This service has NO AI tools.
  *
- * Provides comprehensive access to engine configuration including:
- * - Rendering settings (r.* cvars, quality, features)
- * - Physics settings (gravity, collision profiles)
- * - Audio settings (sample rates, channels)
- * - Garbage collection settings (gc.*)
- * - Threading/performance settings
- * - Platform-specific settings
- * - Console variables (cvars) direct access
- * - All engine config file access
+ * Engine settings are engine-native on the 5-9 branch, so nothing here is a tool any more. Cvars,
+ * console commands and scalability are `ConsoleToolset`; everything in Project Settings or Editor
+ * Preferences -- ULevelEditorPlaySettings included, at Editor / LevelEditor / PlayIn -- is
+ * `ConfigSettingsToolset`; a raw ini key with no registered section is `FileSystemToolset`. Not
+ * ObjectToolset: a UDeveloperSettings object is a native CDO, which SetProperties refuses. See the
+ * `engine-settings` skill.
  *
- * Python Usage:
- *   import unreal
- *
- *   # Inspect engine config sections and values
- *   sections = unreal.EngineSettingsService.list_engine_sections("Engine.ini")
- *   value = unreal.EngineSettingsService.get_engine_ini_value(
- *       "/Script/Engine.Engine", "GameEngine", "Engine.ini")
- *
- *   # Get/set console variables
- *   value = unreal.EngineSettingsService.get_console_variable("r.ReflectionMethod")
- *   result = unreal.EngineSettingsService.set_console_variable("r.ReflectionMethod", "1")
- *
- *   # Search for settings/cvars
- *   matches = unreal.EngineSettingsService.search_console_variables("shadow")
- *   for m in matches:
- *       print(f"{m.name}: {m.description}")
- *
- * @note Changes are written to config files and may require editor restart
+ * What is left is two DEMOTED helpers, not tools. GetPIESettings / SetPIESettings are no longer
+ * MCP tools and will not appear in list_toolsets, but are still callable as
+ * `unreal.EngineSettingsService.get_pie_settings()` and
+ * `.set_pie_settings(net_mode, num_clients, run_under_one_process)` from inside execute_python.
+ * They exist for exactly one caller: Content/Python/vibeue.py's GateSession, which reads, applies
+ * and restores the PIE net mode from inside execute_python, where Epic's toolsets are unreachable
+ * (none of those three carry PythonCallable). For ordinary PIE configuration use
+ * ConfigSettingsToolset.
  */
 UCLASS(BlueprintType)
 class VIBEUE_API UEngineSettingsService : public UToolsetDefinition

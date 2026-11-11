@@ -190,9 +190,9 @@ svc.flatten_at_location("Landscape", 0.0, 0.0, 0.0, 250.0)   # any height writer
 # What did that write actually touch?
 rep = svc.get_last_landscape_write()
 print(rep.summary)                       # e.g. "49 proxies dirtied; 49 written to disk by the edit-layer flush (mtime changed)"
-print(rep.num_proxies_dirtied, rep.num_written_to_disk, rep.b_any_written_to_disk)
+print(rep.num_proxies_dirtied, rep.num_written_to_disk, rep.any_written_to_disk)
 for p in rep.proxies:
-    print(p.package_name, "dirty:", p.b_dirty_after, "written:", p.b_written_to_disk, p.file_size_bytes)
+    print(p.package_name, "dirty:", p.dirty_after, "written:", p.written_to_disk, p.file_size_bytes)
 ```
 
 - **`get_last_landscape_write()`** reports, per proxy package the last write touched: `b_dirty_before` /
@@ -211,7 +211,7 @@ for p in rep.proxies:
 
 ```python
 res = svc.save_landscape("Landscape")
-if res.b_success:
+if res.success:
     print("saved", res.num_requested, "packages:", list(res.saved_packages))
 else:
     print("save failed:", res.error_message)   # e.g. a read-only / source-controlled file
@@ -314,12 +314,17 @@ factory = unreal.LandscapeGrassTypeFactory()
 new_asset = asset_tools.create_asset("LGT_MyGrass", "/Game/Grass", unreal.LandscapeGrassType, factory)
 ```
 
-### ⚠️ Use LandscapeMaterialService for Landscape Materials - NOT MaterialService
+### ⚠️ Use LandscapeMaterialService for Landscape Materials - NOT the generic material path
 
 - **CORRECT**: `unreal.LandscapeMaterialService.create_landscape_material("M_Terrain", "/Game/Mats")`
-- **WRONG**: `unreal.MaterialService.create_material("M_Terrain", "/Game/Mats")` → causes `TypeError: Nativize: Cannot nativize 'MaterialCreateResult' as 'String'`
+  — VibeUE service, so `execute_python`. Returns `LandscapeMaterialCreateResult`; use `.asset_path`.
+- **WRONG**: `call_tool` → `MaterialToolset.CreateMaterial("/Game/Mats", "M_Terrain")` — Epic's
+  generic material create. It gives you a bare material with none of the landscape scaffolding
+  (layer blend, layer coords, grass output), and the layer work then has nothing to attach to.
 
-`MaterialService` is for generic materials. Landscape materials MUST use `LandscapeMaterialService`.
+VibeUE's old `MaterialService` is **deleted**: generic materials are Epic's
+`EditorToolset.MaterialToolset` / `MaterialInstanceToolset` via `call_tool`. Landscape materials
+MUST still use `LandscapeMaterialService`.
 
 ### Layer Info Objects Required
 
@@ -332,14 +337,21 @@ Every paint layer needs a `ULandscapeLayerInfoObject` asset:
 ### Material Must Be Compiled First
 
 After creating/changing a landscape material, compile it before assigning to the landscape.
+Compiling is **Epic's** now — `MaterialService.compile_material` is gone:
+
+```
+call_tool MaterialToolset.Recompile {"MaterialOrFunction": {"refPath": "/Game/Mats/M_Terrain.M_Terrain"}}
+```
+
+(inside `execute_python`: `vibeue.exec_tool("EditorToolset.MaterialToolset", "Recompile", {...})`.)
 
 ### ⚠️ Split Material Operations Into Separate Code Blocks
 
-`compile_material()` can take minutes for complex landscape materials. **NEVER** combine material creation + compile + layer info creation in one code block — it WILL timeout.
+`Recompile` can take minutes for complex landscape materials. **NEVER** combine material creation + compile + layer info creation in one code block — it WILL timeout.
 
 Do this in separate steps:
 1. **Block 1**: Create material, add blend nodes, add layers, connect, save
-2. **Block 2**: `compile_material()` (this is slow)
+2. **Block 2**: `MaterialToolset.Recompile` (this is slow — on its own)
 3. **Block 3**: Create layer info objects, assign to landscape
 
 ---
@@ -353,13 +365,13 @@ Do this in separate steps:
 | `info.success` | Check `info.actor_label` (no success field on info) |
 | `info.num_sections` | `info.num_subsections` |
 | `info.quads_per_section` | `info.subsection_size_quads` |
-| `MaterialService.create_material()` for landscapes | `LandscapeMaterialService.create_landscape_material()` |
+| `MaterialToolset.CreateMaterial` for landscapes (and `MaterialService.*`, which is deleted) | `LandscapeMaterialService.create_landscape_material()` |
 | Guessing layer info path `Grass_LayerInfo` | Use `create_layer_info_object().asset_path` → `LI_Grass` |
 | `segment.start_control_point_index` | `segment.start_point_index` (spline segment) |
 | `segment.end_control_point_index` | `segment.end_point_index` (spline segment) |
 | `layer.name` on list_layers result | `layer.layer_name` (LandscapeLayerInfo_Custom property) |
-| `LandscapeService.create_spline_control_point(...)` | `LandscapeService.create_spline_point(...)` (no "control" in name) |
-| `LandscapeMaterialService.add_material_layer(...)` | `LandscapeMaterialService.add_layer_to_blend_node(...)` |
+| `LandscapeService.create_spline_control_point(...)` (no such method) | `LandscapeService.create_spline_point(...)` -- no "control" in the name |
+| `LandscapeMaterialService.add_material_layer(...)` (no such method) | `LandscapeMaterialService.add_layer_to_blend_node(...)` |
 | `mat_path = create_landscape_material(...)` as string | Returns `LandscapeMaterialCreateResult` — use `result.asset_path` |
 | `connect_spline_points(..., tangent_length=25.0)` ignoring negative source | Pass `tangent_length=seg.start_tangent_length, end_tangent_length=seg.end_tangent_length` — **both** tangents are needed for exact shape |
 | Only passing `tangent_length` to `connect_spline_points` | Must also pass `end_tangent_length=seg.end_tangent_length` — end tangent is typically negative (UE convention). Omitting it defaults to `-start_tangent` which is usually correct for NEW splines, but when copying, always pass both explicitly |

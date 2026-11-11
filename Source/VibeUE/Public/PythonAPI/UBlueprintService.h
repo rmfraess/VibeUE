@@ -7,32 +7,6 @@
 #include "Engine/Blueprint.h"
 #include "UBlueprintService.generated.h"
 
-/**
- * Information about a blueprint variable
- */
-USTRUCT(BlueprintType)
-struct FBlueprintVariableInfo
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString VariableName;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString VariableType;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Category;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsPublic = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsExposed = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString DefaultValue;
-};
 
 /**
  * Information about a single UEdGraph attached to a Blueprint.
@@ -63,133 +37,8 @@ struct FBlueprintGraphInfo
 	FString GraphPath;
 };
 
-/**
- * Fixed-size overview of a single graph — the cheap first read before deciding
- * whether a full get_nodes_in_graph dump is needed. Payload size is independent
- * of graph size (the histogram/entry lists are one line per distinct type/event,
- * not per node).
- */
-USTRUCT(BlueprintType)
-struct FBlueprintGraphSummary
-{
-	GENERATED_BODY()
 
-	/** Tab name as shown in the My Blueprint panel */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString GraphName;
 
-	/** "Ubergraph" | "Function" | "Macro" | "DelegateSignature" */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString GraphKind;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 NodeCount = 0;
-
-	/** Number of pin-to-pin links in the graph */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 ConnectionCount = 0;
-
-	/** Blueprint-level compile status: UpToDate | UpToDateWithWarnings | Dirty | Error | Unknown */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString CompileStatus;
-
-	/** Titles of entry-point nodes (events, custom events, function entry) with their node ids: "Title|NodeId" */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FString> EntryPoints;
-
-	/** Node class histogram, most frequent first: "K2Node_CallFunction x12" */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FString> NodeTypeCounts;
-};
-
-/**
- * Detailed information about a blueprint variable (for get_info action)
- */
-USTRUCT(BlueprintType)
-struct FBlueprintVariableDetailedInfo
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString VariableName;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString VariableType;
-
-	/** Full type path (e.g., "/Script/CoreUObject.FloatProperty") */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString TypePath;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Category;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Tooltip;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString DefaultValue;
-
-	/** Whether the variable can be edited per instance in Details panel */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsInstanceEditable = false;
-
-	/** Whether the variable is exposed on spawn */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsExposeOnSpawn = false;
-
-	/** Whether the variable is private */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsPrivate = false;
-
-	/** Whether the variable is read-only in Blueprints */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsBlueprintReadOnly = false;
-
-	/** Whether the variable is exposed to cinematics/Sequencer */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsExposeToCinematics = false;
-
-	/** Replication condition: "None", "Replicated", or "RepNotify" */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString ReplicationCondition;
-
-	/** Whether this is an array type */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsArray = false;
-
-	/** Whether this is a set type */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsSet = false;
-
-	/** Whether this is a map type */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsMap = false;
-};
-
-/**
- * Search result for variable types
- */
-USTRUCT(BlueprintType)
-struct FVariableTypeInfo
-{
-	GENERATED_BODY()
-
-	/** Type name (e.g., "Vector", "Actor") */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString TypeName;
-
-	/** Full type path (e.g., "/Script/CoreUObject.Vector") */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString TypePath;
-
-	/** Category (e.g., "Structure", "Object", "Enum") */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Category;
-
-	/** Description of the type */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Description;
-};
 
 /**
  * Information about a blueprint function parameter
@@ -246,707 +95,26 @@ struct FBlueprintTimelineInfo
 	bool bAutoPlay = false;
 };
 
-/**
- * Information about a function that can be overridden in a blueprint.
- * Returned by list_overridable_functions — one entry per overridable parent function.
- */
-USTRUCT(BlueprintType)
-struct FOverridableFunctionInfo
-{
-	GENERATED_BODY()
 
-	/** Function name (also the graph name when overridden) */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString FunctionName;
 
-	/** C++ class that declares the function (e.g. "StateTreeTaskBlueprintBase") */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString OwnerClass;
 
-	/** Whether this function is already overridden in this blueprint */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bAlreadyOverridden = false;
 
-	/** True for BlueprintNativeEvent (has C++ default), false for BlueprintImplementableEvent */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsNativeEvent = false;
 
-	/**
-	 * True if this override should be created as an event node in the EventGraph
-	 * (void/latent functions with FUNC_Event flag — e.g. EnterState, StateCompleted, Tick).
-	 * False if it should be a function graph with a return node (e.g. GetDescription).
-	 * override_function() uses this automatically — no need to check manually.
-	 */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsEventStyle = false;
 
-	/** Return type as string (e.g. "FText", "bool", "void") */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString ReturnType;
 
-	/** Parameter names and types as "Name:Type" strings */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FString> Parameters;
-};
-
-/**
- * Information about a blueprint function
- */
-USTRUCT(BlueprintType)
-struct FVibeBlueprintFunctionInfo
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString FunctionName;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString ReturnType;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FString> Parameters;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsOverride = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsPure = false;
-};
-
-/**
- * Information about a function local variable
- */
-USTRUCT(BlueprintType)
-struct FBlueprintLocalVariableInfo
-{
-	GENERATED_BODY()
-
-	/** Variable name */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString VariableName;
-
-	/** Friendly display name */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString FriendlyName;
-
-	/** Type descriptor (e.g., "float", "struct:Vector", "object:Actor") */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString VariableType;
-
-	/** Human-readable type string */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString DisplayType;
-
-	/** Default value as string */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString DefaultValue;
-
-	/** Category */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Category;
-
-	/** Variable GUID */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Guid;
-
-	/** Whether variable is const/read-only */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsConst = false;
-
-	/** Whether variable is a reference */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsReference = false;
-
-	/** Whether variable is an array */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsArray = false;
-
-	/** Whether variable is a set */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsSet = false;
-
-	/** Whether variable is a map */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsMap = false;
-};
-
-/**
- * Detailed information about a blueprint function (for get_info action)
- */
-USTRUCT(BlueprintType)
-struct FBlueprintFunctionDetailedInfo
-{
-	GENERATED_BODY()
-
-	/** Function name */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString FunctionName;
-
-	/** Graph GUID as string */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString GraphGuid;
-
-	/** Number of nodes in the function graph */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 NodeCount = 0;
-
-	/** Whether this is a pure function */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsPure = false;
-
-	/** Whether this is an override */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsOverride = false;
-
-	/** Input parameters */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FBlueprintFunctionParameterInfo> InputParameters;
-
-	/** Output parameters */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FBlueprintFunctionParameterInfo> OutputParameters;
-
-	/** Local variables */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FBlueprintLocalVariableInfo> LocalVariables;
-};
-
-/**
- * Information about a blueprint component
- */
-USTRUCT(BlueprintType)
-struct FBlueprintComponentInfo
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString ComponentName;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString ComponentClass;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString AttachParent;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsRootComponent = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsSceneComponent = false;
-
-	/** True if this component comes from a parent C++ class and cannot be removed via Python APIs.
-	 *  These are the "grayed out" components shown in the Blueprint Editor Components panel.
-	 *  To replace an inherited root (e.g. DefaultSceneRoot), call set_root_component() instead. */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsInherited = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FString> Children;
-};
-
-/**
- * Information about an available component type
- */
-USTRUCT(BlueprintType)
-struct FComponentTypeInfo
-{
-	GENERATED_BODY()
-
-	/** Component class name (e.g., "StaticMeshComponent") */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Name;
-
-	/** Display name for UI */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString DisplayName;
-
-	/** Full class path (e.g., "/Script/Engine.StaticMeshComponent") */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString ClassPath;
-
-	/** Category (e.g., "Rendering", "Physics") */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Category;
-
-	/** Whether this is a scene component (can have transforms) */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsSceneComponent = false;
-
-	/** Whether this is a primitive component (can render) */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsPrimitiveComponent = false;
-
-	/** Whether this is an abstract class */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsAbstract = false;
-
-	/** Base class name */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString BaseClass;
-};
-
-/**
- * Detailed information about a component type
- */
-USTRUCT(BlueprintType)
-struct FComponentDetailedInfo
-{
-	GENERATED_BODY()
-
-	/** Component class name */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Name;
-
-	/** Display name */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString DisplayName;
-
-	/** Full class path */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString ClassPath;
-
-	/** Category */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Category;
-
-	/** Parent class name */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString ParentClass;
-
-	/** Whether this is a scene component */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsSceneComponent = false;
-
-	/** Whether this is a primitive component */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsPrimitiveComponent = false;
-
-	/** Number of editable properties */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 PropertyCount = 0;
-
-	/** Number of callable functions */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 FunctionCount = 0;
-};
-
-/**
- * Information about a component property
- */
-USTRUCT(BlueprintType)
-struct FComponentPropertyInfo
-{
-	GENERATED_BODY()
-
-	/** Property name */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString PropertyName;
-
-	/** Property type (e.g., "float", "FVector", "UStaticMesh*") */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString PropertyType;
-
-	/** Property category */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Category;
-
-	/** Current value as string */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Value;
-
-	/** Whether the property is editable */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsEditable = true;
-
-	/** Whether the property is inherited */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsInherited = false;
-};
-
-/**
- * Information about a pin on a blueprint node
- */
-USTRUCT(BlueprintType)
-struct FBlueprintPinInfo
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString PinName;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString PinType;  // exec, bool, float, int, string, object, etc.
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsInput = true;  // True for input, false for output
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsConnected = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString DefaultValue;
-
-	/** Object/class default value as an object path; empty when the pin holds no object/class
-	 *  default. Populated for PC_Object/PC_Class/PC_SoftObject/PC_SoftClass pins so get_node_pins
-	 *  can report class/object references that the string-only DefaultValue does not capture. */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString DefaultObject;
-};
-
-/**
- * Information about a connection between two pins
- */
-USTRUCT(BlueprintType)
-struct FBlueprintConnectionInfo
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString SourceNodeId;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString SourceNodeTitle;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString SourcePinName;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString TargetNodeId;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString TargetNodeTitle;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString TargetPinName;
-};
-
-/**
- * Information about a blueprint node
- */
-USTRUCT(BlueprintType)
-struct FBlueprintNodeInfo
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString NodeId;  // Unique identifier (GUID)
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString NodeType;  // K2Node class name
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString NodeTitle;  // Display title
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	float PosX = 0.0f;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	float PosY = 0.0f;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FString> PinNames;  // Names of all pins on this node (for quick reference)
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FBlueprintPinInfo> Pins;  // Detailed pin information
-};
-
-/**
- * Snapshot of the graph the user is currently looking at — VibeUE's equivalent of
- * Epic's FAIAssistantDockContext, expressed in the string-path conventions the rest
- * of this service uses so the result feeds straight into get_nodes_in_graph /
- * build_graph (for Blueprints) without translation. Covers the Blueprint family
- * (Blueprint / Widget / AnimBlueprint editors) and the Material editor.
- *
- * Returned by GetFocusedGraphContext(). bFound is false when no supported graph
- * editor is open and focused.
- */
-USTRUCT(BlueprintType)
-struct FBlueprintFocusContext
-{
-	GENERATED_BODY()
-
-	/** True if an open Blueprint editor with a focused graph was found. */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bFound = false;
-
-	/** Full object path of the focused Blueprint (feed directly to BlueprintPath params). */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString AssetPath;
-
-	/** Short asset name (e.g. "BP_Player"). */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString AssetName;
-
-	/** Editor flavour: "BlueprintEditor" | "WidgetBlueprintEditor" | "AnimationBlueprintEditor". */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString EditorType;
-
-	/** Name of the focused graph tab (feed directly to GraphName params, e.g. "EventGraph"). */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString GraphName;
-
-	/** "Ubergraph" | "Function" | "Macro" | "DelegateSignature" | "Material" | "Other". */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString GraphKind;
-
-	/** Node count of the focused graph (cheap sanity signal). */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 GraphNodeCount = 0;
-
-	/** The nodes currently selected in that graph (same shape as get_selected_nodes). */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FBlueprintNodeInfo> SelectedNodes;
-};
-
-/**
- * Detailed pin information including connections
- */
-USTRUCT(BlueprintType)
-struct FBlueprintPinDetailedInfo
-{
-	GENERATED_BODY()
-
-	/** Pin name (internal) */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString PinName;
-
-	/** Pin display name */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString DisplayName;
-
-	/** Pin type category (exec, bool, float, int, string, object, struct, etc.) */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString PinCategory;
-
-	/** Pin type subcategory or object/struct path */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString PinSubCategory;
-
-	/** Full type path for struct/object types */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString TypePath;
-
-	/** Whether this is an input pin */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsInput = true;
-
-	/** Whether the pin is connected */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsConnected = false;
-
-	/** Whether the pin is hidden */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsHidden = false;
-
-	/** Whether this is an array type */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsArray = false;
-
-	/** Whether this is a reference type */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsReference = false;
-
-	/** Whether the pin can be split (struct pins) */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bCanSplit = false;
-
-	/** Whether the pin is currently split */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsSplit = false;
-
-	/** Default value */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString DefaultValue;
-
-	/** Tooltip */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Tooltip;
-
-	/** Connected node IDs and pin names (format: "NodeId:PinName") */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FString> Connections;
-};
-
-/**
- * Detailed node information (for details action)
- */
-USTRUCT(BlueprintType)
-struct FBlueprintNodeDetailedInfo
-{
-	GENERATED_BODY()
-
-	/** Node GUID */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString NodeId;
-
-	/** Node class name (e.g., K2Node_CallFunction) */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString NodeClass;
-
-	/** Display title */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString NodeTitle;
-
-	/** Full title */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString FullTitle;
-
-	/** Graph name this node belongs to */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString GraphName;
-
-	/** Graph scope (event, function, macro) */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString GraphScope;
-
-	/** Node category */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Category;
-
-	/** Tooltip/description */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Tooltip;
-
-	/** Position X */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	float PosX = 0.0f;
-
-	/** Position Y */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	float PosY = 0.0f;
-
-	/** Whether this is a pure node (no exec pins) */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsPure = false;
-
-	/** Whether this node has latent execution */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsLatent = false;
-
-	/** For function calls: target function name */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString FunctionName;
-
-	/** For function calls: owning class */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString FunctionClass;
-
-	/** For variable nodes: variable name */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString VariableName;
-
-	/** Input pins */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FBlueprintPinDetailedInfo> InputPins;
-
-	/** Output pins */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FBlueprintPinDetailedInfo> OutputPins;
-};
-
-/**
- * Information about a discoverable node type
- */
-USTRUCT(BlueprintType)
-struct FBlueprintNodeTypeInfo
-{
-	GENERATED_BODY()
-
-	/** Display name */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString DisplayName;
-
-	/** Node type category (e.g., "Math", "Flow Control") */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Category;
-
-	/** Spawner key for creating this node */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString SpawnerKey;
-
-	/** Node class name */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString NodeClass;
-
-	/** Tooltip/description */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Tooltip;
-
-	/** Whether this is a pure function (no exec pins) */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsPure = false;
-
-	/** Whether this is a latent action */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsLatent = false;
-
-	/** Keywords for searching */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FString> Keywords;
-};
-
-/**
- * Result of compiling a blueprint - includes success status and any error/warning messages.
- */
-USTRUCT(BlueprintType)
-struct FBlueprintCompileResult
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bSuccess = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 NumErrors = 0;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 NumWarnings = 0;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FString> Errors;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FString> Warnings;
-};
-
-/**
- * Comprehensive blueprint information
- */
-USTRUCT(BlueprintType)
-struct FBlueprintDetailedInfo
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString BlueprintName;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString BlueprintPath;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString ParentClass;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bIsWidgetBlueprint = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FBlueprintVariableInfo> Variables;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FVibeBlueprintFunctionInfo> Functions;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FBlueprintComponentInfo> Components;
-};
 
 // ============================================================================
 // BATCH GRAPH BUILDER TYPES
+//
+// Legacy descriptor types. The batch graph builder they fed is gone; author graphs with
+// BlueprintToolsets.BlueprintDslToolset (Read / Write / Edit) or node-by-node with
+// BlueprintToolsets.BlueprintToolset (CreateNode / ConnectPins / SetPinValue). Kept because the
+// node-creation helper inside this service still takes FGraphNodeDesc.
 // ============================================================================
 
 /**
- * Describes a single node to create in a batch graph operation.
- * Each node has a local ref (for wiring) and a type that maps to an
- * existing UBlueprintService creation method.
+ * Describes a single node to create.
+ * Each node has a local ref (for wiring) and a type that selects a creation path.
  */
 USTRUCT(BlueprintType)
 struct FGraphNodeDesc
@@ -966,143 +134,63 @@ struct FGraphNodeDesc
 	 *
 	 * The pre-existing function terminals are addressed as EXISTING nodes rather than
 	 * created: type "function_entry" (ref "entry") and "function_result" (ref "result",
-	 * "result_2", ...), each carrying params["existing"]="true". GetGraphDefinition emits
-	 * them so a dumped function graph round-trips with its parameter/return wiring; BuildGraph
-	 * binds them to the graph's own entry/result nodes instead of spawning new ones.
+	 * "result_2", ...), each carrying params["existing"]="true", so a descriptor set for a
+	 * function graph can carry its parameter/return wiring without respawning the terminals.
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
 	FString Type;
 
 	/**
 	 * Type-specific parameters (e.g. "class":"KismetMathLibrary", "function":"Clamp").
-	 * Any node type also accepts an optional "group":"<title>" layout hint — after
-	 * BuildGraph's auto-layout phase, each distinct title becomes a comment box
-	 * wrapping its member nodes (GUID returned in RefToNodeId under "group:<title>").
-	 * "existing":"true" marks a descriptor that BuildGraph resolves to a node already in
-	 * the graph (used for function_entry/function_result) rather than creating a new one.
+	 * Any node type also accepts an optional "group":"<title>" layout hint — each distinct title
+	 * becomes a comment box wrapping its member nodes.
+	 * "existing":"true" marks a descriptor that resolves to a node already in the graph
+	 * (used for function_entry/function_result) rather than creating a new one.
 	 */
 	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
 	TMap<FString, FString> Params;
 };
 
-/**
- * Describes a connection between two node pins in a batch graph.
- * Format: "NodeRef.PinName" where NodeRef is either a local ref from the
- * Nodes array or an existing node's GUID string (32-char hex) already in the graph.
- */
-USTRUCT(BlueprintType)
-struct FGraphConnectionDesc
-{
-	GENERATED_BODY()
 
-	/** Source (output) — format: "RefOrGUID.PinName" */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString From;
 
-	/** Target (input) — format: "RefOrGUID.PinName" */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString To;
-};
 
 /**
- * Describes a pin default value to set in a batch graph.
- */
-USTRUCT(BlueprintType)
-struct FGraphPinDefaultDesc
-{
-	GENERATED_BODY()
-
-	/** Local ref or existing GUID of the target node */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString NodeRef;
-
-	/** Pin name on that node */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString PinName;
-
-	/** Default value as string */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	FString Value;
-};
-
-/**
- * Result of a BuildGraph operation — full audit of what was created.
- */
-USTRUCT(BlueprintType)
-struct FBuildGraphResult
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bSuccess = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 NodesCreated = 0;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 NodesFailed = 0;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 ConnectionsMade = 0;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 ConnectionsFailed = 0;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 DefaultsSet = 0;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 DefaultsFailed = 0;
-
-	/** Maps local ref → actual engine GUID string */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TMap<FString, FString> RefToNodeId;
-
-	/** Error messages with actionable context */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FString> Errors;
-
-	/** Warning messages (non-fatal) */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	TArray<FString> Warnings;
-
-	/** Whether compilation was run */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	bool bCompiled = false;
-
-	/** Number of compilation errors (only if bCompiled) */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 CompileErrors = 0;
-
-	/** Number of compilation warnings (only if bCompiled) */
-	UPROPERTY(BlueprintReadWrite, Category = "Blueprint")
-	int32 CompileWarnings = 0;
-};
-
-/**
- * Blueprint service exposed directly to Python.
+ * Blueprint Service - Timelines, macro graphs, a layout audit and an editor refresh. That is all
+ * that is left; the engine's toolsets own the rest of the Blueprint surface.
  *
- * This service provides blueprint introspection and analysis with native
- * Unreal Engine types.
+ * Cut to the delta on the 5-9 branch. Use the engine for everything else:
+ *  - whole-graph authoring (VibeUE's own batch graph builder is gone):
+ *    `BlueprintToolsets.BlueprintDslToolset` (Read / Write / Edit / Docs / Schema / Diff /
+ *    FindNodeReferences) -- a graph is canonical text, applied transactionally against the
+ *    revision token the previous Read returned
+ *  - per-node graph work and graph reads: `BlueprintToolsets.BlueprintToolset`
+ *    (ListGraphs / GetGraph / FindNodes / GetNodeInfos / GetConnectedSubgraph / FindNodeTypes /
+ *    CreateNode / DeleteNode / ConnectPins / DisconnectPins / SetPinValue / SetNodePosition /
+ *    ArrangeGraphLayered / ArrangeNodes / AddCommentBox / DiffGraphs / CompileBlueprint)
+ *  - the class itself, same toolset: Create, GetParent / SetParent, GetDefaultObject,
+ *    ListVariables / AddVariable / RemoveVariable (+ the per-variable flag getters and setters),
+ *    ListFunctions / ListEvents, AddFunctionGraph / AddEvent -- either one, named after an
+ *    inherited member, *is* the override, so it covers both listing and taking an override --
+ *    AddEventDispatcher / ListEventDispatchers, AddInterface / ListInterfaces
+ *  - components on a Blueprint: `EditorToolset.ActorToolset`. AddComponent takes the Blueprint
+ *    asset itself as Owner; GetComponents enumerates the SCS when handed the Blueprint's CDO
+ *    (from BlueprintToolset.GetDefaultObject); RemoveComponent; and SetParentComponent promotes a
+ *    component to the scene root, replacing the current one
+ *  - what the user is looking at right now: `EditorToolset.EditorAppToolset`
+ *    (GetAssetEditorSelection -> focused graph + selected nodes, OpenEditorForAsset)
+ *  - any property on any object, Timeline component settings included:
+ *    `EditorToolset.ObjectToolset` (GetProperties / SetProperties / ListProperties /
+ *    GetPropertySchema)
+ *  - find, save and validate assets: `EditorToolset.AssetToolset`
+ *    (FindAssets / Exists / SaveAsset / ValidateAssets)
  *
- * Python Usage:
- *   import unreal
+ * What is left is what none of those can do: Timelines (no engine tool touches a
+ * UTimelineTemplate), macro-graph creation, a read-only measurement of a graph's layout quality,
+ * and forcing an open Blueprint editor to redraw.
  *
- *   # Get blueprint info (returns BlueprintDetailedInfo or None)
- *   info = unreal.BlueprintService.get_blueprint_info("/Game/Blueprints/BP_Player_Test")
- *   if info:
- *       print(f"Parent: {info.parent_class}")
- *       for var in info.variables:
- *           print(f"  {var.variable_name}: {var.variable_type}")
- *
- *   # List variables
- *   variables = unreal.BlueprintService.list_variables("/Game/BP_Player_Test")
- *
- *   # List components
- *   components = unreal.BlueprintService.list_components("/Game/BP_Player_Test")
- *
- * @note All methods are static and thread-safe
- * @note C++ out parameters become Python return values
+ * Every BlueprintPath parameter below also accepts a map/world path and resolves it to that
+ * level's Level Blueprint. Every entry point refuses while a Play-In-Editor session is running
+ * (logged with a "PIE_ACTIVE:" prefix) -- stop PIE before editing a Blueprint.
  */
 UCLASS(BlueprintType)
 class VIBEUE_API UBlueprintService : public UToolsetDefinition
@@ -1110,55 +198,19 @@ class VIBEUE_API UBlueprintService : public UToolsetDefinition
 	GENERATED_BODY()
 
 public:
-
-
-
-
-
-
-
 	// ============================================================================
-	// COMPONENT MANAGEMENT (manage_blueprint_component actions)
-	// ============================================================================
-
-
-
-
-
-
-
-
-
-
-
-
-	// ============================================================================
-	// VARIABLE MANAGEMENT (Phase 1)
-	// ============================================================================
-
-
-
-
-
-
-
-	// ============================================================================
-	// EVENT DISPATCHER MANAGEMENT
-	// ============================================================================
-
-
-
-
-
-	// ============================================================================
-	// FUNCTION MANAGEMENT (Phase 2)
+	// MACRO GRAPHS
 	// ============================================================================
 
 	/**
 	 * Add a macro graph to a Blueprint (typically a Macro Library Blueprint).
 	 *
-	 * Macro graphs are referenced by K2Node_MacroInstance nodes via add_macro_instance_node.
-	 * Use this to create the macro graph, then reference it with the full path format:
+	 * The engine has no tool for this: BlueprintToolset.AddFunctionGraph makes function graphs, and
+	 * BlueprintDslToolset refuses a macro library outright ("macro graphs have no Graph DSL
+	 * representation"). Placing an *instance* of a macro is the DSL's job, by owner path --
+	 * (`/Game/MyMacroLib.MyMacroName`) or (`self.MyMacroName`).
+	 *
+	 * Create the macro graph here, then reference it with the full path format:
 	 *   "/Game/MyMacroLib.MyMacroLib:MyMacroName"
 	 *
 	 * To create a Macro Library Blueprint from Python:
@@ -1167,7 +219,8 @@ public:
 	 *   tools = unreal.AssetToolsHelpers.get_asset_tools()
 	 *   tools.create_asset("BPMacroLib", "/Game/Macros", unreal.Blueprint, factory)
 	 *
-	 * Note: do NOT use create_function() on a Macro Library — it asserts in the K2 schema.
+	 * Note: a Macro Library holds macro graphs only — adding a *function* graph to one asserts in
+	 * the K2 schema.
 	 *
 	 * @param BlueprintPath - Full path to the target Blueprint
 	 * @param MacroName     - Name for the new macro graph
@@ -1179,32 +232,13 @@ public:
 		const FString& MacroName
 	);
 
-
-
-
-
-
-
-
-
 	// ============================================================================
-	// NODE MANAGEMENT (Phase 3)
+	// TIMELINES
+	//
+	// No engine toolset tool touches a UTimelineTemplate, so the whole timeline surface stays here.
+	// Component-level settings on the spawned UTimelineComponent are still ordinary properties:
+	// EditorToolset.ObjectToolset.SetProperties.
 	// ============================================================================
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	// ── Timelines ──
 
 	/**
 	 * Add a Timeline node to a graph (and the backing UTimelineTemplate on the blueprint).
@@ -1529,71 +563,9 @@ public:
 		const FString& TrackName
 	);
 
-
 	// ============================================================================
-	// ADVANCED NODE OPERATIONS (Phase 4)
+	// GRAPH LAYOUT AUDIT
 	// ============================================================================
-
-
-
-
-
-
-
-
-
-
-
-	// ============================================================================
-	// LIFECYCLE & PROPERTY MANAGEMENT (Missing manage_blueprint Actions)
-	// ============================================================================
-
-
-
-
-	// ============================================================================
-	// NODE MANAGEMENT - Advanced Operations (manage_blueprint_node actions)
-	// ============================================================================
-
-
-
-
-
-
-
-
-
-	// ============================================================================
-	// COMPONENT OPERATIONS - Extended API
-	// ============================================================================
-
-
-
-
-	// ============================================================================
-	// EXISTENCE CHECKS - Fast boolean checks before creation (Idempotency)
-	// ============================================================================
-
-
-
-
-
-
-
-
-	// ============================================================================
-	// FUNCTION OVERRIDES
-	// ============================================================================
-
-
-
-	// ================================================================
-	// BATCH GRAPH BUILDER
-	// ================================================================
-
-
-
-
 
 	/**
 	 * Measure the visual quality of a graph's current layout WITHOUT changing it.
@@ -1604,9 +576,12 @@ public:
 	 * clean), and per-node bounding boxes {id, title, x, y, width, height} so an
 	 * agent can audit and correct placement.
 	 *
-	 * Intended loop: build_graph(auto_layout=True) → analyze_graph_layout → if
-	 * "issues" is non-empty, fix (auto_layout_selected_nodes / set_node_position)
-	 * and re-check. Comment boxes are ignored (decoration, not structure).
+	 * The engine's layout tools (BlueprintToolset.ArrangeGraphLayered / ArrangeNodes) only write a
+	 * layout; nothing there reads one back, which is why this measurement is still here. Intended
+	 * loop: author or arrange the graph (BlueprintDslToolset.Write, or
+	 * BlueprintToolset.ArrangeGraphLayered) → analyze_graph_layout → if "issues" is non-empty, fix
+	 * (BlueprintToolset.ArrangeNodes on the offenders, or SetNodePosition) and re-check. Comment
+	 * boxes are ignored (decoration, not structure).
 	 *
 	 * Python Usage (bool return is folded away — the two out-strings come back as a tuple):
 	 *   report, err = unreal.BlueprintService.analyze_graph_layout("/Game/BP_Player", "EventGraph")
@@ -1622,39 +597,7 @@ public:
 	);
 
 
-	/**
-	 * Add a Blueprint Interface to a blueprint.
-	 * Equivalent to: Class Settings → Interfaces → Add in the editor.
-	 *
-	 * @param BlueprintPath - Full path to the blueprint
-	 * @param InterfacePath - Interface asset path or short name (e.g., "BPI_TestInterface" or "/Game/interface/BPI_TestInterface")
-	 * @return True if the interface was added successfully (or already implemented)
-	 *
-	 * Example:
-	 *   unreal.BlueprintService.add_interface("/Game/BP_Player", "BPI_TestInterface")
-	 *   unreal.BlueprintService.add_interface("/Game/BP_Player", "/Game/interface/BPI_TestInterface")
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|Blueprints")
-	static bool AddInterface(
-		const FString& BlueprintPath,
-		const FString& InterfacePath
-	);
 
-	/**
-	 * Remove a Blueprint Interface from a blueprint.
-	 *
-	 * @param BlueprintPath - Full path to the blueprint
-	 * @param InterfacePath - Interface asset path or short name
-	 * @return True if the interface was removed successfully
-	 *
-	 * Example:
-	 *   unreal.BlueprintService.remove_interface("/Game/BP_Player", "BPI_TestInterface")
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|Blueprints")
-	static bool RemoveInterface(
-		const FString& BlueprintPath,
-		const FString& InterfacePath
-	);
 
 	/**
 	 * Refresh the open Blueprint editor for a Blueprint so its SCS viewport re-runs the

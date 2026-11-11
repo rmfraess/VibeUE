@@ -1,6 +1,12 @@
 # Niagara System Test
 
-Natural language prompts to test all NiagaraService and NiagaraEmitterService methods. Run sequentially.
+Natural language prompts for Niagara authoring, stated as goals. Run sequentially.
+
+`NiagaraService` was deleted: systems, emitters and modules are Epic's `NiagaraToolsets`, and VibeUE
+keeps only `NiagaraEmitterService` (three colour-curve tools) and `NiagaraScratchPadService`. The
+prompts below name no tools on purpose — an agent carrying VibeUE's skills should still reach the
+goal with whatever tool now owns the job. A failure here is usually a stale mapping table in a
+skill, not a missing capability.
 
 ---
 
@@ -308,8 +314,11 @@ compile with zero errors.
 
 ---
 
-Verify that `NiagaraEmitterService.get_module_info(NS_SmokeTest, Sparks, ScratchSmoke)`
-now returns a non-empty `script_asset_path` (this was empty for scratch modules before).
+Verify that the scratch module on `Sparks` resolves to its script asset. `get_module_info` was
+removed with the rest of the stack surface -- read it with Epic's
+`NiagaraToolsets.NiagaraToolset_System.GetModuleSchema` (or `GetModuleTopology` for the stack
+position), and check the script asset comes back non-empty rather than blank as it used to for
+scratch modules.
 
 ---
 
