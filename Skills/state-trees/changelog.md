@@ -1,18 +1,17 @@
 ---
 name: changelog
-description: HISTORICAL record of VibeUE StateTree development - Phase 1 and Phase 2 methods for state properties, root parameters, per-instance overrides, transition editing, task management, utility considerations, conditions and evaluator/global task management. The 5-9 branch removed 53 of the tools described here; SKILL.md is the authority on what exists now
+description: HISTORICAL record of VibeUE StateTree development - Phase 1 and Phase 2 methods for state properties, root parameters, per-instance overrides, transition editing, task management, utility considerations, conditions and evaluator/global task management. The 5-9 branch removed many of the tools described here; SKILL.md is the authority on what exists now
 ---
 
 > # ⚠️ HISTORICAL RECORD — NOT the current API
 >
 > **Everything below this banner is history**: a record of VibeUE's StateTree development as it
-> happened. The `5-9` branch **removed 53 of `StateTreeService`'s 98 StateTree tools**, and many of
+> happened. The `5-9` branch **removed many StateTreeService tools**, and many of
 > the methods announced below are among them. These entries are kept because the history is useful,
 > not because the calls still work.
 >
-> **`SKILL.md` is the authority on what exists now.** Its "Migration: the 53 removed VibeUE tools"
-> table maps every removed tool to its replacement, and `api-reference.md` holds the full inventory
-> of the 45 survivors. If a call below is not in those, it does not exist any more.
+> **`SKILL.md` is the authority on what exists now.** See its migration table and
+> `api-reference.md` for the current inventory; historical entries below can describe removed calls.
 
 ## 2026-11-10 — 5.9 tool cut: 98 → 45 StateTree tools
 

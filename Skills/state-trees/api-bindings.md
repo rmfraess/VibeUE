@@ -1,15 +1,12 @@
 ---
 name: api-bindings
-description: The 24 surviving StateTreeService binding tools and the workflows around them - evaluators and global tasks, transitions and the OnDelegate workflow, the two-call context actor class, bindings to context / root parameters / global tasks / evaluators, reading bindings back, StateTreeComponent assignment, theme colors, expand/collapse
+description: Native StateTree property binding workflows - evaluators, global tasks, transitions, context, binding reads, component assignment and editor colors.
 ---
 
-This sub-doc is the binding guide. For the full inventory (VibeUE's 45 survivors, Epic's tools, the
-`UStateTreeState` property keys and the removed-tool table) see `api-reference.md`; for the ownership
-split, the two transition rules and the gotchas see `SKILL.md`.
+This sub-doc is the binding guide. For the inventory see `api-reference.md`; for ownership, the
+two transition rules and gotchas see `SKILL.md`.
 
-**All 24 `bind_*` / `unbind_*` tools survive** — they are `unreal.StateTreeService` calls inside
-`execute_python`. What changed around them: **adding** nodes, reading node properties, compiling and
-saving are now Epic's, through `call_tool`, with these `toolset_name` strings:
+Use native `unreal.StateTreeEditorData.resolve_binding_path` and `set_binding` with the source and target owner GUIDs; use `clear_binding` to unbind. Native binding APIs run inside `execute_python`; adding nodes, reading node properties, compiling and saving use Epic tools through `call_tool`:
 
 ```python
 ST    = "state_tree_toolset.state_tree.StateTreeToolset"   # Epic's StateTree toolset (Python)
@@ -75,10 +72,8 @@ call_tool(tool_name="add_blueprint_global_task", toolset_name=ST, arguments={...
 
 #### Binding Global Task Properties
 
-Global tasks support the same property binding patterns as per-state tasks. The bindings are VibeUE
-(`bind_global_task_property_to_root_parameter`, `bind_global_task_property_to_context`); reading and
-writing a global task's property *values* is Epic's `get_node_instance_data` /
-`set_node_instance_data`.
+Global tasks support the same property binding patterns as per-state tasks. Use native `unreal.StateTreeEditorData.resolve_binding_path` and `set_binding` with the source and target owner GUIDs; use `clear_binding` to unbind.
+Reading and writing global task property *values* uses Epic's `get_node_instance_data` / `set_node_instance_data`.
 
 ```python
 import unreal
@@ -90,37 +85,12 @@ st_path = "/Game/StateTree/ST_Cube"
 # Set a property value directly — Epic.
 #   call_tool(tool_name="set_node_instance_data", toolset_name=ST, arguments={...})
 
-# Bind a global task property to a root parameter
-unreal.StateTreeService.bind_global_task_property_to_root_parameter(
-    st_path,
-    "STT_PatrolManagement",   # task name (Blueprint name, _C class, or display name)
-    "PatrolTag",              # task property to bind
-    "PatrolTag"               # root parameter name
-)
-
-# Bind a global task property to the context Actor
-unreal.StateTreeService.bind_global_task_property_to_context(
-    st_path,
-    "STT_PatrolManagement",
-    "ActorRef",               # task property to bind
-    "Actor",                  # context name
-    ""                        # context property path (empty = whole object)
-)
-
-# Bind a state task property to a property produced by a global task
-unreal.StateTreeService.bind_task_property_to_global_task_property(
-    st_path,
-    "Peaceful/Patrol",        # state path containing the task to update
-    "STT_MoveToPatrolPoint",  # state task name
-    "PatrolPointManager",     # target property on the state task
-    "STT_PatrolManagement",   # source global task name
-    "PatrolPointManager"      # source property on the global task
-)
+# Bind global or state task properties using native StateTreeEditorData.resolve_binding_path and set_binding with owner GUIDs.
 ```
 
 #### Full Add + Bind Workflow
 
-Four steps, and only step 3 is VibeUE.
+Four steps: structure and compilation use Epic tools; binding uses the native Python API.
 
 ```python
 # 1. Check whether it is already present — Epic
@@ -132,13 +102,7 @@ call_tool(tool_name="add_blueprint_global_task", toolset_name=ST, arguments={...
 call_tool(tool_name="get_node_instance_data",    toolset_name=ST, arguments={...})
 ```
 
-```python
-# 3. Bind to a root parameter — VibeUE, inside execute_python
-import unreal
-st_path = "/Game/StateTree/ST_Cube"
-unreal.StateTreeService.bind_global_task_property_to_root_parameter(
-    st_path, "STT_PatrolManagement", "PatrolTag", "PatrolTag")
-```
+Bind to a root parameter with native `StateTreeEditorData.resolve_binding_path` and `set_binding` using owner GUIDs.
 
 ```python
 # 4. Compile, then save — Epic. Epic's writes dirty the package but never compile.
@@ -156,7 +120,7 @@ call_tool(tool_name="SaveAsset", toolset_name=ASSET, arguments={...})
 #   OnTick             — every tick (use with conditions)
 #   OnEvent            — on gameplay event
 #   OnDelegate         — when a task's FStateTreeDelegateDispatcher fires
-#                        (requires bind_transition_to_delegate after setting trigger)
+#                        (requires a native binding after setting the trigger)
 
 # Transition types:
 #   GotoState          — go to a specific state (the element's target State must be set, in the
@@ -206,7 +170,7 @@ After setting that transition element's `Trigger` to `OnDelegate`, compiling wil
 "<StateName> On Delegate Transition to '<TargetState>' requires to be bound to some delegate dispatcher."
 ```
 
-**This is expected.** The binding step (`bind_transition_to_delegate`) hasn't been done yet.
+**This is expected.** The native transition-to-dispatcher binding has not been done yet.
 Do NOT revert the trigger back to `OnStateCompleted` — continue with the workflow below.
 
 #### Step-by-Step
@@ -238,13 +202,7 @@ transition_index = 0  # index within the state's Transitions array (read it with
 # Change the ONE element's field in place; do not drop-and-re-add it and do not rewrite the array.
 #   call_tool(tool_name="SetProperties", toolset_name=OBJ, arguments={...})  # Transitions[0].Trigger
 
-# Step 3: Bind the transition to the dispatcher property — VibeUE
-result = unreal.StateTreeService.bind_transition_to_delegate(
-    st_path, state_path, transition_index,
-    "STT_Rotate",                  # task name (display name, Blueprint name, or struct type)
-    "FinishRotatingDispatcher"     # the FStateTreeDelegateDispatcher variable name
-)
-assert result, "bind_transition_to_delegate failed"
+# Step 3: Bind the transition to the dispatcher via native StateTreeEditorData.resolve_binding_path and set_binding, using owner GUIDs.
 
 # Step 4: Compile, then save — Epic. Should now succeed with no delegate errors.
 #   call_tool(tool_name="compile",   toolset_name=ST,    arguments={...})
@@ -263,9 +221,9 @@ In `STT_Rotate`'s Blueprint graph, call the dispatcher to trigger the transition
 #### Notes
 
 - `FStateTreeDelegateDispatcher` is a USTRUCT — use type string `"FStateTreeDelegateDispatcher"` with `add_member_variable`.
-- `bind_transition_to_delegate` matches the task by its **registered class name** (`STT_Rotate_C`) — the Blueprint asset path that `add_task` accepts is NOT accepted here (live-verified).
+- Resolve the transition and task dispatcher addresses using their owner GUIDs.
 - The dispatcher variable must be on the task that is **in the same state** as the `OnDelegate` transition.
-- After `bind_transition_to_delegate`, the compile error about the missing binding will resolve.
+- After a valid native binding, compile and check that the missing-binding error resolves.
 
 ### Compile & Save
 
@@ -307,7 +265,7 @@ a **root parameter**. This is how tasks access external data at runtime.
 
 #### ⚠️ CRITICAL: Context Must Be Set Before Binding
 
-`bind_task_property_to_context` will **fail silently** if the StateTree has no context actor class.
+Context binding requires a context actor class on the StateTree schema.
 Read the editor data's `Schema` with `ObjectToolset.GetProperties` first — that read is also the
 diagnosis — and if no class is set, do the two-call dance above before attempting any context
 binding.
@@ -325,26 +283,7 @@ call_tool(tool_name="SetProperties", toolset_name=OBJ, arguments={...})  # Conte
 call_tool(tool_name="get_node_instance_data", toolset_name=ST, arguments={...})
 ```
 
-```python
-# Step 4: Bind the task property to the context Actor — VibeUE, inside execute_python
-import unreal
-
-st_path = "/Game/StateTree/ST_Cube"
-state_path = "Root"
-# For Blueprint tasks, use the Blueprint class name (STT_Rotate_C or STT_Rotate)
-# OR "StateTreeBlueprintTaskWrapper" — both work.
-task_struct = "STT_Rotate_C"
-
-#   - context_name="Actor" matches the first context descriptor (default)
-#   - context_property_path="" means bind the entire actor reference
-result = unreal.StateTreeService.bind_task_property_to_context(
-    st_path, state_path, task_struct,
-    "Cube",           # task property to bind
-    "Actor",          # context name
-    ""                # context property path (empty = whole object)
-)
-print(f"Bind result: {result}")
-```
+Bind the task property to the context Actor using native `StateTreeEditorData.resolve_binding_path` and `set_binding` with the context and task owner GUIDs.
 
 ```python
 # Step 5: Compile, then save — Epic
@@ -354,76 +293,15 @@ call_tool(tool_name="SaveAsset", toolset_name=ASSET, arguments={...})
 
 #### Binding to a Root Parameter
 
-```python
-# Bind a task property to a root parameter (no context actor class needed)
-unreal.StateTreeService.bind_task_property_to_root_parameter(
-    st_path, state_path, task_struct,
-    "Duration",        # task property
-    "IdlingTime"       # root parameter name
-)
-
-# Bind a task property to a property exposed by a global task
-unreal.StateTreeService.bind_task_property_to_global_task_property(
-    st_path, state_path, task_struct,
-    "PatrolPointManager",     # task property
-    "STT_PatrolManagement",   # global task name
-    "PatrolPointManager"      # global task property
-)
-```
+Bind task properties to root parameters or global task outputs using native `StateTreeEditorData.resolve_binding_path` and `set_binding` with source and target owner GUIDs.
 
 #### Binding FROM Evaluator Outputs (issue #556)
 
-Tasks and conditions can read data an evaluator produces — the evaluator-source mirror of the
-`*_to_global_task_property` family:
-
-```python
-# State task property <- evaluator output
-unreal.StateTreeService.bind_task_property_to_evaluator_property(
-    st_path, "Peaceful/Patrol", "STT_MoveToPatrolPoint",
-    "PatrolPointManager",           # target property on the state task
-    "STE_PatrolPointManagement",    # source evaluator name
-    "PatrolPointManager")           # source property on the evaluator
-
-# Enter condition property <- evaluator output
-unreal.StateTreeService.bind_enter_condition_property_to_evaluator_property(
-    st_path, "Peaceful/Patrol", "STC_CanPatrol", "bAllowed",
-    "STE_PatrolPointManagement", "bHasPoints")
-
-# Transition condition property <- evaluator output (transition_index after state_path)
-unreal.StateTreeService.bind_transition_condition_property_to_evaluator_property(
-    st_path, "Peaceful/Patrol", 0, "STC_CanPatrol", "bAllowed",
-    "STE_PatrolPointManagement", "bHasPoints")
-```
+Tasks and conditions can read evaluator outputs. Use native `StateTreeEditorData.resolve_binding_path` and `set_binding` with the evaluator and target owner GUIDs.
 
 #### Binding Evaluator Properties (evaluator as TARGET)
 
-Evaluators are global (not tied to a state), so there is no `state_path` parameter.
-
-```python
-# Bind an evaluator property to a root parameter
-unreal.StateTreeService.bind_evaluator_property_to_root_parameter(
-    st_path,
-    "STE_PatrolPointManagement",  # evaluator struct name (or Blueprint wrapper name)
-    "PatrolTag",                  # evaluator property to bind
-    "PatrolTag"                   # root parameter name
-)
-
-# Bind an evaluator property to context data
-unreal.StateTreeService.bind_evaluator_property_to_context(
-    st_path,
-    "STE_PatrolPointManagement",  # evaluator struct name
-    "ActorRef",                   # evaluator property to bind
-    "Actor",                      # context name
-    ""                            # context property path (empty = whole object)
-)
-
-# Unbind an evaluator property
-unreal.StateTreeService.unbind_evaluator_property(
-    st_path,
-    "STE_PatrolPointManagement",
-    "PatrolTag"
-)
-```
+Evaluators are global. Use native `unreal.StateTreeEditorData.resolve_binding_path` and `set_binding` with the source and target owner GUIDs; use `clear_binding` to unbind.
 
 #### Reading Bindings (engine-native on 5.9)
 
@@ -548,13 +426,14 @@ invisible even to `ListProperties` — there is no read path for it any more.
 |---|---|
 | States, node lists (tasks / conditions / considerations / evaluators / global tasks), node property values, compile | **Epic `StateTreeToolset`** via `call_tool` |
 | State name, description, tag, type, selection behavior, weight, enabled, links; transitions; the context actor class; saving | **Epic `ObjectToolset` / `AssetToolset`** via `call_tool` |
-| Asset creation, all property bindings, node-*type* discovery, theme colors, root parameters, per-instance overrides, `move_transition`, transition conditions, task flags, select/expand | **VibeUE `unreal.StateTreeService`** inside `execute_python` |
+| Asset creation, node-*type* discovery, theme colors, root parameters, per-instance overrides, `move_transition`, transition conditions, select/expand | **VibeUE `unreal.StateTreeService`** inside `execute_python` |
+| Property bindings and task flags | **Native** `StateTreeEditorData` / `StateTreeEditingSubsystem` inside `execute_python` |
 | Blueprint variables and components, making properties instance-editable, level-actor work | **`BlueprintService`** and the engine Blueprint tools — outside this skill, load `blueprints` |
 
 Recommended pattern:
 
 1. Structure first, through Epic's toolset; read back what you wrote with `get_node_instance_data`
    or `ObjectToolset.GetProperties` rather than assuming.
-2. Then VibeUE for parameters, bindings and colors.
+2. Then VibeUE for parameters and colors; native `StateTreeEditorData` for bindings.
 3. Then Epic `compile`, then `AssetToolset.SaveAsset`.
 4. `select_state` last, so the user sees what changed.

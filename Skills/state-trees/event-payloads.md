@@ -73,16 +73,15 @@ produces -- it reports which properties `determine` the pins.
 
 ### Reading the payload fields on the StateTree side
 
-Both payload tools are **VibeUE survivors** — `unreal.StateTreeService` calls inside
-`execute_python`. Inspect the fields instead of guessing the path, then bind:
+The payload reader is a **VibeUE survivor** — an `unreal.StateTreeService` call inside
+`execute_python`. Inspect the fields instead of guessing the path, then bind with the native API:
 
 ```python
 payload_props = unreal.StateTreeService.get_transition_event_payload_property_names(st_path, "Root", 0)
 for p in payload_props:
     print(f"{p.name}: {p.type} = {p.current_value!r}")
 
-unreal.StateTreeService.bind_transition_condition_property_to_event_payload(
-    st_path, "Root", 0, "StateTreeObjectIsValidCondition", "Object", "TargetPawn")
+# Bind the payload property with native StateTreeEditorData.resolve_binding_path and set_binding using owner GUIDs.
 ```
 
 ## Tag-only events, and sending from Python (live-verified 2026-07-03)

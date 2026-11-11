@@ -8,7 +8,7 @@
 #   * Epic's StateTreeToolset  -> call_tool ONLY, snake_case names (add_child_state, compile, ...).
 #     It is a Python toolset, but it is NOT a `unreal.*` API: `unreal.StateTreeToolset` does not
 #     exist. Same for ObjectToolset / AssetToolset (PascalCase: GetProperties, SaveAsset).
-#   * VibeUE's 45 surviving tools -> `unreal.StateTreeService.<snake_case>()` inside execute_python.
+#   * VibeUE surviving tools -> `unreal.StateTreeService.<snake_case>()` inside execute_python.
 #     Never a call_tool tool.
 #
 # The tool NAMES below are verified. Argument names are shown as {...} on purpose: run
@@ -128,19 +128,13 @@ print("create:", sts.create_state_tree(ASSET, "StateTreeComponentSchema"))
 
 
 # ---------------------------------------------------------------------------------------------
-# STEP 6 — parameters, bindings, and showing the user: VibeUE, via execute_python
+# STEP 6 — parameters and showing the user: VibeUE, via execute_python
 # ---------------------------------------------------------------------------------------------
-# Root parameters (FInstancedPropertyBag's schema is C++-mutable only) and all 24 bind_*/unbind_*
-# tools stayed with VibeUE. These take "/"-separated state paths.
+# Root parameters use VibeUE; bindings use native StateTreeEditorData with owner GUIDs.
 
 print("param:", sts.add_or_update_root_parameter(ASSET, "IdlingTime", "Float", "2.0"))
 
-print("bind:", sts.bind_task_property_to_root_parameter(
-    ASSET,                    # asset path
-    "Root/Patrol",            # state path
-    "FStateTreeDelayTask",    # task struct name (or "STT_Rotate_C" / "STT Rotate" for a Blueprint)
-    "Duration",               # task property to bind
-    "IdlingTime"))            # root parameter name
+# Bind Duration to IdlingTime using native StateTreeEditorData.resolve_binding_path and set_binding with owner GUIDs.
 
 # Reorder a transition — the one transition edit that is still VibeUE's:
 #   sts.move_transition(ASSET, "Root/Patrol", 1, 0)

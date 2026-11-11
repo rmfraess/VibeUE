@@ -393,8 +393,8 @@ struct FVibeUEStateTreeBindingInfo
  *  - root parameters: AddOrUpdateRootParameter / RemoveRootParameter / RenameRootParameter, plus
  *    SetComponentParameterOverride. FInstancedPropertyBag's schema is C++-mutable only, and the
  *    override needs property-bag descriptor GUIDs nothing else exposes.
- *  - the not-path-addressable set: SetTaskEnabled, SetTaskConsideredForCompletion,
- *    AddTransitionCondition, GetTransitionConditionPropertyNames and
+ *  - the not-path-addressable set (task enable/completion toggles are native in 5.9:
+ *    unreal.StateTreeEditingSubsystem): AddTransitionCondition, GetTransitionConditionPropertyNames and
  *    SetTransitionConditionPropertyValue all live inside an FInstancedStruct or behind an
  *    Instanced object reference, which ToolsetPropertyPath will not cross; SetStateExpanded
  *    (bExpanded has neither CPF_Edit nor CPF_BlueprintVisible, so the toolset refuses it both ways
@@ -519,39 +519,6 @@ public:
 
 
 
-	/**
-	 * Bind a consideration property to context data (e.g. for FloatInput.Input or EnumInput.Input).
-	 * Leave ContextPropertyPath empty to bind the whole context object.
-	 * @param MatchIndex  Which matching consideration to target. -1 means the last matching one.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindConsiderationPropertyToContext(const FString& AssetPath, const FString& StatePath,
-	                                               const FString& ConsiderationStructName, const FString& ConsiderationPropertyPath,
-	                                               const FString& ContextName = TEXT("Actor"),
-	                                               const FString& ContextPropertyPath = TEXT(""),
-	                                               int32 MatchIndex = -1);
-
-	/**
-	 * Bind a consideration property to a root parameter.
-	 * @param MatchIndex  Which matching consideration to target. -1 means the last matching one.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindConsiderationPropertyToRootParameter(const FString& AssetPath, const FString& StatePath,
-	                                                     const FString& ConsiderationStructName, const FString& ConsiderationPropertyPath,
-	                                                     const FString& ParameterPath,
-	                                                     int32 MatchIndex = -1);
-
-	/** Remove the property binding on a consideration property (unbind it). */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool UnbindConsiderationProperty(const FString& AssetPath, const FString& StatePath,
-	                                        const FString& ConsiderationStructName, const FString& ConsiderationPropertyPath,
-	                                        int32 MatchIndex = -1);
-
-	/** Set whether a task's completion contributes to the owning state's completion. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool SetTaskConsideredForCompletion(const FString& AssetPath, const FString& StatePath,
-	                                           const FString& TaskStructName, int32 TaskMatchIndex, bool bConsideredForCompletion);
-
 	// ---- Parameters ----
 
 
@@ -596,29 +563,6 @@ public:
 	// ---- Transition Editing ----
 
 
-	/**
-	 * Bind an OnDelegate transition to a task's FStateTreeDelegateDispatcher property.
-	 *
-	 * Prerequisites:
-	 *   1. The task must have a variable of type FStateTreeDelegateDispatcher (engine
-	 *      BlueprintTools.add_variable, type_name "FStateTreeDelegateDispatcher").
-	 *   2. The transition's Trigger must already be "OnDelegate" -- set it with
-	 *      ObjectToolset.SetProperties on that element of the state's Transitions array.
-	 *
-	 * After calling this, compile the StateTree — a successful compile confirms the binding is valid.
-	 *
-	 * @param StatePath              Path of the state containing the transition (e.g. "Root/Rotating")
-	 * @param TransitionIndex        Zero-based index into the state's Transitions array
-	 *                               (ObjectToolset.GetProperties on the state, key Transitions)
-	 * @param TaskStructName         Task name: display name, Blueprint name, or struct type (same as other task APIs)
-	 * @param DispatcherPropertyName Name of the FStateTreeDelegateDispatcher variable on the task
-	 * @param TaskMatchIndex         Which matching task to target (-1 = last match)
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindTransitionToDelegate(const FString& AssetPath, const FString& StatePath,
-	                                     int32 TransitionIndex, const FString& TaskStructName,
-	                                     const FString& DispatcherPropertyName, int32 TaskMatchIndex = -1);
-
 
 	/** Reorder a transition within the state's Transitions array. */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
@@ -631,67 +575,7 @@ public:
 
 
 
-	/**
-	 * Bind a task property to a root parameter path (e.g. parameter "idling_time" -> task property "Duration").
-	 * @param TaskMatchIndex Which matching task to target for the struct type. -1 means the last matching task.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindTaskPropertyToRootParameter(const FString& AssetPath, const FString& StatePath,
-	                                           const FString& TaskStructName, const FString& TaskPropertyPath,
-	                                           const FString& ParameterPath, int32 TaskMatchIndex = -1);
 
-	/**
-	 * Bind a task property to context data (e.g. context "Actor" path "debug_text" -> task property "BindableText").
-	 * Leave ContextPropertyPath empty to bind the whole context object.
-	 * @param TaskMatchIndex Which matching task to target for the struct type. -1 means the last matching task.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindTaskPropertyToContext(const FString& AssetPath, const FString& StatePath,
-	                                     const FString& TaskStructName, const FString& TaskPropertyPath,
-	                                     const FString& ContextName = TEXT("Actor"),
-	                                     const FString& ContextPropertyPath = TEXT(""),
-	                                     int32 TaskMatchIndex = -1);
-
-	/**
-	 * Bind a task property to a property exposed by a global task node.
-	 * Use this when a state task should read data produced by a global task in the same StateTree.
-	 * @param TaskMatchIndex Which matching state task to target for the struct type. -1 means the last matching task.
-	 * @param GlobalTaskMatchIndex Which matching global task to target for the struct type. -1 means the last matching task.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindTaskPropertyToGlobalTaskProperty(const FString& AssetPath, const FString& StatePath,
-	                                                const FString& TaskStructName, const FString& TaskPropertyPath,
-	                                                const FString& GlobalTaskStructName, const FString& GlobalTaskPropertyPath,
-	                                                int32 TaskMatchIndex = -1, int32 GlobalTaskMatchIndex = -1);
-
-	/**
-	 * Bind a task property to a property exposed by an evaluator node.
-	 * Use this when a state task should read data produced by an evaluator in the same StateTree.
-	 * @param TaskMatchIndex Which matching state task to target for the struct type. -1 means the last matching task.
-	 * @param EvaluatorMatchIndex Which matching evaluator to target for the struct type. -1 means the last matching evaluator.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindTaskPropertyToEvaluatorProperty(const FString& AssetPath, const FString& StatePath,
-	                                               const FString& TaskStructName, const FString& TaskPropertyPath,
-	                                               const FString& EvaluatorStructName, const FString& EvaluatorPropertyPath,
-	                                               int32 TaskMatchIndex = -1, int32 EvaluatorMatchIndex = -1);
-
-	/**
-	 * Remove the property binding on a task property (unbind it).
-	 * After unbinding, the property reverts to its default/unbound value.
-	 * @param TaskMatchIndex Which matching task to target for the struct type. -1 means the last matching task.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool UnbindTaskProperty(const FString& AssetPath, const FString& StatePath,
-	                               const FString& TaskStructName, const FString& TaskPropertyPath,
-	                               int32 TaskMatchIndex = -1);
-
-
-
-	/** Enable or disable a task without removing it. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool SetTaskEnabled(const FString& AssetPath, const FString& StatePath,
-	                           const FString& TaskStructName, int32 TaskMatchIndex, bool bEnabled);
 
 	// ---- Evaluator / Global Task Management ----
 
@@ -705,58 +589,6 @@ public:
 
 
 
-
-	/**
-	 * Bind an enter condition property to context data (e.g. context "Actor" path "TargetPawn" -> condition property "Object").
-	 * Leave ContextPropertyPath empty to bind the whole context object.
-	 * @param ConditionMatchIndex Which matching condition to target. -1 means the last matching condition.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindEnterConditionPropertyToContext(const FString& AssetPath, const FString& StatePath,
-	                                                const FString& ConditionStructName, const FString& ConditionPropertyPath,
-	                                                const FString& ContextName = TEXT("Actor"),
-	                                                const FString& ContextPropertyPath = TEXT(""),
-	                                                int32 ConditionMatchIndex = -1);
-
-	/**
-	 * Bind an enter condition property to a property exposed by a global task node.
-	 * Use this when an enter condition should read data produced by a global task in the same StateTree.
-	 * @param ConditionMatchIndex Which matching condition to target. -1 means the last matching condition.
-	 * @param GlobalTaskMatchIndex Which matching global task to target for the struct type. -1 means the last matching task.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindEnterConditionPropertyToGlobalTaskProperty(const FString& AssetPath, const FString& StatePath,
-	                                                          const FString& ConditionStructName, const FString& ConditionPropertyPath,
-	                                                          const FString& GlobalTaskStructName, const FString& GlobalTaskPropertyPath,
-	                                                          int32 ConditionMatchIndex = -1, int32 GlobalTaskMatchIndex = -1);
-
-	/**
-	 * Bind an enter condition property to a property exposed by an evaluator node.
-	 * Use this when an enter condition should read data produced by an evaluator in the same StateTree.
-	 * @param ConditionMatchIndex Which matching condition to target. -1 means the last matching condition.
-	 * @param EvaluatorMatchIndex Which matching evaluator to target for the struct type. -1 means the last matching evaluator.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindEnterConditionPropertyToEvaluatorProperty(const FString& AssetPath, const FString& StatePath,
-	                                                         const FString& ConditionStructName, const FString& ConditionPropertyPath,
-	                                                         const FString& EvaluatorStructName, const FString& EvaluatorPropertyPath,
-	                                                         int32 ConditionMatchIndex = -1, int32 EvaluatorMatchIndex = -1);
-
-	/**
-	 * Bind an enter condition property to a root parameter (e.g. parameter "CanChase" -> condition property "bLeft").
-	 * @param ConditionMatchIndex Which matching condition to target. -1 means the last matching condition.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindEnterConditionPropertyToRootParameter(const FString& AssetPath, const FString& StatePath,
-	                                                      const FString& ConditionStructName, const FString& ConditionPropertyPath,
-	                                                      const FString& ParameterPath,
-	                                                      int32 ConditionMatchIndex = -1);
-
-	/** Remove the property binding on an enter condition property (unbind it). */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool UnbindEnterConditionProperty(const FString& AssetPath, const FString& StatePath,
-	                                        const FString& ConditionStructName, const FString& ConditionPropertyPath,
-	                                        int32 ConditionMatchIndex = -1);
 
 	/** Add a condition to an existing transition. */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
@@ -787,110 +619,8 @@ public:
 	                                                const FString& PropertyPath, const FString& Value,
 	                                                int32 ConditionMatchIndex = -1);
 
-	/**
-	 * Bind a transition condition property to context data (e.g. context "Actor" path "TargetPawn" -> condition property "Object").
-	 * Leave ContextPropertyPath empty to bind the whole context object.
-	 * @param ConditionMatchIndex Which matching condition to target. -1 means the last matching condition.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindTransitionConditionPropertyToContext(const FString& AssetPath, const FString& StatePath,
-	                                                     int32 TransitionIndex, const FString& ConditionStructName,
-	                                                     const FString& ConditionPropertyPath,
-	                                                     const FString& ContextName = TEXT("Actor"),
-	                                                     const FString& ContextPropertyPath = TEXT(""),
-	                                                     int32 ConditionMatchIndex = -1);
-
-	/**
-	 * Bind a transition condition property to an event payload property.
-	 * The transition must have a RequiredEvent with a PayloadStruct set.
-	 * @param PayloadPropertyPath Property path within the event payload struct (e.g. "TargetPawn"). The service resolves this against the payload struct and binds it through the transition event's Payload field.
-	 * @param ConditionMatchIndex Which matching condition to target. -1 means the last matching condition.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindTransitionConditionPropertyToEventPayload(const FString& AssetPath, const FString& StatePath,
-	                                                          int32 TransitionIndex, const FString& ConditionStructName,
-	                                                          const FString& ConditionPropertyPath,
-	                                                          const FString& PayloadPropertyPath,
-	                                                          int32 ConditionMatchIndex = -1);
-
-	/**
-	 * Bind a transition condition property to a property exposed by an evaluator node.
-	 * Use this when a transition condition should read data produced by an evaluator in the same StateTree.
-	 * @param ConditionMatchIndex Which matching condition to target. -1 means the last matching condition.
-	 * @param EvaluatorMatchIndex Which matching evaluator to target for the struct type. -1 means the last matching evaluator.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindTransitionConditionPropertyToEvaluatorProperty(const FString& AssetPath, const FString& StatePath,
-	                                                              int32 TransitionIndex, const FString& ConditionStructName,
-	                                                              const FString& ConditionPropertyPath,
-	                                                              const FString& EvaluatorStructName, const FString& EvaluatorPropertyPath,
-	                                                              int32 ConditionMatchIndex = -1, int32 EvaluatorMatchIndex = -1);
-
-	/** Remove the property binding on a transition condition property (unbind it). */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool UnbindTransitionConditionProperty(const FString& AssetPath, const FString& StatePath,
-	                                             int32 TransitionIndex, const FString& ConditionStructName,
-	                                             const FString& ConditionPropertyPath,
-	                                             int32 ConditionMatchIndex = -1);
 
 
-
-
-	/**
-	 * Bind an evaluator property to a root parameter path (e.g. parameter "PatrolTag" -> evaluator property "PatrolTag").
-	 * Evaluators are global — no StatePath is needed.
-	 * @param MatchIndex Which matching evaluator to target for the struct type. -1 means the last matching evaluator.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindEvaluatorPropertyToRootParameter(const FString& AssetPath, const FString& EvaluatorStructName,
-	                                                 const FString& EvaluatorPropertyPath, const FString& ParameterPath,
-	                                                 int32 MatchIndex = -1);
-
-	/**
-	 * Bind an evaluator property to context data (e.g. context "Actor" path "TargetPawn" -> evaluator property "ActorRef").
-	 * Leave ContextPropertyPath empty to bind the whole context object.
-	 * Evaluators are global — no StatePath is needed.
-	 * @param MatchIndex Which matching evaluator to target for the struct type. -1 means the last matching evaluator.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindEvaluatorPropertyToContext(const FString& AssetPath, const FString& EvaluatorStructName,
-	                                           const FString& EvaluatorPropertyPath,
-	                                           const FString& ContextName = TEXT("Actor"),
-	                                           const FString& ContextPropertyPath = TEXT(""),
-	                                           int32 MatchIndex = -1);
-
-	/** Remove the property binding on an evaluator property (unbind it). */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool UnbindEvaluatorProperty(const FString& AssetPath, const FString& EvaluatorStructName,
-	                                    const FString& EvaluatorPropertyPath, int32 MatchIndex = -1);
-
-	/**
-	 * Bind a global task property to a root parameter path (e.g. parameter "PatrolTag" -> task property "PatrolTag").
-	 * Global tasks are global — no StatePath is needed.
-	 * @param MatchIndex Which matching global task to target for the struct type. -1 means the last matching task.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindGlobalTaskPropertyToRootParameter(const FString& AssetPath, const FString& TaskStructName,
-	                                                  const FString& TaskPropertyPath, const FString& ParameterPath,
-	                                                  int32 MatchIndex = -1);
-
-	/**
-	 * Bind a global task property to context data (e.g. context "Actor" path "TargetPawn" -> task property "ActorRef").
-	 * Leave ContextPropertyPath empty to bind the whole context object.
-	 * Global tasks are global — no StatePath is needed.
-	 * @param MatchIndex Which matching global task to target for the struct type. -1 means the last matching task.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool BindGlobalTaskPropertyToContext(const FString& AssetPath, const FString& TaskStructName,
-	                                            const FString& TaskPropertyPath,
-	                                            const FString& ContextName = TEXT("Actor"),
-	                                            const FString& ContextPropertyPath = TEXT(""),
-	                                            int32 MatchIndex = -1);
-
-	/** Remove the property binding on a global task property (unbind it). */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
-	static bool UnbindGlobalTaskProperty(const FString& AssetPath, const FString& TaskStructName,
-	                                     const FString& TaskPropertyPath, int32 MatchIndex = -1);
 
 
 

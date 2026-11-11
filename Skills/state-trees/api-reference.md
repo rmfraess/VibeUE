@@ -1,11 +1,10 @@
 ---
 name: api-reference
-description: The real 5.9 StateTree inventory - all 45 surviving VibeUE StateTreeService tools with signatures, Epic's StateTreeToolset tools grouped by job, the ObjectToolset property keys on UStateTreeState, and the removed-to-replacement table
+description: The 5.9 StateTree inventory - surviving VibeUE StateTreeService tools, Epic's StateTreeToolset tools, ObjectToolset property keys and replacements.
 ---
 
 This sub-doc is the inventory. `SKILL.md` carries the ownership table, the two transition rules and
-the gotchas — read those first. For the binding workflows behind the `bind_*` signatures here, see
-`api-bindings.md`.
+the gotchas — read those first. For native binding workflows, see `api-bindings.md`.
 
 **Two call styles, and they are not interchangeable:**
 
@@ -14,13 +13,13 @@ the gotchas — read those first. For the binding workflows behind the `bind_*` 
 | Epic `StateTreeToolset` (a Python toolset) | `state_tree_toolset.state_tree.StateTreeToolset` | `call_tool` only | snake_case — `add_child_state`, `compile` |
 | Epic `ObjectToolset` | `EditorToolset.ObjectToolset` | `call_tool` only | PascalCase — `GetProperties`, `SetProperties` |
 | Epic `AssetToolset` | `EditorToolset.AssetToolset` | `call_tool` only | PascalCase — `FindAssets`, `SaveAsset` |
-| VibeUE's 45 survivors | — | `unreal.StateTreeService.<snake_case>()` in `execute_python` | `create_state_tree`, `bind_task_property_to_context` |
+| VibeUE survivors | — | `unreal.StateTreeService.<snake_case>()` in `execute_python` | `create_state_tree` |
 
 There is no `unreal.StateTreeToolset`. The tool names here are verified; **parameter names come from
 `describe_toolset`**, never from guesswork. `SKILL.md` has the rule for deriving any other toolset's
 registered name (C++ `<Module>.<ClassName>`, Python `<package>.<module>.<ClassName>`).
 
-# Part 1 — VibeUE's 45 surviving tools
+# Part 1 — VibeUE surviving tools
 
 Every signature below is the real one. Defaults are shown; a `match_index` of `-1` means "the last
 matching node".
@@ -103,22 +102,14 @@ non-Blueprint/Widget editors. `set_state_expanded` survives because `bExpanded` 
 `UPROPERTY(meta = (ExcludeFromHash))` — no `CPF_Edit`, no `CPF_BlueprintVisible` — so the toolset
 refuses it for read *and* write, and it is invisible even to `ListProperties`.
 
-## Task flags the engine cannot path-address (2)
+## Task flags (native)
 
-Both live inside an `FInstancedStruct` or behind an `Instanced` object reference.
-`ToolsetPropertyPath` refuses to cross an object reference and `FInstancedStruct` has no reflected
-fields, so there is no path to them at all.
+Use `unreal.StateTreeEditingSubsystem.set_task_enabled` and `set_task_considered_for_completion` with the StateTree and task GUID.
 
-```python
-unreal.StateTreeService.set_task_enabled(asset_path, state_path, task_struct_name, task_match_index, enabled)
-unreal.StateTreeService.set_task_considered_for_completion(asset_path, state_path, task_struct_name, task_match_index, considered_for_completion)
-```
-
-## Transitions and transition conditions (6)
+## Transitions and transition conditions (5)
 
 `move_transition` survives because no toolset anywhere emits `EPropertyChangeType::ArrayMove` — see
-Rule 2 in `SKILL.md`. The condition tools survive for the same `FInstancedStruct` reason as the task
-flags; `add_transition_condition` additionally needs `InitializeAs` to allocate
+Rule 2 in `SKILL.md`. `add_transition_condition` needs `InitializeAs` to allocate
 `Instance`/`InstanceObject` with the right outer and mint the node ID.
 
 ```text
@@ -138,82 +129,16 @@ unreal.StateTreeService.get_transition_event_payload_property_names(
     asset_path, state_path, transition_index) -> [FStateTreePropertyInfo]
 ```
 
-`bind_transition_to_delegate` (below) is the sixth.
+Delegate transitions use the native binding API below.
 
 `FStateTreePropertyInfo`: `.name` (case-sensitive C++ name), `.type`, `.current_value` (UE text
 format), `.is_bound` (only the exact bound path is marked), `.bound_to`
 (e.g. `"RootParameter:Parameters.IdlingTime"`; a trailing `" (output)"` means this property *writes*
 the named source).
 
-## The 24 `bind_*` / `unbind_*` tools
+## Native property bindings
 
-Their engine counterpart is `UStateTreeEditorData::SetBinding` / `ClearBinding`, which are
-`PythonCallable` **native** APIs, not toolset tools — so they are not a toolset duplicate and they
-all stay. Workflows and worked examples live in `api-bindings.md`.
-
-**State task as target** — `(asset_path, state_path, task_struct_name, task_property_path, …, task_match_index=-1)`
-
-| Tool | Trailing arguments |
-|---|---|
-| `bind_task_property_to_root_parameter` | `parameter_path` |
-| `bind_task_property_to_context` | `context_name="Actor"`, `context_property_path=""` |
-| `bind_task_property_to_global_task_property` | `global_task_struct_name`, `global_task_property_path`, then `global_task_match_index=-1` |
-| `bind_task_property_to_evaluator_property` | `evaluator_struct_name`, `evaluator_property_path`, then `evaluator_match_index=-1` |
-| `unbind_task_property` | — |
-
-**Enter condition as target** — `(asset_path, state_path, condition_struct_name, condition_property_path, …, condition_match_index=-1)`
-
-| Tool | Trailing arguments |
-|---|---|
-| `bind_enter_condition_property_to_root_parameter` | `parameter_path` |
-| `bind_enter_condition_property_to_context` | `context_name="Actor"`, `context_property_path=""` |
-| `bind_enter_condition_property_to_global_task_property` | `global_task_struct_name`, `global_task_property_path`, then `global_task_match_index=-1` |
-| `bind_enter_condition_property_to_evaluator_property` | `evaluator_struct_name`, `evaluator_property_path`, then `evaluator_match_index=-1` |
-| `unbind_enter_condition_property` | — |
-
-**Transition condition as target** — `(asset_path, state_path, transition_index, condition_struct_name, condition_property_path, …, condition_match_index=-1)`
-
-| Tool | Trailing arguments |
-|---|---|
-| `bind_transition_condition_property_to_context` | `context_name="Actor"`, `context_property_path=""` |
-| `bind_transition_condition_property_to_event_payload` | `payload_property_path` (field name inside the payload struct) |
-| `bind_transition_condition_property_to_evaluator_property` | `evaluator_struct_name`, `evaluator_property_path`, then `evaluator_match_index=-1` |
-| `unbind_transition_condition_property` | — |
-
-**Consideration as target** — `(asset_path, state_path, consideration_struct_name, consideration_property_path, …, match_index=-1)`
-
-| Tool | Trailing arguments |
-|---|---|
-| `bind_consideration_property_to_root_parameter` | `parameter_path` |
-| `bind_consideration_property_to_context` | `context_name="Actor"`, `context_property_path=""` |
-| `unbind_consideration_property` | — |
-
-**Evaluator as target** — `(asset_path, evaluator_struct_name, evaluator_property_path, …, match_index=-1)`; evaluators are global, so there is no `state_path`
-
-| Tool | Trailing arguments |
-|---|---|
-| `bind_evaluator_property_to_root_parameter` | `parameter_path` |
-| `bind_evaluator_property_to_context` | `context_name="Actor"`, `context_property_path=""` |
-| `unbind_evaluator_property` | — |
-
-**Global task as target** — `(asset_path, task_struct_name, task_property_path, …, match_index=-1)`; also global, no `state_path`
-
-| Tool | Trailing arguments |
-|---|---|
-| `bind_global_task_property_to_root_parameter` | `parameter_path` |
-| `bind_global_task_property_to_context` | `context_name="Actor"`, `context_property_path=""` |
-| `unbind_global_task_property` | — |
-
-**Transition → delegate dispatcher**
-
-```python
-unreal.StateTreeService.bind_transition_to_delegate(
-    asset_path, state_path, transition_index, task_struct_name,
-    dispatcher_property_name, task_match_index=-1)
-```
-
-Any `*_struct_name` argument accepts a Blueprint node by `_C` class name (`"STT_Rotate_C"`), plain
-Blueprint name (`"STT_Rotate"`), editor display name (`"STT Rotate"`), or the raw wrapper struct.
+Use native `unreal.StateTreeEditorData.resolve_binding_path` and `set_binding` with the source and target owner GUIDs; use `clear_binding` to unbind. Workflows live in `api-bindings.md`.
 
 # Part 2 — Epic's `StateTreeToolset` (`call_tool`, snake_case)
 
@@ -298,7 +223,7 @@ read Rule 1 (target state in the same write) and Rule 2 (never rewrite the array
 
 # Part 4 — Removed → replacement
 
-Everything on the left **no longer exists**: 53 tools were cut on the `5-9` branch, 98 → 45.
+The historical entries on the left **no longer exist**. Additional binding and task-flag cuts use the native APIs above.
 
 ## Group A — Epic `StateTreeToolset` (`call_tool`, snake_case)
 

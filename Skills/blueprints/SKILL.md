@@ -447,8 +447,7 @@ vibeue.exec_tool(BT, "AddStructVariable",
 vibeue.exec_tool(BT, "CompileBlueprint", {"blueprint": bp})
 ```
 
-Then use `StateTreeService.bind_transition_to_delegate` to link it to a transition — it matches the
-task by **registered class name** (`STT_Rotate_C`), not asset path.
+Bind the transition to the dispatcher with native `unreal.StateTreeEditorData.resolve_binding_path` and `set_binding`, using the transition and task owner GUIDs.
 
 ## VibeUE's 19 survivors
 

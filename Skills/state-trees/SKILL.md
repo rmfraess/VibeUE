@@ -1,7 +1,7 @@
 ---
 name: state-trees
 display_name: StateTree Behavior
-description: Author StateTree assets on UE 5.9's split ownership - Epic's StateTreeToolset owns structural authoring (states, tasks, enter conditions, considerations, evaluators, node data, compile) and ObjectToolset/AssetToolset own state properties, transitions and saving, while VibeUE's StateTreeService keeps asset creation, all property bindings, node-type discovery, theme colors and root parameters. Use when the user asks to build a StateTree, add states/tasks/transitions, bind task properties, set up Utility AI considerations, or wire StateTree delegate transitions.
+description: Author StateTree assets on UE 5.9 using Epic's StateTreeToolset for structure and native StateTreeEditorData for property bindings, with VibeUE for asset creation, node-type discovery, theme colors and root parameters. Use for StateTrees, tasks, transitions, bindings and Utility AI.
 vibeue_classes:
   - StateTreeService
 unreal_classes:
@@ -43,23 +43,22 @@ StateTree is Unreal Engine's hierarchical state machine system for AI behavior a
 
 **On 5.9 this domain is split.** Epic's `StateTreeToolset` owns structural authoring — states, tasks,
 enter conditions, considerations, evaluators, node data and `compile`. Epic's `ObjectToolset` /
-`AssetToolset` own state properties, transitions and saving. VibeUE's `StateTreeService` kept the
-**45** tools the engine surface cannot reach: asset creation, all property bindings, node-*type*
-discovery, theme colors, root parameters and a few otherwise unreachable flags.
+`AssetToolset` own state properties, transitions and saving. VibeUE's `StateTreeService` retains
+asset creation, node-*type* discovery, theme colors and root parameters. Native `StateTreeEditorData`
+handles property bindings; native `StateTreeEditingSubsystem` handles task flags.
 
-**53 `StateTreeService` tools were removed on the `5-9` branch** (98 → 45). If you remember a call
-that is not in the ownership table below, look it up in "Migration: the 53 removed VibeUE tools"
-further down — every removed tool has a replacement.
+For the earlier 5.9 tool cuts and their replacements, see the migration table below.
 
 ## Who owns what in 5.9
 
-**Two call styles. Never mix them up.**
+**Call styles. Never mix them up.**
 
 | Who | How you call it | Names look like |
 |---|---|---|
 | Epic's `StateTreeToolset` (a **Python** toolset) | `call_tool` **only** | snake_case — `add_child_state`, `set_node_instance_data`, `compile` |
 | Epic's `ObjectToolset` / `AssetToolset` | `call_tool` **only** | PascalCase — `GetProperties`, `SetProperties`, `SaveAsset` |
-| VibeUE's 45 survivors | `unreal.StateTreeService.<snake_case>()` inside `execute_python` | `create_state_tree`, `bind_task_property_to_context` |
+| VibeUE survivors | `unreal.StateTreeService.<snake_case>()` inside `execute_python` | `create_state_tree` |
+| Native binding and task flag APIs | `unreal.StateTreeEditorData` / `unreal.StateTreeEditingSubsystem` inside `execute_python` | `resolve_binding_path`, `set_task_enabled` |
 
 > ⚠️ **`unreal.StateTreeToolset.add_task(...)` does not exist.** Epic's toolsets are not `unreal.*`
 > Python APIs — they are reachable *only* through `call_tool`. The mirror of that mistake is just as
@@ -107,12 +106,12 @@ here. Dropping it (`state_tree_toolset.StateTreeToolset`) is the usual mistake.
 | Transitions — add, remove, retarget | **Epic** `ObjectToolset.SetProperties` on the state's `Transitions` — **read the two transition rules first** |
 | Reorder a transition | **VibeUE** `move_transition` |
 | Which node *types* exist | **VibeUE** `get_available_task_types`, `get_available_condition_types`, `get_available_consideration_types`, `get_available_evaluator_types` |
-| Property bindings (24 `bind_*` / `unbind_*` tools) | **VibeUE** — see `api-bindings.md` |
+| Property bindings | **Native** `StateTreeEditorData.resolve_binding_path`, `set_binding`, `clear_binding` — see `api-bindings.md` |
 | Theme colors | **VibeUE** `get_theme_colors`, `set_state_theme_color`, `rename_theme_color` |
 | Root parameters | **VibeUE** `add_or_update_root_parameter`, `remove_root_parameter`, `rename_root_parameter` |
 | Per-instance parameter override on a placed actor | **VibeUE** `set_component_parameter_override` |
-| Transition conditions (add / inspect / set / bind) | **VibeUE** `add_transition_condition`, `get_transition_condition_property_names`, `set_transition_condition_property_value`, the `bind_transition_condition_*` family |
-| Task flags the engine cannot path-address | **VibeUE** `set_task_enabled`, `set_task_considered_for_completion` |
+| Transition conditions (add / inspect / set) | **VibeUE** `add_transition_condition`, `get_transition_condition_property_names`, `set_transition_condition_property_value` |
+| Task flags | **Native** `StateTreeEditingSubsystem.set_task_enabled`, `set_task_considered_for_completion` using the task GUID |
 | Select / expand a state in the editor | **VibeUE** `select_state`, `set_state_expanded` |
 | Compile | **Epic** `compile` |
 | Save | **Epic** `AssetToolset.SaveAsset` (after `compile`) |
@@ -184,7 +183,7 @@ drift.
 
 (Gotchas 2 and 3 are the two transition rules above.)
 
-## Migration: the 53 removed VibeUE tools → what to call now
+## Migration: earlier removed VibeUE tools → what to call now
 
 Everything in a left-hand column **no longer exists**. When you meet one in legacy code, an old
 script or your own memory, replace it with the right-hand side.
@@ -391,7 +390,7 @@ batch. Run `describe_toolset` for the exact argument names.
 | `create_state_tree(...)` returns False and you retry other paths/folders | The path is rarely the problem — the **schema** is. Default `StateTreeComponentSchema` requires the GameplayStateTree plugin. List what this project actually has with `ObjectToolset.SearchSubclasses` on `UStateTreeSchema` and pass one of those explicitly |
 | Creating StateTrees via `AssetTools` + `unreal.StateTreeFactory` | Fails from Python (`Cannot nativize 'StateTreeFactory'…` / returns None) — use `StateTreeService.create_state_tree()`. Epic has no asset-creation tool at all, by design |
 | `unreal.StateTreeToolset.get_all_states(st)` | Epic's toolset is **`call_tool` only** — there is no `unreal.StateTreeToolset` Python class |
-| `call_tool` for `bind_task_property_to_context` | VibeUE's survivors run inside `execute_python`: `unreal.StateTreeService.bind_task_property_to_context(...)` |
+| Binding by guessing property paths or owner IDs | Use native `StateTreeEditorData.resolve_binding_path` and `set_binding` with discovered owner GUIDs |
 | `info = get_state_tree_info(path)` then `info.all_states` / `info.transitions` / `info.context_actor_class` | Removed with the tool. Structure → Epic `get_all_states` / `get_children`; node values → Epic `get_node_instance_data`; state fields and `Transitions` → `ObjectToolset.GetProperties` on the state; context actor class → `GetProperties` on the editor data's `Schema`, then on the schema object |
 
 ## Workflow
@@ -447,14 +446,13 @@ call_tool(tool_name="compile",   toolset_name=ST,    arguments={...})
 call_tool(tool_name="SaveAsset", toolset_name=ASSET, arguments={...})
 ```
 
-**Step 7 — parameters and bindings (VibeUE, `execute_python`).**
+**Step 7 — parameters (VibeUE) and bindings (native), `execute_python`.**
 
 ```python
 unreal.StateTreeService.add_or_update_root_parameter(
     "/Game/AI/MyBehavior", "IdlingTime", "Float", "2.0")
 
-unreal.StateTreeService.bind_task_property_to_root_parameter(
-    "/Game/AI/MyBehavior", "Root/Idle", "FStateTreeDelayTask", "Duration", "IdlingTime")
+# Bind Duration to IdlingTime using native StateTreeEditorData.resolve_binding_path and set_binding with owner GUIDs.
 
 # 8. Show the user the state you just edited (the asset must already be open in an editor tab)
 unreal.StateTreeService.set_state_expanded("/Game/AI/MyBehavior", "Root", True)
@@ -469,8 +467,8 @@ A batch of Epic edits is **not** one undo step (gotcha 1) — wrap it in your ow
 This skill's larger reference material has been split into sibling files. Load them via the engine
 `AgentSkillToolset` (`GetSkills` with `["state-trees/<name>"]`, see the `vibeue` skill) when you need the detail:
 
-- **`api-reference`** — the real 5.9 inventory: all 45 surviving `StateTreeService` tools with their signatures, Epic's `StateTreeToolset` tools grouped by job, the `ObjectToolset` property-key table for `UStateTreeState`, and the removed → replacement table.
-- **`api-bindings`** — the 24 `bind_*` / `unbind_*` tools and the workflows around them: evaluators & global tasks, the full `OnDelegate` transition workflow, the context actor class two-call dance, bindings from context / root parameters / global tasks / evaluators, reading bindings back (engine-native `StateTreeEditorData.get_bindings`), assigning a StateTree to a `StateTreeComponent` (use `StateTreeRef` not `StateTree`), theme colors and expand/collapse.
+- **`api-reference`** — the 5.9 inventory: surviving `StateTreeService` tools, Epic tools, property keys and removed → replacement table.
+- **`api-bindings`** — native binding workflows, evaluators, global tasks, OnDelegate transitions, context class, binding reads, component assignment, colors and expand/collapse.
 - **`event-payloads`** — Sending a StateTree event with a struct payload from a Blueprint: the `Make <FMyStruct>` → `Make Instanced Struct` → `Make State Tree Event` → `Send State Tree Event` chain, `build_graph` pattern, pin names to verify, and common mistakes.
 - **`changelog`** — **historical record only.** It documents VibeUE's Phase 1 & 2 development, much of it about tools the `5-9` branch removed. Read it for history; this file is the authority on what exists.
 - **`blueprint-tasks`** — Creating & editing `STT_*` StateTree Blueprint Tasks: discovery workflow for the parent class, creating via the engine `BlueprintFactory`, correct event functions (`ReceiveLatentTick`, `ReceiveLatentEnterState`, `ReceiveExitState`, `ReceiveStateCompleted`), finding the registered `_C` task type name, and which Epic `add_blueprint_*` tool to use for each `STT_*` node kind.
@@ -492,24 +490,13 @@ Blueprint node use `add_blueprint_task`, `add_blueprint_global_task`, `add_bluep
 `"StateTreeBlueprintTaskWrapper"` anywhere: that is the internal wrapper struct, not the Blueprint
 class you want. Run `describe_toolset` for what each `add_blueprint_*` expects.
 
-### ⚠️ Blueprint Task Names in VibeUE's Binding Tools
+### ⚠️ Blueprint Task Identity for Native Bindings
 
-Blueprint tasks are stored internally as `StateTreeBlueprintTaskWrapper`. VibeUE's surviving tools
-that take a `task_struct_name` — `bind_task_property_to_context` and the rest of the `bind_*` /
-`unbind_*` family, `set_task_enabled`, `set_task_considered_for_completion` — accept **any** of
-these forms, and they all resolve to the same node:
-
-- `"STT_Rotate_C"` — the Blueprint generated class name
-- `"STT_Rotate"` — the Blueprint name without `_C` suffix
-- `"STT Rotate"` — the display name shown in the editor
-- `"StateTreeBlueprintTaskWrapper"` — the raw struct type
-
-To read a node's display text, use Epic's `get_node_description`.
+Discover the node owner GUID and use native `StateTreeEditorData.resolve_binding_path` and `set_binding`; do not assume a Blueprint name is a native binding address. To read a node's display text, use Epic's `get_node_description`.
 
 ### ⚠️ Binding Fails When Context Actor Class Is Not Set
 
-`bind_task_property_to_context` returns `False` when the StateTree has no context actor class.
-The error message will say "Context 'Actor' not found — this StateTree has NO context actor class set."
+Context bindings require a context actor class on the StateTree schema.
 
 `set_context_actor_class` is gone. Setting it is now the **two-call** `ObjectToolset` dance from
 gotcha (4):
@@ -522,11 +509,7 @@ A nested `Schema.ContextActorClass` key on the editor data silently does not wor
 `PostEditChangeChainProperty` never fires and `ContextDataDescs` never rebuilds, so bindings keep
 failing.
 
-```python
-# Only AFTER the schema object actually carries a ContextActorClass does this succeed
-unreal.StateTreeService.bind_task_property_to_context(
-    st_path, "Root", "STT_Rotate_C", "Cube", "Actor", "")
-```
+After setting the context actor class, use native `StateTreeEditorData.resolve_binding_path` and `set_binding` with the context and task owner GUIDs.
 
 ### ⚠️ Forgetting to Compile
 
@@ -682,20 +665,16 @@ node's template struct, `get/set_node_execution_runtime_data` for execution-time
 ### ⚠️ Condition Properties That Require Bindings (e.g. "Object")
 
 Conditions like `StateTreeObjectIsValidCondition` have properties that **must be bound**
-to context data or event payload — setting a string value won't work. Use
-`bind_transition_condition_property_to_context`, `bind_enter_condition_property_to_context`, or
-`bind_transition_condition_property_to_event_payload` rather than writing a value
-(`set_transition_condition_property_value`, or Epic's `set_node_instance_data` on an enter
-condition). All the `bind_*` tools below are VibeUE survivors.
+to context data or event payload — setting a string value won't work. Use native
+`StateTreeEditorData.resolve_binding_path` and `set_binding` with the source and target owner GUIDs
+rather than writing a value (`set_transition_condition_property_value` or Epic's `set_node_instance_data` on an enter condition).
 
 ```python
 # WRONG — trying to set "Object" as a string value (will fail or compile error)
 unreal.StateTreeService.set_transition_condition_property_value(
     path, "Root", 0, "StateTreeObjectIsValidCondition", "Object", "/Game/SomeActor")
 
-# CORRECT — bind it to the context actor's property
-unreal.StateTreeService.bind_transition_condition_property_to_context(
-    path, "Root", 0, "StateTreeObjectIsValidCondition", "Object", "Actor", "TargetPawn")
+# Bind to the context actor property with native StateTreeEditorData.resolve_binding_path and set_binding using owner GUIDs.
 
 # CORRECT — bind it to the transition's event payload property
 # (when the transition has a RequiredEvent with a PayloadStruct like FStartChasingPayload)
@@ -704,9 +683,7 @@ payload_props = unreal.StateTreeService.get_transition_event_payload_property_na
 for p in payload_props:
     print(f"{p.name}: {p.type} = {p.current_value!r}")
 
-# The bind helper accepts friendly field names and resolves them to the reflected path.
-unreal.StateTreeService.bind_transition_condition_property_to_event_payload(
-    path, "Root", 0, "StateTreeObjectIsValidCondition", "Object", "TargetPawn")
+# Bind to the event payload with native StateTreeEditorData.resolve_binding_path and set_binding using owner GUIDs.
 ```
 
 ### ⚠️ Bool Properties Drop the `b` Prefix in Python
@@ -752,8 +729,8 @@ call_tool AddEvent {"blueprint": {"refPath": "/Game/StateTree/STT_MyTask"}, "eve
 - **`scripts/build_state_tree.txt`** — the full mixed build: VibeUE `create_state_tree`, Epic
   `add_sub_tree` / `add_child_state` / `add_task`, a transition appended in one
   `ObjectToolset.SetProperties` (Rule 1), Epic `compile` + `AssetToolset.SaveAsset`, then a VibeUE
-  root parameter and binding. Only the VibeUE parts run under `execute_python`; the Epic parts are
-  `call_tool`.
+  root parameter and a native binding pointer. VibeUE and native APIs run under `execute_python`;
+  the Epic toolset operations use `call_tool`.
 
 ## Additional gotchas
 
@@ -763,9 +740,9 @@ call_tool AddEvent {"blueprint": {"refPath": "/Game/StateTree/STT_MyTask"}, "eve
 
 Open these with the paths below; UE rewrites them to absolute paths when it serves this skill.
 
-- [api-bindings](api-bindings.md) - The 24 surviving binding tools and the workflows around them - evaluators and global tasks, transitions and the OnDelegate workflow, the two-call c...
-- [api-reference](api-reference.md) - The real 5.9 inventory - all 45 surviving VibeUE tools with signatures, Epic's StateTreeToolset tools by job, the ObjectToolset keys on UStateTreeS...
+- [api-bindings](api-bindings.md) - Native binding workflows, evaluators, global tasks, transitions and context.
+- [api-reference](api-reference.md) - Surviving VibeUE tools, Epic toolsets and ObjectToolset keys.
 - [blueprint-tasks](blueprint-tasks.md) - Create and edit STT_* StateTree Blueprint Tasks - discover parent class, create via the engine BlueprintFactory, ReceiveLatentTick / ReceiveLatentEnte...
-- [changelog](changelog.md) - HISTORICAL record of VibeUE StateTree development - the 5-9 branch removed 53 of the tools described there; this file is the authority on what exists...
+- [changelog](changelog.md) - HISTORICAL record of VibeUE StateTree development - the 5-9 branch removed many of the tools described there; this file is the authority on what exists...
 - [event-payloads](event-payloads.md) - Send a StateTree event with a struct payload from a Blueprint (Make Struct -> Make Instanced Struct -> Make State Tree Event -> Send State Tree Event)
 - [scripts/build_state_tree.txt](scripts/build_state_tree.txt) - runnable sample
