@@ -338,15 +338,6 @@ public:
 	static TArray<FMontageInfo> FindMontagesUsingAnimation(const FString& AnimSequencePath);
 
 	/**
-	 * Get the skeleton asset path for a montage.
-	 *
-	 * @param MontagePath - Path to the montage asset
-	 * @return Skeleton asset path, or empty if not found
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage")
-	static FString GetMontageSkeleton(const FString& MontagePath);
-
-	/**
 	 * Set blend in settings.
 	 *
 	 * @param MontagePath - Path to montage
@@ -890,16 +881,6 @@ public:
 		const FString& MontagePath,
 		float Time,
 		FTransform& OutTransform);
-
-	/**
-	 * Refresh the montage editor by closing and reopening it.
-	 * Use after programmatic modifications to ensure the UI shows current state.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @return True if editor refreshed successfully
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage|Editor")
-	static bool RefreshMontageEditor(const FString& MontagePath);
 
 private:
 	// ============================================================================

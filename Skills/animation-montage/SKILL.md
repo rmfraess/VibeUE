@@ -157,16 +157,19 @@ AnimMontageService.set_enable_root_motion_rotation(montage_path, enable) -> bool
 ### Editor Methods
 ```python
 # Open montage with EditorToolset.EditorAppToolset.OpenEditorForAsset.
-# Refresh editor UI: call this ONCE, AFTER all edits are done (see crash warning below)
-AnimMontageService.refresh_montage_editor(montage_path) -> bool
+# Refresh editor UI ONCE, AFTER all edits are done (see crash warning below)
+m = unreal.load_asset(montage_path)
+aes = unreal.get_editor_subsystem(unreal.AssetEditorSubsystem)
+aes.close_all_editors_for_asset(m)
+aes.open_editor_for_assets([m])
 ```
 
 > ⚠️ **CRASH WARNING — never structurally edit a montage while its editor is open.**
 > Adding/removing **sections, slot tracks, segments, notifies, or branching points** reallocates
 > the montage's internal arrays. If the montage editor (Persona) is open, its live preview holds
 > pointers into those arrays and the next tick will dereference freed memory → **the editor hard-crashes**.
-> Rule: do ALL structural edits FIRST, then `refresh_montage_editor()` / `EditorToolset.EditorAppToolset.OpenEditorForAsset` **exactly once at the very end**.
-> Do NOT call `refresh_montage_editor()` between edits. (The service now also auto-closes the editor before
+> Rule: do ALL structural edits FIRST, then close and open the montage editor **exactly once at the very end**.
+> Do NOT reopen the editor between edits. (The service now also auto-closes the editor before
 > service structural edit as a safety net; native API edits do not use that service safety net. Batch edits
 > and open last so the editor is not opening and closing repeatedly.)
 
@@ -257,7 +260,10 @@ unreal.EditorAssetLibrary.save_asset(path)
 
 # 8. THEN refresh/open the editor exactly once — never between the edits above
 #    (refreshing mid-edit can crash the editor; see CRASH WARNING)
-unreal.AnimMontageService.refresh_montage_editor(path)
+m = unreal.load_asset(path)
+aes = unreal.get_editor_subsystem(unreal.AssetEditorSubsystem)
+aes.close_all_editors_for_asset(m)
+aes.open_editor_for_assets([m])
 ```
 
 ### Create Layered Upper Body Montage
@@ -323,14 +329,17 @@ sections = AnimMontageService.list_sections("/Game/Montages/AM_Attack")
 # WRONG - opening/refreshing the editor mid-edit, then editing more, can hard-crash
 # the editor (live preview holds dangling pointers into reallocated montage arrays)
 AnimMontageService.add_section(path, "Attack", 0.5)
-AnimMontageService.refresh_montage_editor(path)   # editor now open
+unreal.get_editor_subsystem(unreal.AssetEditorSubsystem).open_editor_for_assets([unreal.load_asset(path)])   # editor now open
 AnimMontageService.add_anim_segment(path, 0, anim, 1.0)  # mutates arrays under live preview -> CRASH risk
 
 # CORRECT - do ALL structural edits first, save, THEN refresh/open exactly once at the end
 AnimMontageService.add_section(path, "Attack", 0.5)
 AnimMontageService.add_anim_segment(path, 0, anim, 1.0)
 unreal.EditorAssetLibrary.save_asset(path)
-AnimMontageService.refresh_montage_editor(path)   # single refresh at the very end
+m = unreal.load_asset(path)
+aes = unreal.get_editor_subsystem(unreal.AssetEditorSubsystem)
+aes.close_all_editors_for_asset(m)
+aes.open_editor_for_assets([m])   # single refresh at the very end
 ```
 
 ### Wrong: Adding sections beyond montage duration

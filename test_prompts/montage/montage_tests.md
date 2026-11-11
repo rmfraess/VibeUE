@@ -147,10 +147,10 @@ Create a montage with 3 DIFFERENT animations, each in its own section:
 5. Link sections: Section1 -> Section2 -> Section3
 6. Set blend in 0.15s, blend out 0.2s
 7. Save as AM_MultiAnimation in /Game/Tests/Montages/
-8. Use RefreshMontageEditor to ensure UI shows all animations
+8. After all edits, close and reopen the montage with AssetEditorSubsystem to update the UI
 9. Open and visually verify all 3 animations are visible in the timeline
 
-IMPORTANT: After adding segments, use refresh_montage_editor() to force the UI to update!
+IMPORTANT: Close and reopen the montage editor only once, after all structural edits, to update the UI!
 
 ---
 

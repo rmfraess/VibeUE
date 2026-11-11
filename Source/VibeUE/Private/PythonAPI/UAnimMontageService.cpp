@@ -342,15 +342,6 @@ TArray<FMontageInfo> UAnimMontageService::FindMontagesUsingAnimation(const FStri
 	return Results;
 }
 
-FString UAnimMontageService::GetMontageSkeleton(const FString& MontagePath)
-{
-	UAnimMontage* Montage = LoadMontageToRead(MontagePath);
-	if (!Montage) return FString();
-
-	USkeleton* Skeleton = Montage->GetSkeleton();
-	return Skeleton ? Skeleton->GetPathName() : FString();
-}
-
 bool UAnimMontageService::SetBlendIn(
 	const FString& MontagePath,
 	float BlendTime,
@@ -1340,25 +1331,6 @@ bool UAnimMontageService::GetRootMotionAtTime(
 	// (Sampling one segment with ExtractRootMotion and no delta time returned identity.)
 	Time = FMath::Clamp(Time, 0.0f, Montage->GetPlayLength());
 	OutTransform = Montage->ExtractRootMotionFromTrackRange(0.0f, Time, FAnimExtractContext());
-	return true;
-}
-
-bool UAnimMontageService::RefreshMontageEditor(const FString& MontagePath)
-{
-	UAnimMontage* Montage = LoadMontage(MontagePath);
-	if (!Montage) return false;
-
-	if (!GEditor) return false;
-
-	UAssetEditorSubsystem* AssetEditorSubsystem = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>();
-	if (!AssetEditorSubsystem) return false;
-
-	// Close the editor if it's open
-	AssetEditorSubsystem->CloseAllEditorsForAsset(Montage);
-
-	// Reopen it to force a full refresh
-	AssetEditorSubsystem->OpenEditorForAsset(Montage);
-
 	return true;
 }
 
