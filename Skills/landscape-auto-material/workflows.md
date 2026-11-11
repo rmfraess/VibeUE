@@ -241,9 +241,8 @@ vol = unreal.RuntimeVirtualTextureService.create_rvt_volume(
 )
 print(f"Volume: {vol.volume_label}")
 
-# Assign RVT to landscape slot 0
-unreal.RuntimeVirtualTextureService.assign_rvt_to_landscape(
-    "MyLandscape", rvt_path, 0)
+# Assign the loaded RVT on the LandscapeProxy runtime_virtual_textures editor property
+# using get_editor_property / set_editor_property, preserving other array entries.
 ```
 
 **Block 3 — Add RVT output to material.** All Epic (`call_tool`): the material property, the
