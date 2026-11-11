@@ -150,11 +150,10 @@ n.child_indices   # list[int] — indices of connected children (-1 = unconnecte
 | Method | Returns | Notes |
 |--------|---------|-------|
 | `get_sound_wave_info(sw_path)` | `FSoundWaveInfo` | duration, sample rate, channels, looping, streaming |
-| `set_sound_wave_property(sw_path, prop, value)` | `bool` | set any UPROPERTY by name |
 
 Native import: `SoundWaveToolset.ImportFile` (await completion; explicitly set `bReplaceExisting=true` and `bSave=true`).
 
-Common `set_sound_wave_property` property names:
+Set a loaded SoundWave property with `sw.set_editor_property(prop, value)` (or ObjectToolset.SetProperties). Common C++ property names (use reflected Python names and typed values in Python):
 
 | PropertyName | Type | Example value |
 |---|---|---|

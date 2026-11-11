@@ -192,17 +192,6 @@ TArray<FSoundCueNodeInfo> USoundCueService::ListNodes(const FString& AssetPath)
 	return Result;
 }
 
-// Shared helper: add N input pins to a freshly-constructed graph node, then compile.
-// Used by all multi-input nodes (Switch, DistanceCrossFade, ParamCrossFade).
-static void AddPinsAndCompile(USoundCue* SoundCue, USoundCueGraphNode* GraphNode, int32 NumPins)
-{
-	for (int32 i = 0; i < NumPins; i++)
-	{
-		GraphNode->CreateInputPin();
-	}
-	SoundCue->CompileSoundNodesFromGraphNodes();
-}
-
 bool USoundCueService::MoveNode(const FString& AssetPath, int32 NodeIndex, float PosX, float PosY)
 {
 	USoundCue* SoundCue = LoadSoundCue(AssetPath);
@@ -364,39 +353,4 @@ FSoundWaveInfo USoundCueService::GetSoundWaveInfo(const FString& SoundWavePath)
 	Info.bStreaming  = Wave->IsStreaming(nullptr);
 
 	return Info;
-}
-
-bool USoundCueService::SetSoundWaveProperty(
-	const FString& SoundWavePath, const FString& PropertyName, const FString& Value)
-{
-	USoundWave* Wave = LoadSoundWave(SoundWavePath);
-	if (!Wave)
-	{
-		UE_LOG(LogSoundCueService, Warning,
-			TEXT("SetSoundWaveProperty: could not load '%s'"), *SoundWavePath);
-		return false;
-	}
-
-	FProperty* Prop = Wave->GetClass()->FindPropertyByName(FName(*PropertyName));
-	if (!Prop)
-	{
-		UE_LOG(LogSoundCueService, Warning,
-			TEXT("SetSoundWaveProperty: property '%s' not found on USoundWave"), *PropertyName);
-		return false;
-	}
-
-	FScopedTransaction Transaction(NSLOCTEXT("SoundCueService", "SetSoundWaveProp", "Set SoundWave Property"));
-	Wave->Modify();
-
-	const TCHAR* ImportResult = Prop->ImportText_InContainer(*Value, Wave, Wave, PPF_None);
-	if (!ImportResult)
-	{
-		UE_LOG(LogSoundCueService, Warning,
-			TEXT("SetSoundWaveProperty: failed to set '%s' = '%s'"), *PropertyName, *Value);
-		return false;
-	}
-
-	Wave->PostEditChange();
-	Wave->MarkPackageDirty();
-	return true;
 }
