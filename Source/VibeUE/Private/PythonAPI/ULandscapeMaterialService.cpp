@@ -503,55 +503,28 @@ bool ULandscapeMaterialService::ConnectToLayerInput(
 		}
 	}
 
-	// Calculate the input index on the blend node
-	// The LandscapeLayerBlend node has inputs per layer:
-	// Each layer has: Layer (color input) and optionally Height (for height blend)
-	// Input index: LayerIndex * InputsPerLayer + InputOffset
-	int32 InputsPerLayer = 1;
-	int32 InputOffset = 0;
-
-	// Check if any layer uses height blend (which adds height inputs)
-	bool bHasHeightInputs = false;
-	for (const FLayerBlendInput& Layer : BlendNode->Layers)
+	// Address the layer's own pin. The node lists a Height pin only for height-blend layers, so a flat
+	// "LayerIndex * InputsPerLayer" index picks the wrong pin when only some layers height-blend.
+	const bool bWantHeight = InputType.Equals(TEXT("Height"), ESearchCase::IgnoreCase) ||
+		InputType.Equals(TEXT("Alpha"), ESearchCase::IgnoreCase);
+	FLayerBlendInput& Layer = BlendNode->Layers[LayerIndex];
+	if (bWantHeight && Layer.BlendType != LB_HeightBlend)
 	{
-		if (Layer.BlendType == LB_HeightBlend)
-		{
-			bHasHeightInputs = true;
-			break;
-		}
+		UE_LOG(LogTemp, Error, TEXT("ULandscapeMaterialService::ConnectToLayerInput: Layer '%s' is not a height-blend layer, so it has no Height input"), *LayerName);
+		return false;
 	}
-
-	if (bHasHeightInputs)
-	{
-		InputsPerLayer = 2; // Layer + Height
-	}
-
-	if (InputType.Equals(TEXT("Height"), ESearchCase::IgnoreCase) ||
-		InputType.Equals(TEXT("Alpha"), ESearchCase::IgnoreCase))
-	{
-		InputOffset = 1;
-	}
-
-	int32 TargetInputIndex = LayerIndex * InputsPerLayer + InputOffset;
 
 	FScopedTransaction Transaction(NSLOCTEXT("LandscapeMaterialService", "ConnectToLayer", "Connect to Layer Input"));
 	Material->Modify();
 	BlendNode->Modify();
 
-	FExpressionInput* TargetInput = BlendNode->GetInput(TargetInputIndex);
-	if (TargetInputIndex >= 0 && TargetInput)
-	{
-		TargetInput->Connect(SourceOutputIndex, SourceExpr);
-		RefreshMaterialGraph(Material);
+	FExpressionInput& TargetInput = bWantHeight ? Layer.HeightInput : Layer.LayerInput;
+	TargetInput.Connect(SourceOutputIndex, SourceExpr);
+	RefreshMaterialGraph(Material);
 
-		UE_LOG(LogTemp, Log, TEXT("ULandscapeMaterialService::ConnectToLayerInput: Connected to layer '%s' %s input"),
-			*LayerName, *InputType);
-		return true;
-	}
-
-	UE_LOG(LogTemp, Error, TEXT("ULandscapeMaterialService::ConnectToLayerInput: Input index %d out of range"),
-		TargetInputIndex);
-	return false;
+	UE_LOG(LogTemp, Log, TEXT("ULandscapeMaterialService::ConnectToLayerInput: Connected to layer '%s' %s input"),
+		*LayerName, bWantHeight ? TEXT("Height") : TEXT("Layer"));
+	return true;
 }
 
 // =================================================================
@@ -1042,25 +1015,8 @@ bool ULandscapeMaterialService::SetupLayerTextures(
 				}
 			}
 
-			// Connect diffuse to blend node layer input
-
-			// Calculate input index for this layer
-			int32 InputsPerLayer = 1;
-			for (const FLayerBlendInput& Layer : BlendNode->Layers)
-			{
-				if (Layer.BlendType == LB_HeightBlend)
-				{
-					InputsPerLayer = 2;
-					break;
-				}
-			}
-
-			int32 TargetInput = LayerIndex * InputsPerLayer;
-			FExpressionInput* BlendInput = BlendNode->GetInput(TargetInput);
-			if (BlendInput)
-			{
-				BlendInput->Connect(0, TexSample);
-			}
+			// Connect diffuse to this layer's own Layer pin (a flat index is wrong when only some layers height-blend)
+			BlendNode->Layers[LayerIndex].LayerInput.Connect(0, TexSample);
 		}
 	}
 
