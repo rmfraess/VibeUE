@@ -42,9 +42,9 @@ apply_bone_rotation(anim_path, bone, rot, space, start, end, is_delta) -> Animat
 ```python
 copy_pose(src_path, src_frame, dst_path, dst_frame, bone_filter) -> AnimationEditResult  # [] filter = all bones
 mirror_pose(anim_path, frame, mirror_axis) -> AnimationEditResult   # axis "X"/"Y"/"Z"
-get_reference_pose(skeleton_path) -> Array[BonePose]
-quat_to_euler(quat) -> Rotator
 ```
+
+Reference poses: `unreal.AnimPoseExtensions.get_reference_pose` / `get_ref_bone_pose`; quaternion conversion: `quat.rotator()`.
 
 ## Safe discovery (no asset loading)
 
@@ -52,8 +52,8 @@ quat_to_euler(quat) -> Rotator
 AnimSequenceService.find_animations_for_skeleton(skeleton_path) -> Array[AnimSequenceInfo]
 AnimSequenceService.list_anim_sequences(search_path, skeleton_filter) -> Array[AnimSequenceInfo]
 AnimSequenceService.get_anim_sequence_info(anim_path) -> AnimSequenceInfo
-AnimSequenceService.search_animations(name_pattern, search_path) -> Array[AnimSequenceInfo]
 
+# For name/folder searches use Epic's EditorToolset.AssetToolset.FindAssets.
 # Skeletons: Epic's EditorToolset.AssetToolset, not VibeUE (whose list call is gone).
 # FindAssets is async -- await vibeue.exec_tool_await(...), or vibeue.exec_tool_async(...) now
 # and vibeue.collect_tool_result("EditorToolset.AssetToolset.FindAssets") on the next call.

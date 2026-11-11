@@ -28,33 +28,31 @@ import unreal
 
 skeleton_path = "/Game/Path/To/Your/Skeleton"
 target_bones = ["upperarm_r", "lowerarm_r", "hand_r"]  # Bones you want to animate
-
-pose = unreal.AnimSequenceService.get_reference_pose(skeleton_path)
-for bp in pose:
-    if bp.bone_name in target_bones:
-        q = bp.transform.rotation
-        euler = unreal.AnimSequenceService.quat_to_euler(q)
-        print(f"{bp.bone_name}: Roll={euler.x:.1f}, Pitch={euler.y:.1f}, Yaw={euler.z:.1f}")
+pose = unreal.AnimPoseExtensions.get_reference_pose(unreal.load_asset(skeleton_path))
+for bone_name in target_bones:
+    if bone_name not in map(str, unreal.AnimPoseExtensions.get_bone_names(pose)):
+        raise ValueError(f"Bone not found in reference pose: {bone_name}")
+    euler = unreal.AnimPoseExtensions.get_ref_bone_pose(pose, bone_name).rotation.rotator()
+    print(f"{bone_name}: Roll={euler.roll:.1f}, Pitch={euler.pitch:.1f}, Yaw={euler.yaw:.1f}")
 ```
 
 **Step 2: Analyze existing animations** - See what axes change during desired movement:
 
 ```python
 # Find an animation that does what you want (e.g., arm raise, wave)
-idle_pose = unreal.AnimSequenceService.get_pose_at_time("/Game/Anims/Idle", 0.0, False)
-action_pose = unreal.AnimSequenceService.get_pose_at_time("/Game/Anims/ArmRaise", 0.5, False)
+options = unreal.AnimPoseEvaluationOptions()
+idle_pose = unreal.AnimPoseExtensions.get_anim_pose_at_time(unreal.load_asset("/Game/Anims/Idle"), 0.0, options)
+action_pose = unreal.AnimPoseExtensions.get_anim_pose_at_time(unreal.load_asset("/Game/Anims/ArmRaise"), 0.5, options)
 
-# Compare euler angles for target bones
+# Compare local-space euler angles for target bones
 for bone_name in target_bones:
-    idle_bone = next((b for b in idle_pose if b.bone_name == bone_name), None)
-    action_bone = next((b for b in action_pose if b.bone_name == bone_name), None)
-    if idle_bone and action_bone:
-        idle_e = unreal.AnimSequenceService.quat_to_euler(idle_bone.transform.rotation)
-        action_e = unreal.AnimSequenceService.quat_to_euler(action_bone.transform.rotation)
+    if bone_name in map(str, unreal.AnimPoseExtensions.get_bone_names(idle_pose)) and bone_name in map(str, unreal.AnimPoseExtensions.get_bone_names(action_pose)):
+        idle_e = unreal.AnimPoseExtensions.get_bone_pose(idle_pose, bone_name).rotation.rotator()
+        action_e = unreal.AnimPoseExtensions.get_bone_pose(action_pose, bone_name).rotation.rotator()
         print(f"{bone_name}:")
-        print(f"  Roll:  {idle_e.x:.1f} -> {action_e.x:.1f} (delta: {action_e.x - idle_e.x:.1f})")
-        print(f"  Pitch: {idle_e.y:.1f} -> {action_e.y:.1f} (delta: {action_e.y - idle_e.y:.1f})")
-        print(f"  Yaw:   {idle_e.z:.1f} -> {action_e.z:.1f} (delta: {action_e.z - idle_e.z:.1f})")
+        print(f"  Roll:  {idle_e.roll:.1f} -> {action_e.roll:.1f} (delta: {action_e.roll - idle_e.roll:.1f})")
+        print(f"  Pitch: {idle_e.pitch:.1f} -> {action_e.pitch:.1f} (delta: {action_e.pitch - idle_e.pitch:.1f})")
+        print(f"  Yaw:   {idle_e.yaw:.1f} -> {action_e.yaw:.1f} (delta: {action_e.yaw - idle_e.yaw:.1f})")
 ```
 
 **Step 3: Test incrementally** - Change ONE axis at a time to confirm its effect:

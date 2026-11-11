@@ -14,7 +14,7 @@ DELTA = unreal.Rotator(0, 45, 0)   # Euler (Roll, Pitch, Yaw); raise arm
 SPACE = "local"
 FRAME = 0
 
-skeleton = ass.get_animation_skeleton(ANIM)
+skeleton = unreal.load_asset(ANIM).get_editor_property("skeleton").get_path_name()
 sks.create_skeleton_profile(skeleton)   # constraints come from the profile
 
 r = ass.preview_bone_rotation(ANIM, BONE, DELTA, SPACE, FRAME)

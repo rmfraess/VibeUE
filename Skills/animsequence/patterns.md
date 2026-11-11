@@ -26,17 +26,15 @@ for anim in anims:
 ```python
 import unreal
 
-# Get full skeleton pose at 0.5 seconds
-pose = unreal.AnimSequenceService.get_pose_at_time(
-    "/Game/Animations/Run",
-    0.5,
-    True  # Get global space transforms
+# Get full skeleton pose at 0.5 seconds in world space
+pose = unreal.AnimPoseExtensions.get_anim_pose_at_time(
+    unreal.load_asset("/Game/Animations/Run"), 0.5, unreal.AnimPoseEvaluationOptions()
 )
-
-for bone_pose in pose:
-    print(f"{bone_pose.bone_name}:")
-    print(f"  Location: {bone_pose.transform.location}")
-    print(f"  Rotation: {bone_pose.transform.rotation}")
+for bone_name in unreal.AnimPoseExtensions.get_bone_names(pose):
+    transform = unreal.AnimPoseExtensions.get_bone_pose(pose, bone_name, unreal.AnimPoseSpaces.WORLD)
+    print(f"{bone_name}:")
+    print(f"  Location: {transform.translation}")
+    print(f"  Rotation: {transform.rotation}")
 ```
 
 ### Adding Animation Curves
@@ -44,32 +42,21 @@ for bone_pose in pose:
 ```python
 import unreal
 
-# Add a morph target curve
-unreal.AnimSequenceService.add_curve(
-    "/Game/Animations/Facial",
-    "jaw_open",
-    True  # Is morph target
-)
-
+anim = unreal.load_asset("/Game/Animations/Facial")
+lib = unreal.AnimationLibrary
+# Add a float curve and mark its skeleton metadata as a morph target
+lib.add_curve(anim, "jaw_open")
+skeleton = anim.get_editor_property("skeleton")
+lib.add_curve_meta_data(skeleton, "jaw_open")
+lib.set_curve_meta_data_morph_target(skeleton, "jaw_open", True)
 # Add keys to the curve
-unreal.AnimSequenceService.add_curve_key(
-    "/Game/Animations/Facial",
-    "jaw_open",
-    0.0,  # Time
-    0.0   # Value (closed)
-)
-
-unreal.AnimSequenceService.add_curve_key(
-    "/Game/Animations/Facial",
-    "jaw_open",
-    0.5,  # Time
-    1.0   # Value (open)
-)
+lib.add_float_curve_key(anim, "jaw_open", 0.0, 0.0)
+lib.add_float_curve_key(anim, "jaw_open", 0.5, 1.0)
 ```
 
 ### Managing Animation Notifies
 
-**IMPORTANT**: Always get the full asset path using `package_name` from search results!
+**IMPORTANT**: Always use the full `anim_path` from animation discovery results!
 
 **Display Name Behavior:**
 - **Instant notifies with custom names**: Use base `/Script/Engine.AnimNotify` class - creates "skeleton notifies" that display your custom name in the editor timeline
@@ -85,7 +72,7 @@ unreal.AnimSequenceService.add_curve_key(
 
 > ### 🛑 Notify indices are NOT stable — never cache them across mutations
 >
-> Notifies are stored **sorted by `trigger_time`**. The index returned by `add_notify`/`add_notify_state`,
+> Notifies are stored **sorted by `trigger_time`**. The index returned by `add_notify`,
 > and any index you read from `list_notifies`, is only valid until the next mutation. The moment you add
 > another notify or change a `trigger_time`, **every index can shift**, so a cached `idx` now points at a
 > *different* notify (or none).
@@ -107,7 +94,7 @@ def find_notify_index(anim_path, name):
     return -1
 
 # Step 1: Find an animation and get the FULL asset path
-results = unreal.AnimSequenceService.search_animations("Run", "/Game")
+results = unreal.AnimSequenceService.list_anim_sequences("/Game/Animations", "")
 if not results:
     print("No animations found")
 else:
@@ -131,15 +118,8 @@ else:
     if idx >= 0:
         print(f"Created instant notify (returned index {idx} — may shift after edits)")
     
-    # NOTE: State notifies require a CONCRETE subclass, NOT the abstract base class
-    # Example using AnimNotifyState_Trail (if available in your project)
-    # state_idx = unreal.AnimSequenceService.add_notify_state(
-    #     anim_path,
-    #     "/Script/Engine.AnimNotifyState_Trail",  # Concrete class, NOT AnimNotifyState
-    #     0.1,                                       # Start time
-    #     0.3,                                       # Duration
-    #     "SwordTrail"                               # Optional name
-    # )
+    # State notifies: use native AnimationLibrary.add_animation_notify_state_event
+    # with a concrete AnimNotifyState subclass.
     
     # ⚠️ Re-resolve the index by name before EACH operation — it may have moved.
     # Modify notify timing (this re-sorts notifies, invalidating other indices)
@@ -213,18 +193,18 @@ if info:
 7. **Save Before Use**: Newly created animations are automatically saved
 8. **Keyframe Times**: Must be within [0, duration] range
 9. **Reference Pose**: `create_from_pose` uses skeleton's reference pose
-10. **Notify Class Paths**: `add_notify` and `add_notify_state` require FULL class paths:
+10. **Notify Class Paths**: `add_notify` requires a FULL class path; native state-notify creation takes a concrete class:
    - Instant notify: `/Script/Engine.AnimNotify`
    - State notify: a concrete subclass such as `/Script/Engine.AnimNotifyState_Trail` (the base
      `/Script/Engine.AnimNotifyState` is abstract and is rejected)
    - Sound notify: `/Script/Engine.AnimNotify_PlaySound`
    - Custom: `/Script/YourModule.YourNotifyClass`
-11. **Bone Rotation Axes Are Non-Intuitive**: Roll/Pitch/Yaw do NOT map predictably to world-space movement. Each bone's local coordinate system is different. **Always discover axis mappings** using `get_reference_pose()` and `get_pose_at_time()` before creating rotation animations!
+11. **Bone Rotation Axes Are Non-Intuitive**: Roll/Pitch/Yaw do NOT map predictably to world-space movement. Each bone's local coordinate system is different. **Always discover axis mappings** using native `AnimPoseExtensions.get_reference_pose` and `get_anim_pose_at_time` before creating rotation animations!
 12. **Notify indices are unstable**: Notifies are sorted by `trigger_time`; any add/retime shifts indices. Re-fetch `list_notifies` and resolve by name before each index-based call. (See the notify gotcha box above.)
-13. **`list_anim_sequences` does NOT report root motion**: it returns `root_motion=False` for every entry. For accurate root-motion status (and `raw_size`/`compressed_size`/`bone_track_count`), use `search_animations` / `get_anim_sequence_info`, whose results expose `enable_root_motion`.
-14. **Search-result objects use `anim_path`/`anim_name`, NOT `package_name`**: `search_animations`, `find_animations_for_skeleton`, and `list_anim_sequences` return `AnimSequenceInfo` objects (fields: `anim_path`, `anim_name`, `enable_root_motion`, `frame_rate`, `frame_count`, `bone_track_count`, `curve_count`, `notify_count`, `rate_scale`, `additive_anim_type`, `skeleton_path`, `raw_size`, `compressed_size`). There is no `package_name`/`package_path` on them — that pair belonged to the removed `AssetDiscoveryService.search_assets`, and Epic's `AssetToolset.FindAssets` returns plain object-path strings instead. Also **filter out `None`** entries before reading fields.
-15. **Scope searches to a folder**: a project-wide wildcard (e.g. `*Run*` over all of `/Game`) can exceed the 30 s Python timeout. Pass a `search_path` folder to keep `search_animations`/`list_anim_sequences` fast.
+13. **`list_anim_sequences` does NOT report root motion**: it returns `root_motion=False` for every entry. For accurate root-motion status (and `raw_size`/`compressed_size`/`bone_track_count`), use `get_anim_sequence_info`, whose results expose `enable_root_motion`.
+14. **Search-result objects use `anim_path`/`anim_name`, NOT `package_name`**: `find_animations_for_skeleton` and `list_anim_sequences` return `AnimSequenceInfo` objects (fields: `anim_path`, `anim_name`, `enable_root_motion`, `frame_rate`, `frame_count`, `bone_track_count`, `curve_count`, `notify_count`, `rate_scale`, `additive_anim_type`, `skeleton_path`, `raw_size`, `compressed_size`). There is no `package_name`/`package_path` on them — that pair belonged to the removed `AssetDiscoveryService.search_assets`, and Epic's `AssetToolset.FindAssets` returns plain object-path strings instead. Also **filter out `None`** entries before reading fields.
+15. **Scope searches to a folder**: a project-wide wildcard (e.g. `*Run*` over all of `/Game`) can exceed the 30 s Python timeout. Pass a `search_path` folder to keep `list_anim_sequences` fast.
 16. **Verify frame rate after creation**: `create_anim_sequence(frame_rate=...)` has been observed to come back at 30 FPS for a 60 FPS request — always read back `get_animation_frame_rate(anim_path)` and don't assume a non-30 rate stuck.
 17. **Montages use `AnimMontageService`**: `AnimSequenceService` accepts `AnimSequence` assets only.
     Passing an `AnimMontage` returns the failure sentinel; call the corresponding
-    `unreal.AnimMontageService` method instead.
+    `unreal.AnimMontageService` method where retained, or the corresponding native animation API.

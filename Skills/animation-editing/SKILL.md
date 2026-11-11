@@ -90,8 +90,8 @@ Without a profile there are no constraints to validate against.
 
 ### 4. Euler for intent, quaternions internally
 Express user intent as `unreal.Rotator(roll, pitch, yaw)` (degrees); the service uses quaternions
-internally to avoid gimbal lock. Inspect with `quat_to_euler(quat)`. Don't guess axis orientation —
-read the reference pose first (`get_reference_pose`).
+internally to avoid gimbal lock. Inspect with `quat.rotator()`. Don't guess axis orientation —
+read the reference pose first with `unreal.AnimPoseExtensions.get_reference_pose`.
 
 ---
 

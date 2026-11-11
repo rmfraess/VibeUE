@@ -43,7 +43,7 @@ Safe workflow for editing one bone:
 import unreal
 
 anim_path = "/Game/Anims/AS_Idle"
-skeleton_path = unreal.AnimSequenceService.get_animation_skeleton(anim_path)
+skeleton_path = unreal.load_asset(anim_path).get_editor_property("skeleton").get_path_name()
 
 # Step 1: Build profile (if not cached)
 unreal.SkeletonService.create_skeleton_profile(skeleton_path)
@@ -254,24 +254,27 @@ Use `create_anim_sequence` to create an animation with custom bone tracks and ke
 - `scale` - Absolute local scale
 
 **Recommended workflow for animated bones:**
-1. Use `get_reference_pose_keyframe` to get the bone's reference pose
-2. Use `euler_to_quat` to create rotation deltas in degrees
-3. Use `multiply_quats` to combine reference rotation with delta
+1. Use native `AnimPoseExtensions.get_reference_pose` / `get_ref_bone_pose` to get the bone's reference pose
+2. Use `unreal.Rotator(...).quaternion()` to create rotation deltas in degrees
+3. Use `unreal.MathLibrary.multiply_quat_quat` to combine reference rotation with delta
 
 ```python
 import unreal
 
 # Helper function to create a wave animation
-skeleton_path = "/Game/Characters/UE5_Mannequins/Meshes/SK_Mannequin"
+skeleton_path = "/Game/Path/To/Your/Skeleton"
 
-# Step 1: Get reference pose keyframe for the bone
-ref_kf = unreal.AnimSequenceService.get_reference_pose_keyframe(skeleton_path, "upperarm_r", 0.0)
+# Step 1: Get the local reference transform for the bone
+pose = unreal.AnimPoseExtensions.get_reference_pose(unreal.load_asset(skeleton_path))
+if "upperarm_r" not in map(str, unreal.AnimPoseExtensions.get_bone_names(pose)):
+    raise ValueError("Bone not found in reference pose")
+ref_transform = unreal.AnimPoseExtensions.get_ref_bone_pose(pose, "upperarm_r")
 
 # Step 2: Create rotation delta (raise arm 90 degrees)
-arm_raise = unreal.AnimSequenceService.euler_to_quat(0, 90, 0)  # Roll, Pitch, Yaw in degrees
+arm_raise = unreal.Rotator(0, 90, 0).quaternion()  # Roll, Pitch, Yaw in degrees
 
 # Step 3: Combine with reference rotation
-raised_rotation = unreal.AnimSequenceService.multiply_quats(ref_kf.rotation, arm_raise)
+raised_rotation = unreal.MathLibrary.multiply_quat_quat(ref_transform.rotation, arm_raise)
 
 # Step 4: Create keyframes
 bone_tracks = [
@@ -281,23 +284,23 @@ bone_tracks = [
             # Start at reference pose
             unreal.AnimKeyframe(
                 time=0.0, 
-                position=ref_kf.position, 
-                rotation=ref_kf.rotation, 
-                scale=ref_kf.scale
+                position=ref_transform.translation, 
+                rotation=ref_transform.rotation, 
+                scale=ref_transform.scale3d
             ),
             # Arm raised at 0.5s
             unreal.AnimKeyframe(
                 time=0.5, 
-                position=ref_kf.position, 
+                position=ref_transform.translation, 
                 rotation=raised_rotation, 
-                scale=ref_kf.scale
+                scale=ref_transform.scale3d
             ),
             # Back to reference at 1.0s
             unreal.AnimKeyframe(
                 time=1.0, 
-                position=ref_kf.position, 
-                rotation=ref_kf.rotation, 
-                scale=ref_kf.scale
+                position=ref_transform.translation, 
+                rotation=ref_transform.rotation, 
+                scale=ref_transform.scale3d
             )
         ]
     )
@@ -315,7 +318,7 @@ anim_path = unreal.AnimSequenceService.create_anim_sequence(
 
 if anim_path:
     print(f"Created animation: {anim_path}")
-    unreal.AnimSequenceService.open_animation_editor(anim_path)
+    await call_tool("EditorToolset.EditorAppToolset.OpenEditorForAsset", assetPath=anim_path)
 ```
 
 ### Simple Keyframe Creation (Direct Values)
@@ -368,7 +371,7 @@ if anim_path:
 
 ### Creating Rotation Keyframes
 
-Use `euler_to_quat()` to convert degrees to quaternions:
+Use `unreal.Rotator(...).quaternion()` to convert degrees to quaternions:
 
 ```python
 import unreal
@@ -380,8 +383,7 @@ def make_rotation_kf(time, roll, pitch, yaw):
     kf = unreal.AnimKeyframe()
     kf.time = time
     kf.position = unreal.Vector(0, 0, 0)
-    # euler_to_quat RETURNS a Quat in Python (not out-param!)
-    kf.rotation = unreal.AnimSequenceService.euler_to_quat(roll, pitch, yaw)
+    kf.rotation = unreal.Rotator(roll, pitch, yaw).quaternion()
     kf.scale = unreal.Vector(1, 1, 1)
     return kf
 
@@ -416,7 +418,7 @@ anim_path = unreal.AnimSequenceService.create_anim_sequence(
 | Mistake | Why It Fails | Fix |
 |---------|--------------|-----|
 | Assuming Pitch raises arm | Bone local axes ≠ world axes | Run discovery to find actual "raise" axis |
-| Using (0,0,0) as idle | Reference pose is NOT zeros | Get actual values from `get_reference_pose()` |
+| Using (0,0,0) as idle | Reference pose is NOT zeros | Get actual values from native `AnimPoseExtensions.get_reference_pose` |
 | Guessing rotation values | Every skeleton is different | Analyze existing animations first |
 | Changing multiple axes at once | Can't tell which caused the effect | Test ONE axis at a time |
 
@@ -426,15 +428,16 @@ anim_path = unreal.AnimSequenceService.create_anim_sequence(
 ```python
 import unreal
 
-skeleton_path = "/Game/Characters/UEFN_Mannequin/Meshes/SK_UEFN_Mannequin"  # Your skeleton
+skeleton_path = "/Game/Path/To/Your/Skeleton"  # Your Skeleton asset
 target_bones = ["upperarm_r", "lowerarm_r", "hand_r"]
 
-# Get the REST position for each bone
-pose = unreal.AnimSequenceService.get_reference_pose(skeleton_path)
-for bp in pose:
-    if bp.bone_name in target_bones:
-        euler = unreal.AnimSequenceService.quat_to_euler(bp.transform.rotation)
-        print(f"{bp.bone_name}: Roll={euler.x:.1f}, Pitch={euler.y:.1f}, Yaw={euler.z:.1f}")
+# Get the REST rotation for each bone
+pose = unreal.AnimPoseExtensions.get_reference_pose(unreal.load_asset(skeleton_path))
+for bone_name in target_bones:
+    if bone_name not in map(str, unreal.AnimPoseExtensions.get_bone_names(pose)):
+        raise ValueError(f"Bone not found in reference pose: {bone_name}")
+    euler = unreal.AnimPoseExtensions.get_ref_bone_pose(pose, bone_name).rotation.rotator()
+    print(f"{bone_name}: Roll={euler.roll:.1f}, Pitch={euler.pitch:.1f}, Yaw={euler.yaw:.1f}")
 ```
 
 **Step 2: Find an existing animation that raises an arm and analyze it**
@@ -446,12 +449,12 @@ for a in anims[:20]:
 
 # Compare idle pose vs raised pose in an existing animation
 anim_path = "/Game/Path/To/Animation"  # Use an animation that moves the arm
+anim = unreal.load_asset(anim_path)
 for time in [0.0, 0.5, 1.0]:
-    pose = unreal.AnimSequenceService.get_pose_at_time(anim_path, time, False)
-    for bp in pose:
-        if bp.bone_name == "upperarm_r":
-            euler = unreal.AnimSequenceService.quat_to_euler(bp.transform.rotation)
-            print(f"t={time}: Roll={euler.x:.1f}, Pitch={euler.y:.1f}, Yaw={euler.z:.1f}")
+    pose = unreal.AnimPoseExtensions.get_anim_pose_at_time(anim, time, unreal.AnimPoseEvaluationOptions())
+    if "upperarm_r" in map(str, unreal.AnimPoseExtensions.get_bone_names(pose)):
+        euler = unreal.AnimPoseExtensions.get_bone_pose(pose, "upperarm_r").rotation.rotator()
+        print(f"t={time}: Roll={euler.roll:.1f}, Pitch={euler.pitch:.1f}, Yaw={euler.yaw:.1f}")
 ```
 
 **Step 3: Test which axis raises the arm (change ONE at a time)**
@@ -481,18 +484,18 @@ def make_kf(time, roll, pitch, yaw):
     kf = unreal.AnimKeyframe()
     kf.time = time
     kf.position = unreal.Vector(0, 0, 0)
-    kf.rotation = unreal.AnimSequenceService.euler_to_quat(roll, pitch, yaw)
+    kf.rotation = unreal.Rotator(roll, pitch, yaw).quaternion()
     kf.scale = unreal.Vector(1, 1, 1)
     return kf
 
 # FROM DISCOVERY - Replace with your actual values!
-idle_upperarm = (0.0, 0.0, 0.0)       # From get_reference_pose()
+idle_upperarm = (0.0, 0.0, 0.0)       # From reference-pose discovery
 raised_upperarm = (-90.0, 0.0, 45.0)  # From testing which axis raises arm
 
-idle_lowerarm = (0.0, 0.0, 0.0)       # From get_reference_pose()
+idle_lowerarm = (0.0, 0.0, 0.0)       # From reference-pose discovery
 bent_lowerarm = (0.0, 0.0, 60.0)      # From testing which axis bends elbow
 
-idle_hand = (0.0, 0.0, 0.0)           # From get_reference_pose()
+idle_hand = (0.0, 0.0, 0.0)           # From reference-pose discovery
 wave_left = (0.0, 25.0, 0.0)          # From testing which axis tilts hand
 wave_right = (0.0, -25.0, 0.0)
 

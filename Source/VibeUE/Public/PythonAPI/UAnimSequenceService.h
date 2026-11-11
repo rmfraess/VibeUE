@@ -101,27 +101,6 @@ struct FAnimKeyframe
 };
 
 /**
- * Bone pose data at a specific time/frame
- */
-USTRUCT(BlueprintType)
-struct FBonePose
-{
-	GENERATED_BODY()
-
-	/** Bone name */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	FString BoneName;
-
-	/** Bone index */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	int32 BoneIndex = -1;
-
-	/** Transform at this pose */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	FTransform Transform;
-};
-
-/**
  * Information about an animation curve
  */
 USTRUCT(BlueprintType)
@@ -250,27 +229,6 @@ struct FAnimNotifyInfo
 	/** LOD level to start filtering from */
 	UPROPERTY(BlueprintReadWrite, Category = "Animation")
 	int32 NotifyFilterLOD = 0;
-};
-
-/**
- * Information about an animation sync marker
- */
-USTRUCT(BlueprintType)
-struct FSyncMarkerInfo
-{
-	GENERATED_BODY()
-
-	/** Marker name */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	FString MarkerName;
-
-	/** Time in seconds */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	float Time = 0.0f;
-
-	/** Track index */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	int32 TrackIndex = 0;
 };
 
 /**
@@ -519,11 +477,6 @@ struct FAnimationPreviewState
  *   for anim in anims:
  *       print(f"{anim.anim_name}: {anim.duration}s")
  *
- *   # Get bone pose at time
- *   pose = unreal.AnimSequenceService.get_pose_at_time(anim_path, 0.5, True)
- *   for bone in pose:
- *       print(f"{bone.bone_name}: {bone.transform.location}")
- *
  *   # Add animation notify (use full class path)
  *   unreal.AnimSequenceService.add_notify(
  *       anim_path,
@@ -584,18 +537,6 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Discovery")
 	static TArray<FAnimSequenceInfo> FindAnimationsForSkeleton(const FString& SkeletonPath);
 
-	/**
-	 * Search animations by name pattern.
-	 *
-	 * @param NamePattern - Pattern to match (supports wildcards)
-	 * @param SearchPath - Path to search in (default: "/Game")
-	 * @return Array of matching animation info structs
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Discovery")
-	static TArray<FAnimSequenceInfo> SearchAnimations(
-		const FString& NamePattern,
-		const FString& SearchPath = TEXT("/Game"));
-
 	// ============================================================================
 	// ANIMATION CREATION
 	// ============================================================================
@@ -639,60 +580,6 @@ public:
 		const TArray<FBoneTrackData>& BoneTracks);
 
 	/**
-	 * Get reference pose keyframe for a bone.
-	 * Returns a keyframe initialized with the bone's reference pose transform.
-	 * Useful for creating animations that start from the reference pose.
-	 *
-	 * @param SkeletonPath - Path to the skeleton asset
-	 * @param BoneName - Name of the bone to get reference pose for
-	 * @param Time - Time value to set on the keyframe (default: 0.0)
-	 * @return Keyframe with reference pose transform, or default keyframe if bone not found
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Creation")
-	static FAnimKeyframe GetReferencePoseKeyframe(
-		const FString& SkeletonPath,
-		const FString& BoneName,
-		float Time = 0.0f);
-
-	/**
-	 * Convert Euler angles (in degrees) to a Quaternion.
-	 * Helper method for creating rotation keyframes.
-	 * Modifies the OutQuat parameter with the result.
-	 *
-	 * @param Roll - Rotation around X axis in degrees
-	 * @param Pitch - Rotation around Y axis in degrees
-	 * @param Yaw - Rotation around Z axis in degrees
-	 * @param OutQuat - Output quaternion representing the rotation
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Helpers")
-	static void EulerToQuat(float Roll, float Pitch, float Yaw, FQuat& OutQuat);
-
-	/**
-	 * Multiply two quaternions together.
-	 * Useful for combining reference pose rotation with a delta rotation.
-	 * Modifies the OutResult parameter with the result (A * B).
-	 *
-	 * @param A - First quaternion
-	 * @param B - Second quaternion
-	 * @param OutResult - Output combined rotation
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Helpers")
-	static void MultiplyQuats(const FQuat& A, const FQuat& B, FQuat& OutResult);
-
-	// ============================================================================
-	// ANIMATION PROPERTIES
-	// ============================================================================
-
-	/**
-	 * Get animation duration in seconds.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return Duration in seconds, or -1 if not found
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Properties")
-	static float GetAnimationLength(const FString& AnimPath);
-
-	/**
 	 * Get animation frame rate.
 	 *
 	 * @param AnimPath - Path to the animation asset
@@ -720,34 +607,6 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Properties")
 	static bool SetAnimationFrameRate(const FString& AnimPath, float NewFrameRate);
 
-	/**
-	 * Get the skeleton asset path used by this animation.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return Skeleton asset path, or empty if not found
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Properties")
-	static FString GetAnimationSkeleton(const FString& AnimPath);
-
-	/**
-	 * Get animation rate scale (playback speed multiplier).
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return Rate scale, or -1 if not found
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Properties")
-	static float GetRateScale(const FString& AnimPath);
-
-	/**
-	 * Set animation rate scale (playback speed multiplier).
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param RateScale - New rate scale value
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Properties")
-	static bool SetRateScale(const FString& AnimPath, float RateScale);
-
 	// ============================================================================
 	// BONE TRACK DATA
 	// ============================================================================
@@ -760,74 +619,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|BoneTracks")
 	static TArray<FString> GetAnimatedBones(const FString& AnimPath);
-
-	/**
-	 * Get bone transform at a specific time.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param BoneName - Name of the bone
-	 * @param Time - Time in seconds
-	 * @param bGlobalSpace - If true, returns global space transform
-	 * @param OutTransform - Output transform
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|BoneTracks")
-	static bool GetBoneTransformAtTime(
-		const FString& AnimPath,
-		const FString& BoneName,
-		float Time,
-		bool bGlobalSpace,
-		FTransform& OutTransform);
-
-	/**
-	 * Get bone transform at a specific frame.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param BoneName - Name of the bone
-	 * @param Frame - Frame number
-	 * @param bGlobalSpace - If true, returns global space transform
-	 * @param OutTransform - Output transform
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|BoneTracks")
-	static bool GetBoneTransformAtFrame(
-		const FString& AnimPath,
-		const FString& BoneName,
-		int32 Frame,
-		bool bGlobalSpace,
-		FTransform& OutTransform);
-
-	// ============================================================================
-	// POSE EXTRACTION
-	// ============================================================================
-
-	/**
-	 * Get full skeleton pose at a specific time.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param Time - Time in seconds
-	 * @param bGlobalSpace - If true, returns global space transforms
-	 * @return Array of bone poses
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Pose")
-	static TArray<FBonePose> GetPoseAtTime(
-		const FString& AnimPath,
-		float Time,
-		bool bGlobalSpace = false);
-
-	/**
-	 * Get full skeleton pose at a specific frame.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param Frame - Frame number
-	 * @param bGlobalSpace - If true, returns global space transforms
-	 * @return Array of bone poses
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Pose")
-	static TArray<FBonePose> GetPoseAtFrame(
-		const FString& AnimPath,
-		int32 Frame,
-		bool bGlobalSpace = false);
 
 	/**
 	 * Get root motion transform at a specific time.
@@ -883,22 +674,6 @@ public:
 		FAnimCurveInfo& OutInfo);
 
 	/**
-	 * Get curve value at a specific time.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param CurveName - Name of the curve
-	 * @param Time - Time in seconds
-	 * @param OutValue - Output value
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Curves")
-	static bool GetCurveValueAtTime(
-		const FString& AnimPath,
-		const FString& CurveName,
-		float Time,
-		float& OutValue);
-
-	/**
 	 * Get all keyframes for a curve.
 	 *
 	 * @param AnimPath - Path to the animation asset
@@ -907,32 +682,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Curves")
 	static TArray<FCurveKeyframe> GetCurveKeyframes(
-		const FString& AnimPath,
-		const FString& CurveName);
-
-	/**
-	 * Add a new curve to the animation.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param CurveName - Name for the new curve
-	 * @param bIsMorphTarget - Whether this curve drives a morph target
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Curves")
-	static bool AddCurve(
-		const FString& AnimPath,
-		const FString& CurveName,
-		bool bIsMorphTarget = false);
-
-	/**
-	 * Remove a curve from the animation.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param CurveName - Name of the curve to remove
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Curves")
-	static bool RemoveCurve(
 		const FString& AnimPath,
 		const FString& CurveName);
 
@@ -949,22 +698,6 @@ public:
 		const FString& AnimPath,
 		const FString& CurveName,
 		const TArray<FCurveKeyframe>& Keys);
-
-	/**
-	 * Add a single key to a curve.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param CurveName - Name of the curve
-	 * @param Time - Time in seconds
-	 * @param Value - Value at this key
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Curves")
-	static bool AddCurveKey(
-		const FString& AnimPath,
-		const FString& CurveName,
-		float Time,
-		float Value);
 
 	// ============================================================================
 	// ANIM NOTIFIES
@@ -1007,24 +740,6 @@ public:
 		const FString& AnimPath,
 		const FString& NotifyClass,
 		float TriggerTime,
-		const FString& NotifyName = TEXT(""));
-
-	/**
-	 * Add a notify state (duration-based).
-	 *
-	 * @param AnimPath - Full path to an AnimSequence asset (montages must use AnimMontageService)
-	 * @param NotifyStateClass - Full path to a concrete class (e.g., "/Script/Engine.AnimNotifyState_Trail")
-	 * @param StartTime - Start time in seconds
-	 * @param Duration - Duration in seconds
-	 * @param NotifyName - Optional name for the notify
-	 * @return Index of the new notify, or -1 on failure
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
-	static int32 AddNotifyState(
-		const FString& AnimPath,
-		const FString& NotifyStateClass,
-		float StartTime,
-		float Duration,
 		const FString& NotifyName = TEXT(""));
 
 	/**
@@ -1182,31 +897,6 @@ public:
 		const FString& FilterType,
 		int32 FilterLOD);
 
-	// ============================================================================
-	// NOTIFY TRACKS
-	// ============================================================================
-
-	/**
-	 * List all notify tracks in an animation.
-	 * In UE 5.7, notify tracks are implicit - they're created based on notify TrackIndex values.
-	 * Returns generated track names like "Track 1", "Track 2", etc.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return Array of track names (index in array corresponds to track index)
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|NotifyTracks")
-	static TArray<FString> ListNotifyTracks(const FString& AnimPath);
-
-	/**
-	 * Get the number of notify tracks in an animation.
-	 * Track count is determined by the highest TrackIndex among all notifies + 1.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return Number of notify tracks (minimum 1), or -1 on failure
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|NotifyTracks")
-	static int32 GetNotifyTrackCount(const FString& AnimPath);
-
 	/**
 	 * Remove a notify track from an animation.
 	 * Moves all notifies on this track to track 0, then decrements
@@ -1220,33 +910,6 @@ public:
 	static bool RemoveNotifyTrack(
 		const FString& AnimPath,
 		int32 TrackIndex);
-
-	// ============================================================================
-	// SYNC MARKERS
-	// ============================================================================
-
-	/**
-	 * List all sync markers in an animation.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return Array of sync marker info structs
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|SyncMarkers")
-	static TArray<FSyncMarkerInfo> ListSyncMarkers(const FString& AnimPath);
-
-	/**
-	 * Add a sync marker to the animation.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param MarkerName - Name for the marker
-	 * @param Time - Time in seconds
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|SyncMarkers")
-	static bool AddSyncMarker(
-		const FString& AnimPath,
-		const FString& MarkerName,
-		float Time);
 
 	/**
 	 * Remove a sync marker from the animation.
@@ -1295,111 +958,6 @@ public:
 		float NewTime);
 
 	// ============================================================================
-	// ADDITIVE ANIMATION
-	// ============================================================================
-
-	/**
-	 * Get the additive animation type.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return Additive type as string ("None", "LocalSpace", "MeshSpace")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Additive")
-	static FString GetAdditiveAnimType(const FString& AnimPath);
-
-	/**
-	 * Set the additive animation type.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param Type - Type as string ("None", "LocalSpace", "MeshSpace")
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Additive")
-	static bool SetAdditiveAnimType(const FString& AnimPath, const FString& Type);
-
-	/**
-	 * Get the base pose animation for additive.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return Path to the base pose animation, or empty if none
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Additive")
-	static FString GetAdditiveBasePose(const FString& AnimPath);
-
-	/**
-	 * Set the base pose animation for additive.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param BasePoseAnimPath - Path to the base pose animation
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Additive")
-	static bool SetAdditiveBasePose(
-		const FString& AnimPath,
-		const FString& BasePoseAnimPath);
-
-	// ============================================================================
-	// ROOT MOTION
-	// ============================================================================
-
-	/**
-	 * Check if root motion is enabled.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return True if root motion is enabled
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|RootMotion")
-	static bool GetEnableRootMotion(const FString& AnimPath);
-
-	/**
-	 * Enable or disable root motion.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param bEnable - Whether to enable root motion
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|RootMotion")
-	static bool SetEnableRootMotion(const FString& AnimPath, bool bEnable);
-
-	/**
-	 * Get root motion root lock type.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return Root lock type as string
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|RootMotion")
-	static FString GetRootMotionRootLock(const FString& AnimPath);
-
-	/**
-	 * Set root motion root lock type.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param LockType - Lock type as string ("RefPose", "AnimFirstFrame", "Zero")
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|RootMotion")
-	static bool SetRootMotionRootLock(const FString& AnimPath, const FString& LockType);
-
-	/**
-	 * Check if force root lock is enabled.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return True if force root lock is enabled
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|RootMotion")
-	static bool GetForceRootLock(const FString& AnimPath);
-
-	/**
-	 * Enable or disable force root lock.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param bForce - Whether to force root lock
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|RootMotion")
-	static bool SetForceRootLock(const FString& AnimPath, bool bForce);
-
-	// ============================================================================
 	// COMPRESSION
 	// ============================================================================
 
@@ -1414,18 +972,6 @@ public:
 	static bool GetCompressionInfo(
 		const FString& AnimPath,
 		FAnimCompressionInfo& OutInfo);
-
-	/**
-	 * Set compression scheme for an animation.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param CompressionSchemePath - Path to the compression settings asset
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Compression")
-	static bool SetCompressionScheme(
-		const FString& AnimPath,
-		const FString& CompressionSchemePath);
 
 	/**
 	 * Compress/recompress an animation.
@@ -1457,19 +1003,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Export")
 	static TArray<FString> GetSourceFiles(const FString& AnimPath);
-
-	// ============================================================================
-	// EDITOR NAVIGATION
-	// ============================================================================
-
-	/**
-	 * Open the animation in the Animation Editor.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Editor")
-	static bool OpenAnimationEditor(const FString& AnimPath);
 
 	// ============================================================================
 	// PREVIEW EDITING (Inspect → Preview → Validate → Bake workflow)
@@ -1705,20 +1238,6 @@ public:
 		const FString& MirrorAxis,
 		FAnimationEditResult& OutResult);
 
-	/**
-	 * Get the reference pose (T-pose/bind pose) for a skeleton.
-	 *
-	 * @param SkeletonPath - Path to the skeleton asset
-	 * @return Array of bone poses in reference pose
-	 *
-	 * Example:
-	 *   ref_pose = unreal.AnimSequenceService.get_reference_pose("/Game/SK_Mannequin")
-	 *   for bone in ref_pose:
-	 *       print(f"{bone.bone_name}: {bone.transform.rotation}")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Pose")
-	static TArray<FBonePose> GetReferencePose(const FString& SkeletonPath);
-
 	// ============================================================================
 	// POSE AUTHORING (component-space targets instead of raw local keys)
 	// ============================================================================
@@ -1816,19 +1335,6 @@ public:
 		int32 FromFrame,
 		int32 ToFrame,
 		const FString& Easing = TEXT("smooth"));
-
-	/**
-	 * Convert a quaternion to Euler angles (degrees).
-	 *
-	 * @param Quat - Quaternion to convert
-	 * @param OutRotator - Output Euler rotation
-	 *
-	 * Example:
-	 *   euler = unreal.AnimSequenceService.quat_to_euler(some_quat)
-	 *   print(f"Roll={euler.roll}, Pitch={euler.pitch}, Yaw={euler.yaw}")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Helpers")
-	static void QuatToEuler(const FQuat& Quat, FRotator& OutRotator);
 
 	// ============================================================================
 	// ANIMATION POSE CAPTURE (Visual Feedback)

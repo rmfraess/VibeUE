@@ -19,10 +19,12 @@ if ass.validate_pose(path, True).is_valid: ass.bake_preview_to_keyframes(...)
 
 ## Don't guess bone axis orientations — read the reference pose
 ```python
-for bp in ass.get_reference_pose(skeleton_path):
-    if bp.bone_name == "upperarm_r":
-        e = ass.quat_to_euler(bp.transform.rotation)
-        print(e.roll, e.pitch, e.yaw)   # baseline to add deltas to
+pose = unreal.AnimPoseExtensions.get_reference_pose(unreal.load_asset(skeleton_path))
+if "upperarm_r" not in map(str, unreal.AnimPoseExtensions.get_bone_names(pose)):
+    raise ValueError("Bone not found in reference pose")
+t = unreal.AnimPoseExtensions.get_ref_bone_pose(pose, "upperarm_r")
+e = t.rotation.rotator()
+print(e.roll, e.pitch, e.yaw)   # baseline to add deltas to
 ```
 
 ## Build a skeleton profile first
@@ -39,7 +41,7 @@ for a in unreal.AnimSequenceService.find_animations_for_skeleton(skeleton_path):
     print(a.anim_name, a.duration, a.frame_count, a.anim_path)
 ```
 Safe alternatives: `find_animations_for_skeleton` (best), `list_anim_sequences`,
-`get_anim_sequence_info`, `search_animations`, or the Asset Registry API (metadata without loading).
+`get_anim_sequence_info`, Epic's `AssetToolset.FindAssets`, or the Asset Registry API (metadata without loading).
 
 ## `unreal.Transform` has `.translation`, NOT `.location`
 When inspecting a bone transform (reference pose or a baked frame), the struct fields are
@@ -48,7 +50,7 @@ When inspecting a bone transform (reference pose or a baked frame), the struct f
 degrees, always convert the quaternion:
 ```python
 t = bp.transform                      # FBonePose.transform or a frame transform
-e = ass.quat_to_euler(t.rotation)     # NOT t.location / NOT t.rotation.euler()
+e = t.rotation.rotator()             # NOT t.location / NOT t.rotation.euler()
 print(e.roll, e.pitch, e.yaw, t.translation)
 ```
 

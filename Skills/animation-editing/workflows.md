@@ -38,7 +38,7 @@ if not profile.has_learned_constraints:
 import unreal
 ass = unreal.AnimSequenceService
 anim_path = "/Game/Anims/AS_Idle"
-skeleton_path = ass.get_animation_skeleton(anim_path)
+skeleton_path = unreal.load_asset(anim_path).get_editor_property("skeleton").get_path_name()
 unreal.SkeletonService.create_skeleton_profile(skeleton_path)
 
 r = ass.preview_bone_rotation(anim_path, "upperarm_r", unreal.Rotator(0, 45, 0), "local", 0)

@@ -62,12 +62,9 @@ result = AnimSequenceService.copy_pose(src_path, src_frame, dst_path, dst_frame,
 # Mirror pose (swap left/right)
 result = AnimSequenceService.mirror_pose(anim_path, frame, mirror_axis) -> AnimationEditResult
 
-# Get skeleton reference pose
-poses = AnimSequenceService.get_reference_pose(skeleton_path) -> Array[BonePose]
-
-# Convert quaternion to Euler
-euler = AnimSequenceService.quat_to_euler(quat) -> Rotator
 ```
+
+Reference poses: `unreal.AnimPoseExtensions.get_reference_pose` / `get_ref_bone_pose`; quaternion conversion: `quat.rotator()`.
 
 ### Pose Authoring Methods (AnimSequenceService)
 
@@ -156,7 +153,7 @@ for r in results:
 > `create_anim_sequence` asset, `bones=0`) produces black PNGs. Before relying on visual
 > capture, confirm the animation's skeleton has a preview mesh, or capture an existing
 > production animation instead. If images are black, fall back to numeric verification with
-> `get_pose_at_time()` / `get_bone_transform_at_time()`.
+> native `unreal.AnimPoseExtensions.get_anim_pose_at_time` / `get_bone_pose`.
 
 ---
 
@@ -208,19 +205,9 @@ anim_path = AnimSequenceService.create_from_pose(skeleton_path, anim_name, save_
 
 # Create animation with custom keyframes ("" = failed; an empty clip is never left behind)
 anim_path = AnimSequenceService.create_anim_sequence(skeleton_path, anim_name, save_path, duration, frame_rate, bone_tracks) -> str
-
-# Get reference pose keyframe for a bone
-keyframe = AnimSequenceService.get_reference_pose_keyframe(skeleton_path, bone_name, time) -> AnimKeyframe
 ```
 
-### Helper Methods (Returns values, not out-params!)
-```python
-# Convert Euler angles to quaternion - RETURNS Quat (not out-param in Python!)
-quat = AnimSequenceService.euler_to_quat(roll, pitch, yaw) -> Quat
-
-# Multiply quaternions - RETURNS Quat (not out-param in Python!)
-combined = AnimSequenceService.multiply_quats(a, b) -> Quat
-```
+Reference keyframes: obtain the local transform with native `unreal.AnimPoseExtensions.get_reference_pose` / `get_ref_bone_pose`. Quaternion helpers: `unreal.Rotator.quaternion()` and `unreal.MathLibrary.multiply_quat_quat`.
 
 ### Query Methods
 ```python
@@ -229,13 +216,9 @@ info = AnimSequenceService.get_anim_sequence_info(anim_path) -> AnimSequenceInfo
 
 # Get animated bone names
 bones = AnimSequenceService.get_animated_bones(anim_path) -> Array[str]
-
-# Get bone transform at time - RETURNS Transform (not bool with out-param!)
-transform = AnimSequenceService.get_bone_transform_at_time(anim_path, bone_name, time, global_space) -> Transform
-
-# Get full pose at time
-poses = AnimSequenceService.get_pose_at_time(anim_path, time, global_space) -> Array[BonePose]
 ```
+
+Pose sampling: native `unreal.AnimPoseExtensions.get_anim_pose_at_time` / `get_bone_pose`.
 
 ### Key Structs
 ```python
@@ -248,6 +231,6 @@ track.keyframes = [kf1, kf2, kf3]
 kf = unreal.AnimKeyframe()
 kf.time = 0.5              # Time in seconds
 kf.position = unreal.Vector(0, 0, 0)
-kf.rotation = unreal.Quat()  # Use euler_to_quat() to create
+kf.rotation = unreal.Quat()  # Use unreal.Rotator(...).quaternion() to create
 kf.scale = unreal.Vector(1, 1, 1)
 ```

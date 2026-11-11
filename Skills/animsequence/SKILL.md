@@ -180,7 +180,7 @@ result = unreal.AnimSequenceService.preview_bone_rotation(
 )
 
 # To inspect quaternion values:
-euler = unreal.AnimSequenceService.quat_to_euler(some_quat)
+euler = some_quat.rotator()
 ```
 
 ---
@@ -220,12 +220,13 @@ if validation.is_valid:
 rotation = unreal.Rotator(0, 90, 0)  # May not do what you expect!
 
 # CORRECT - analyze reference pose first
-ref_pose = unreal.AnimSequenceService.get_reference_pose(skeleton_path)
-for bp in ref_pose:
-    if bp.bone_name == "upperarm_r":
-        euler = unreal.AnimSequenceService.quat_to_euler(bp.transform.rotation)
-        print(f"Reference: Roll={euler.roll}, Pitch={euler.pitch}, Yaw={euler.yaw}")
-        # Now you know the baseline to add deltas to
+ref_pose = unreal.AnimPoseExtensions.get_reference_pose(unreal.load_asset(skeleton_path))
+if "upperarm_r" not in map(str, unreal.AnimPoseExtensions.get_bone_names(ref_pose)):
+    raise ValueError("Bone not found in reference pose")
+t = unreal.AnimPoseExtensions.get_ref_bone_pose(ref_pose, "upperarm_r")
+euler = t.rotation.rotator()
+print(f"Reference: Roll={euler.roll}, Pitch={euler.pitch}, Yaw={euler.yaw}")
+# Now you know the baseline to add deltas to
 ```
 
 ### Wrong: Not building skeleton profile
@@ -296,7 +297,6 @@ for anim_info in anims[:10]:
 **Other safe VibeUE methods:**
 - `list_anim_sequences(search_path, skeleton_filter)` - List all in path
 - `get_anim_sequence_info(anim_path)` - Get single anim info
-- `search_animations(name_pattern, search_path)` - Find by name pattern
 
 ---
 
@@ -304,16 +304,15 @@ for anim_info in anims[:10]:
 
 **All `anim_path` parameters require the FULL asset path, NOT the folder path.**
 
-Search animations with `AnimSequenceService.search_animations()` — its results carry `anim_path`,
-already in the form every other method wants. `AssetDiscoveryService.search_assets` is gone (that
-service is down to `export_texture` / `reimport_asset`, plus Python-only `import_asset` /
-`delete_asset_unattended`), so there is no `package_name` / `package_path` to pick between any more:
+Search animations with `AnimSequenceService.list_anim_sequences` — its results carry `anim_path`,
+already in the form every other method wants. For class/name/folder filtering use the native
+`EditorToolset.AssetToolset.FindAssets`; it returns object paths rather than `AnimSequenceInfo`.
 
 ```python
 import unreal
 
-# Search for an animation
-results = unreal.AnimSequenceService.search_animations("Run", "/Game/Animations")
+# List animations within a folder
+results = unreal.AnimSequenceService.list_anim_sequences("/Game/Animations", "")
 if results:
     # CORRECT: anim_path is the full asset path
     anim_path = results[0].anim_path  # e.g., "/Game/Animations/Run/AS_Run_Forward"
@@ -325,8 +324,7 @@ if results:
     info = unreal.AnimSequenceService.get_anim_sequence_info(anim_path)
 ```
 
-> If you reach for Epic's `AssetToolset.FindAssets` instead (the general asset-discovery path),
-> remember it returns full **object** paths — strip the trailing `.AssetName` with
+> Epic's `AssetToolset.FindAssets` returns full **object** paths — strip the trailing `.AssetName` with
 > `path.rsplit(".", 1)[0]` before handing one to `AnimSequenceService`.
 
 ---
