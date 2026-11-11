@@ -1343,97 +1343,6 @@ int32 UFoliageService::GetInstanceCount(const FString& MeshOrFoliageTypePath)
 	return -1;
 }
 
-// =================================================================
-// Foliage Type Management
-// =================================================================
-
-FFoliageTypeCreateResult UFoliageService::CreateFoliageType(
-	const FString& MeshPath,
-	const FString& SavePath,
-	const FString& AssetName,
-	float MinScale,
-	float MaxScale,
-	bool bAlignToNormal,
-	float AlignToNormalMaxAngle,
-	float GroundSlopeMaxAngle,
-	float CullDistanceMax)
-{
-	FFoliageTypeCreateResult Result;
-
-	// Load the static mesh
-	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *MeshPath);
-	if (!Mesh)
-	{
-		Result.ErrorMessage = FString::Printf(TEXT("Could not load static mesh '%s'"), *MeshPath);
-		UE_LOG(LogTemp, Error, TEXT("UFoliageService::CreateFoliageType: %s"), *Result.ErrorMessage);
-		return Result;
-	}
-
-	// Create the package
-	FString FullPath = SavePath / AssetName;
-	FString PackageName = FullPath;
-	if (!PackageName.StartsWith(TEXT("/")))
-	{
-		PackageName = TEXT("/") + PackageName;
-	}
-
-	UPackage* Package = CreatePackage(*PackageName);
-	if (!Package)
-	{
-		Result.ErrorMessage = FString::Printf(TEXT("Failed to create package at '%s'"), *PackageName);
-		return Result;
-	}
-
-	// Create the foliage type asset
-	UFoliageType_InstancedStaticMesh* FoliageType = NewObject<UFoliageType_InstancedStaticMesh>(
-		Package, *AssetName, RF_Public | RF_Standalone | RF_Transactional);
-
-	if (!FoliageType)
-	{
-		Result.ErrorMessage = TEXT("Failed to create UFoliageType_InstancedStaticMesh");
-		return Result;
-	}
-
-	FoliageType->SetStaticMesh(Mesh);
-
-	// Configure properties
-	FoliageType->Scaling = EFoliageScaling::Uniform;
-	FoliageType->ScaleX = FFloatInterval(MinScale, MaxScale);
-	FoliageType->ScaleY = FFloatInterval(MinScale, MaxScale);
-	FoliageType->ScaleZ = FFloatInterval(MinScale, MaxScale);
-	FoliageType->AlignToNormal = bAlignToNormal;
-	FoliageType->AlignMaxAngle = AlignToNormalMaxAngle;
-	FoliageType->GroundSlopeAngle = FFloatInterval(0.0f, GroundSlopeMaxAngle);
-	FoliageType->CullDistance = FInt32Interval(0, FMath::RoundToInt(CullDistanceMax));
-	FoliageType->RandomYaw = true;
-
-	// Mark dirty and save
-	FoliageType->MarkPackageDirty();
-	FAssetRegistryModule::AssetCreated(FoliageType);
-
-	// Save the package
-	FString PackageFileName = FPackageName::LongPackageNameToFilename(PackageName, FPackageName::GetAssetPackageExtension());
-	FSavePackageArgs SaveArgs;
-	SaveArgs.TopLevelFlags = RF_Public | RF_Standalone;
-	// The default Error = GError makes any
-	// save error a fatal appError; with GWarn it is logged and the failure branch below runs.
-	SaveArgs.Error = GWarn;
-	if (!UPackage::SavePackage(Package, FoliageType, *PackageFileName, SaveArgs))
-	{
-		Result.ErrorMessage = FString::Printf(TEXT("Failed to save package '%s'"), *PackageName);
-		UE_LOG(LogTemp, Error, TEXT("UFoliageService::CreateFoliageType: %s"), *Result.ErrorMessage);
-		return Result;
-	}
-
-	Result.bSuccess = true;
-	Result.AssetPath = FoliageType->GetPathName();
-
-	UE_LOG(LogTemp, Log, TEXT("UFoliageService::CreateFoliageType: Created '%s' with mesh '%s'"),
-		*Result.AssetPath, *MeshPath);
-
-	return Result;
-}
-
 namespace
 {
 	// Resolves a property path like "CullDistance" or "CullDistance.Max" to the
@@ -1473,60 +1382,6 @@ namespace
 
 		return nullptr;
 	}
-}
-
-bool UFoliageService::SetFoliageTypeProperty(
-	const FString& FoliageTypePath,
-	const FString& PropertyName,
-	const FString& Value)
-{
-	UFoliageType* FoliageType = LoadObject<UFoliageType>(nullptr, *FoliageTypePath);
-	if (!FoliageType)
-	{
-		UE_LOG(LogTemp, Error, TEXT("UFoliageService::SetFoliageTypeProperty: Could not load '%s'"), *FoliageTypePath);
-		return false;
-	}
-
-	void* PropertyAddr = nullptr;
-	FProperty* Property = ResolveFoliageTypePropertyPath(FoliageType, PropertyName, PropertyAddr);
-	if (!Property)
-	{
-		UE_LOG(LogTemp, Error, TEXT("UFoliageService::SetFoliageTypeProperty: Property path '%s' not found on UFoliageType (nested struct members use dots, e.g. 'CullDistance.Max')"), *PropertyName);
-		return false;
-	}
-
-	if (!Property->ImportText_Direct(*Value, PropertyAddr, FoliageType, PPF_None))
-	{
-		UE_LOG(LogTemp, Error, TEXT("UFoliageService::SetFoliageTypeProperty: Failed to set '%s' to '%s'"), *PropertyName, *Value);
-		return false;
-	}
-
-	FoliageType->MarkPackageDirty();
-	return true;
-}
-
-FString UFoliageService::GetFoliageTypeProperty(
-	const FString& FoliageTypePath,
-	const FString& PropertyName)
-{
-	UFoliageType* FoliageType = LoadObject<UFoliageType>(nullptr, *FoliageTypePath);
-	if (!FoliageType)
-	{
-		UE_LOG(LogTemp, Error, TEXT("UFoliageService::GetFoliageTypeProperty: Could not load '%s'"), *FoliageTypePath);
-		return FString();
-	}
-
-	void* PropertyAddr = nullptr;
-	FProperty* Property = ResolveFoliageTypePropertyPath(FoliageType, PropertyName, PropertyAddr);
-	if (!Property)
-	{
-		UE_LOG(LogTemp, Error, TEXT("UFoliageService::GetFoliageTypeProperty: Property path '%s' not found (nested struct members use dots, e.g. 'CullDistance.Max')"), *PropertyName);
-		return FString();
-	}
-
-	FString Result;
-	Property->ExportTextItem_Direct(Result, PropertyAddr, nullptr, FoliageType, PPF_None);
-	return Result;
 }
 
 // =================================================================
@@ -2206,20 +2061,6 @@ FFoliageQueryResult UFoliageService::GetFoliageInRadius(
 
 	Result.bSuccess = true;
 	return Result;
-}
-
-// =================================================================
-// Existence Checks
-// =================================================================
-
-bool UFoliageService::FoliageTypeExists(const FString& AssetPath)
-{
-	UObject* Asset = StaticLoadObject(UObject::StaticClass(), nullptr, *AssetPath);
-	if (!Asset)
-	{
-		return false;
-	}
-	return Cast<UFoliageType>(Asset) != nullptr || Cast<UStaticMesh>(Asset) != nullptr;
 }
 
 bool UFoliageService::HasFoliageInstances(const FString& MeshOrFoliageTypePath)

@@ -91,24 +91,6 @@ struct FVibeUEFoliageTypeInfo
 };
 
 /**
- * Result from creating a foliage type asset
- */
-USTRUCT(BlueprintType)
-struct FFoliageTypeCreateResult
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, Category = "Foliage")
-	bool bSuccess = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Foliage")
-	FString AssetPath;
-
-	UPROPERTY(BlueprintReadWrite, Category = "Foliage")
-	FString ErrorMessage;
-};
-
-/**
  * Query result for foliage instances
  */
 USTRUCT(BlueprintType)
@@ -139,9 +121,6 @@ struct FFoliageQueryResult
  * - get_instance_count: Get instance count for a specific foliage type
  *
  * Foliage Type Management:
- * - create_foliage_type: Create a UFoliageType asset from a static mesh
- * - set_foliage_type_property: Set a property on a foliage type asset
- * - get_foliage_type_property: Get a property from a foliage type asset
  *
  * Placement:
  * - scatter_foliage: Scatter instances in a circular region with Poisson disk sampling
@@ -160,7 +139,6 @@ struct FFoliageQueryResult
  * - get_foliage_in_radius: Get foliage instances in a circular region
  *
  * Existence:
- * - foliage_type_exists: Check if a foliage type asset exists
  * - has_foliage_instances: Check if any foliage instances exist for a type
  *
  * Python Usage:
@@ -202,62 +180,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Foliage")
 	static int32 GetInstanceCount(const FString& MeshOrFoliageTypePath);
-
-	// =================================================================
-	// Foliage Type Management
-	// =================================================================
-
-	/**
-	 * Create a UFoliageType asset from a static mesh with configurable defaults.
-	 *
-	 * @param MeshPath - Path to the UStaticMesh asset
-	 * @param SavePath - Directory to save the foliage type (e.g. "/Game/Foliage")
-	 * @param AssetName - Name for the foliage type asset (e.g. "FT_PineTree")
-	 * @param MinScale - Minimum random scale (default 0.8)
-	 * @param MaxScale - Maximum random scale (default 1.2)
-	 * @param bAlignToNormal - Align instances to surface normal (default true)
-	 * @param AlignToNormalMaxAngle - Max angle for normal alignment in degrees (default 45)
-	 * @param GroundSlopeMaxAngle - Max ground slope for placement in degrees (default 45)
-	 * @param CullDistanceMax - Max cull distance in world units (default 20000)
-	 * @return Create result with asset path
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Foliage")
-	static FFoliageTypeCreateResult CreateFoliageType(
-		const FString& MeshPath,
-		const FString& SavePath,
-		const FString& AssetName,
-		float MinScale = 0.8f,
-		float MaxScale = 1.2f,
-		bool bAlignToNormal = true,
-		float AlignToNormalMaxAngle = 45.0f,
-		float GroundSlopeMaxAngle = 45.0f,
-		float CullDistanceMax = 20000.0f);
-
-	/**
-	 * Set a property on an existing foliage type asset.
-	 *
-	 * @param FoliageTypePath - Path to the UFoliageType asset
-	 * @param PropertyName - Property name; nested struct members use dots (e.g. "Scaling", "CullDistance.Max")
-	 * @param Value - Value as string. Whole structs need UE import text (e.g. "(Min=0,Max=30000)"); prefer setting the member directly ("CullDistance.Max" = "30000")
-	 * @return True if property was set
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Foliage")
-	static bool SetFoliageTypeProperty(
-		const FString& FoliageTypePath,
-		const FString& PropertyName,
-		const FString& Value);
-
-	/**
-	 * Get a property from an existing foliage type asset.
-	 *
-	 * @param FoliageTypePath - Path to the UFoliageType asset
-	 * @param PropertyName - Property name; nested struct members use dots (e.g. "CullDistance.Max")
-	 * @return Property value as string, empty if not found
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Foliage")
-	static FString GetFoliageTypeProperty(
-		const FString& FoliageTypePath,
-		const FString& PropertyName);
 
 	// =================================================================
 	// Placement
@@ -441,19 +363,6 @@ public:
 		float WorldCenterY,
 		float Radius,
 		int32 MaxResults = 100);
-
-	// =================================================================
-	// Existence Checks
-	// =================================================================
-
-	/**
-	 * Check if a foliage type asset exists at the given path.
-	 *
-	 * @param AssetPath - Path to check (UStaticMesh or UFoliageType)
-	 * @return True if the asset exists
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Foliage|Exists")
-	static bool FoliageTypeExists(const FString& AssetPath);
 
 	/**
 	 * Check if any foliage instances exist in the level for a given mesh/type.

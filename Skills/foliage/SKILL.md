@@ -38,7 +38,7 @@ All scatter/add methods trace downward to find the ground surface. If no surface
 
 ### Foliage Type Auto-Creation
 
-When you pass a `UStaticMesh` path, the service auto-creates a transient `UFoliageType` internally. For persistent, reusable foliage types with custom properties, use `create_foliage_type()` first.
+When you pass a `UStaticMesh` path, the service auto-creates a transient `UFoliageType` internally. For persistent, reusable foliage types, use native `unreal.AssetTools.create_asset` with `FoliageType_InstancedStaticMeshFactory` and set mesh and properties on the created asset.
 
 ### World Partition Levels
 
@@ -80,7 +80,7 @@ If you get `instances_added=0` with `instances_rejected ≈ 4× requested`, ever
 | Forgetting to check `instances_rejected` | Always check — tells you how many failed surface trace or layer filter |
 | Expecting `get_instance_count()` == -1 after removing all instances | -1 means the type was **never** in the level. Once registered, the count is 0 after removal — the foliage type entry persists |
 | Expecting `list_foliage_types()` to shrink after `clear_all_foliage()` | Clearing removes **instances**, not type registrations — 0-instance entries remain listed. Filter on `ft.instance_count > 0` |
-| `set_foliage_type_property(path, "CullDistance", "30000")` | Whole structs need UE import text: `"(Min=0,Max=30000)"`. Simpler: set the member via a dotted path — `set_foliage_type_property(path, "CullDistance.Max", "30000")` |
+| Editing foliage type properties | Use the loaded type’s native `get_editor_property` / `set_editor_property`; read and modify a whole struct for its members. |
 | Scattering "around the landscape at (0,0)" centered on (0,0) | Landscapes are corner-anchored: created at (0,0) the terrain spans +X/+Y only. Center the scatter on the landscape's actual center (`location + (resolution-1)*scale/2`) or most candidates miss the surface |
 | `AssetDiscoveryService.list_assets(path)` for cleanup | Both that and `list_assets_in_path` are gone, as is `manage_asset`. Use Epic's `EditorToolset.AssetToolset.FindAssets` (filter by class path, e.g. `/Script/Foliage.FoliageType_InstancedStaticMesh`), or `unreal.EditorAssetLibrary.list_assets(path)` from `execute_python` |
 
@@ -115,13 +115,6 @@ If you get `instances_added=0` with `instances_rejected ≈ 4× requested`, ever
 | `instance_count` | int | Number of instances in level |
 | `foliage_type_path` | str | Asset path of the foliage type |
 
-### FFoliageTypeCreateResult (from create_foliage_type)
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `success` | bool | Whether creation succeeded |
-| `asset_path` | str | Path to the created foliage type asset |
-| `error_message` | str | Error details if failed |
 
 ### FFoliageQueryResult (from get_foliage_in_radius)
 
@@ -169,24 +162,11 @@ if result.success:
 ```python
 import unreal
 
-# Step 1: Create a reusable foliage type with custom properties
-ft = unreal.FoliageService.create_foliage_type(
-    mesh_path="/Game/Meshes/SM_Pine_Tree",
-    save_path="/Game/Foliage",
-    asset_name="FT_PineTree",
-    min_scale=0.7,
-    max_scale=1.3,
-    align_to_normal=True,
-    align_to_normal_max_angle=30.0,
-    ground_slope_max_angle=40.0,
-    cull_distance_max=25000.0
-)
-if ft.success:
-    print(f"Created: {ft.asset_path}")
-
-    # Step 2: Scatter using the foliage type
-    result = unreal.FoliageService.scatter_foliage(
-        ft.asset_path, 0.0, 0.0, 8000.0, 500, seed=42)
+# Create and configure a persistent foliage type with native AssetTools.create_asset
+# and FoliageType_InstancedStaticMeshFactory before running this example.
+foliage_type_path = "/Game/Foliage/FT_PineTree"
+result = unreal.FoliageService.scatter_foliage(
+    foliage_type_path, 0.0, 0.0, 8000.0, 500, seed=42)
 ```
 
 ### Scatter on Paint Layer
@@ -311,9 +291,8 @@ print(f"Cleared {result.instances_removed} total instances")
 ```python
 import unreal
 
-# Does the mesh/foliage type exist as an asset?
-if unreal.FoliageService.foliage_type_exists("/Game/Meshes/SM_Tree_01"):
-    print("Asset exists")
+# Check asset existence with unreal.EditorAssetSubsystem.does_asset_exist;
+# load the asset and check its type if a foliage type is required.
 
 # Are there any instances of this type in the level?
 if unreal.FoliageService.has_foliage_instances("/Game/Meshes/SM_Tree_01"):
@@ -322,7 +301,7 @@ if unreal.FoliageService.has_foliage_instances("/Game/Meshes/SM_Tree_01"):
 
 ## Sample scripts (run via `execute_python`)
 
-- **`scripts/scatter_foliage.txt`** — create a foliage type from a mesh and scatter instances onto the surface.
+- **`scripts/scatter_foliage.txt`** — scatter foliage instances onto the surface.
 
 ## Reference pages
 
