@@ -7,16 +7,13 @@
 #include "UPerformanceService.generated.h"
 
 /**
- * Performance & tracing service — frame-timing triage, Unreal Insights trace capture, trace+log
- * analysis, and trace-attached standalone play.
+ * Performance service — what UE 5.9's native PerfToolset lacks: trace+log analysis, forced hitches to
+ * validate a verdict, trace-attached standalone play, and editor background-throttling control.
  *
- * Unreal 5.8's native toolsets have NO performance or tracing tools, so this is VibeUE's net-new
- * capability: it answers "are we CPU- or GPU-bound?" and drives Insights captures the engine's
- * EditorAppToolset (which can start PIE/Simulate) cannot measure.
- *
- * Recommended flow: FrameTiming() FIRST (CPU vs GPU bound verdict) → StartTrace → reproduce the
- * workload → StopTrace → Analyse. For a representative reading, profile under PIE or a standalone
- * session, not the bare editor viewport. Methods return a JSON string.
+ * Recommended flow: PerfToolset.StatsToolset.GetFrameTimings FIRST (judge CPU vs GPU bound from its
+ * numbers) → ConsoleToolset.RunConsoleCommand "Trace.Start cpu,gpu,frame" → reproduce the workload →
+ * "Trace.Stop" → Analyse. For a representative reading, profile under PIE or a standalone session,
+ * not the bare editor viewport. Methods return a JSON string.
  */
 UCLASS(BlueprintType)
 class VIBEUE_API UPerformanceService : public UToolsetDefinition
@@ -27,7 +24,7 @@ public:
 
 	/**
 	 * TEST/VALIDATION HELPER — deliberately induce a frame hitch on a chosen thread to verify that
-	 * FrameTiming's verdict, budget gate and contested detection fire correctly against a KNOWN ground truth.
+	 * a frame-timing verdict (GetFrameTimings) identifies the bound thread against a KNOWN ground truth.
 	 *
 	 *   Thread = "game"   -> stall the game thread   `Milliseconds` ms/frame  (expect bound=GameThread)
 	 *   Thread = "render" -> stall the render thread `Milliseconds` ms/frame  (expect bound=RenderThread)
@@ -38,9 +35,9 @@ public:
 	 * The CPU paths (game/render/both) are SELF-MEASURING and race-free: the stall is applied
 	 * synchronously inside the call and timed directly, so the response carries `observed_peak_game_ms` /
 	 * `observed_peak_render_ms` and a `verdict_matched_expect` bool. Validate from THIS single response —
-	 * do NOT follow up with FrameTiming, whose read runs on the game thread the stall blocks and reliably
+	 * do NOT follow up with GetFrameTimings, whose read runs on the game thread the stall blocks and reliably
 	 * lands on a clean frame. The gpu path is async (cost persists across frames), so for it alone read
-	 * FrameTiming on a following frame and confirm `expect`. Total CPU blocking is capped (~10 s) for safety.
+	 * GetFrameTimings on a following frame and confirm `expect`. Total CPU blocking is capped (~10 s) for safety.
 	 *
 	 * @param Thread       "game" (default), "render", "both", or "gpu".
 	 * @param Milliseconds Stall size per frame for the CPU threads. Clamped to [1, 5000]. Ignored for gpu.
