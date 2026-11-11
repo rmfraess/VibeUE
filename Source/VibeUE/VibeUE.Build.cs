@@ -142,7 +142,6 @@ public class VibeUE : ModuleRules
 					"ContentBrowser",      // For content browser selection queries
 					"AIGraph",             // UAIGraphNode, FGraphNodeClassHelper (BT node class discovery)
 					"BehaviorTreeEditor",  // UBehaviorTreeGraph / UBehaviorTreeGraphNode_* — the BT EdGraph write path
-				"GameplayTagsEditor",  // For IGameplayTagsEditorModule (add/remove/rename tags at editor time)
 				"TraceServices",       // For ITraceServicesModule / IAnalysisService (editor_control analyse action)
 				}
 			);

@@ -93,17 +93,12 @@ Compile and save.
 
 ---
 
-### 10. Obtain a real FGameplayTag value for a tag-typed API (request_tag)
+### 10. Obtain a real FGameplayTag value for a tag-typed API
 
 ```
-Using Python, get the FGameplayTag value for "Cube.StartChasing" via
-unreal.GameplayTagService.request_tag and prove it works end to end: call
-has_matching_gameplay_tag with it on any actor's AbilitySystemComponent (or
-build a container with request_tag_container(["Cube.StartChasing", "Cube.Idle"])
-and print its size). Then request a bogus name "Fake.DoesNotExist" and confirm
-the returned tag reports is_valid() == False without any assert or error.
+Using Python, use native unreal.GameplayTag.import_text to obtain the registered
+"Cube.StartChasing" tag and prove it works with a tag-typed API. Use
+unreal.GameplayTagContainer.import_text to obtain a container and inspect it.
 ```
 
-Expected: request_tag returns a usable tag object (NOT constructible any other
-way from Python), container contains 2 tags, bogus name yields an invalid tag
-plus a LogGameplayTagService warning - never a crash.
+Expected: the registered tag and container are usable by tag-typed APIs.

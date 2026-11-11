@@ -3,7 +3,6 @@ name: gas
 display_name: Gameplay Ability System (GAS)
 description: Author and PIE-verify Gameplay Ability System content — abilities, attribute sets, gameplay effects, gameplay events, costs/cooldowns, cues — by composing Epic's GASToolsets/GameplayTagsToolset with Blueprint/Object tools and Python. Use when the user asks to add abilities, attributes, damage/buff effects, cooldowns, gameplay cues, or to inspect a live ASC.
 vibeue_classes:
-  - GameplayTagService
   - BlueprintService
 unreal_classes:
   - UAbilitySystemComponent
@@ -40,7 +39,7 @@ the routing map plus the live-verified gotchas.
 | Discover attribute set classes / attributes | Epic **`GASToolsets.AttributeSetToolset`** → `FindAttributeSetClasses` / `ListAttributes` |
 | Gameplay Cue notify assets + cue tags | Epic **`GASToolsets.GameplayCueToolset`** (list/get/create/execute-on-selected) |
 | Tag CRUD (add/remove/rename/move/list tags, tag sources, referencers) | Epic **`GameplayTagsToolset`** (11 tools) via `call_tool` |
-| Getting a real `FGameplayTag` **value** into a Python session | `unreal.GameplayTagService.request_tag("A.B.C")` / `request_tag_container([...])` — VibeUE's only remaining tag tools (see below) |
+| Getting a real `FGameplayTag` **value** into a Python session | Native `unreal.GameplayTag.import_text` / `unreal.GameplayTagContainer.import_text` |
 | Create GameplayAbility / GameplayEffect / AttributeSet **Blueprint** subclasses, CDO config | Epic `BlueprintTools` + `ObjectTools` (or native Python `BlueprintFactory` with the right `ParentClass`) |
 | Ability / cue Blueprint graphs | Epic `BlueprintTools` + `unreal.BlueprintService.build_graph` (see `blueprint-graphs`) |
 | GameplayEffect legacy tag containers (Asset/Target Tags) | `unreal.BlueprintService.set_property` — maps them onto the UE 5.3+ GE Components (VibeUE #539/#541) |
@@ -52,16 +51,10 @@ the routing map plus the live-verified gotchas.
 - `UAbilitySystemBlueprintLibrary` is exposed as **`unreal.AbilitySystemLibrary`** (the
   "BlueprintLibrary" name does not exist in Python).
   `asc = unreal.AbilitySystemLibrary.get_ability_system_component(actor)`.
-- **`FGameplayTag` cannot be constructed from raw Python**: `unreal.GameplayTag(tag_name=...)` is
-  rejected, `TagName` is read-only via `set_editor_property`, and
-  `GameplayTagLibrary.make_literal_gameplay_tag` takes an FGameplayTag (circular).
-  **Use VibeUE's escape hatch**: `unreal.GameplayTagService.request_tag("A.B.C")` returns the real
-  registered tag VALUE (invalid tag for unknown names — check with
-  `GameplayTagLibrary.is_gameplay_tag_valid`), and `request_tag_container([...])` batches into a
-  container. That unlocks every tag-typed API: `asc.has_matching_gameplay_tag`,
-  `send_gameplay_event_to_actor`, `assign_tag_set_by_caller_magnitude`, tag-keyed `TMap`
-  authoring, and tag queries. For pure READS the Epic inspector `GetActiveTags` also returns tag
-  names as strings without needing tag values.
+- For tag values, use native `unreal.GameplayTag.import_text` or
+  `unreal.GameplayTagContainer.import_text`; validate registered tags with
+  `GameplayTagLibrary.is_gameplay_tag_valid`. For pure reads the Epic inspector `GetActiveTags`
+  returns tag names as strings without needing tag values.
 - `asc.get_owned_gameplay_tags()` is NOT exposed. Use the inspector.
 - ASC `BlueprintCallable`s that take a **class** work fine:
   `asc.try_activate_ability_by_class(unreal.MyGA_Class)` — this is the reliable Python path to
