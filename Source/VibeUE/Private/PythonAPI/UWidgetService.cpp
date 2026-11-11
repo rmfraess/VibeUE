@@ -1549,50 +1549,6 @@ FWidgetAddComponentResult UWidgetService::AddComponent(
 	return Result;
 }
 
-bool UWidgetService::ReorderComponent(
-	const FString& WidgetPath,
-	const FString& ComponentName,
-	int32 NewIndex)
-{
-	UWidgetBlueprint* WidgetBP = LoadWidgetBlueprint(WidgetPath);
-	if (!WidgetBP || !WidgetBP->WidgetTree)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::ReorderComponent: Widget Blueprint '%s' not found"), *WidgetPath);
-		return false;
-	}
-
-	UWidget* Widget = FindWidgetByName(WidgetBP, ComponentName);
-	if (!Widget)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::ReorderComponent: Widget '%s' not found"), *ComponentName);
-		return false;
-	}
-
-	UPanelWidget* ParentPanel = Widget->GetParent();
-	if (!ParentPanel)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::ReorderComponent: '%s' has no panel parent (the root widget cannot be reordered)"), *ComponentName);
-		return false;
-	}
-
-	if (NewIndex < 0 || NewIndex >= ParentPanel->GetChildrenCount())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::ReorderComponent: NewIndex %d is out of range for parent '%s' (valid range: 0-%d)"),
-			NewIndex, *ParentPanel->GetName(), ParentPanel->GetChildrenCount() - 1);
-		return false;
-	}
-
-	WidgetBP->Modify();
-	// ShiftChild rewrites ParentPanel->Slots directly, so the panel is the object whose state changes.
-	ParentPanel->Modify();
-	ParentPanel->ShiftChild(NewIndex, Widget);
-	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WidgetBP);
-
-	UE_LOG(LogTemp, Log, TEXT("UWidgetService::ReorderComponent: Moved '%s' to index %d under '%s'"),
-		*ComponentName, NewIndex, *ParentPanel->GetName());
-	return true;
-}
-
 FWidgetRemoveComponentResult UWidgetService::RemoveComponent(
 	const FString& WidgetPath,
 	const FString& ComponentName,
@@ -1674,75 +1630,6 @@ FWidgetRemoveComponentResult UWidgetService::RemoveComponent(
 // =================================================================
 
 
-
-bool UWidgetService::ReparentWidget(
-	const FString& WidgetPath,
-	const FString& WidgetName,
-	const FString& NewParentName)
-{
-	UWidgetBlueprint* WidgetBP = LoadWidgetBlueprint(WidgetPath);
-	if (!WidgetBP || !WidgetBP->WidgetTree)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::ReparentWidget: Widget Blueprint '%s' not found"), *WidgetPath);
-		return false;
-	}
-
-	UWidget* Widget = FindWidgetByName(WidgetBP, WidgetName);
-	if (!Widget)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::ReparentWidget: Widget '%s' not found"), *WidgetName);
-		return false;
-	}
-
-	if (Widget == WidgetBP->WidgetTree->RootWidget)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::ReparentWidget: Cannot reparent the root widget"));
-		return false;
-	}
-
-	UWidget* NewParentWidget = FindWidgetByName(WidgetBP, NewParentName);
-	UPanelWidget* NewParent = Cast<UPanelWidget>(NewParentWidget);
-	if (!NewParent)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::ReparentWidget: New parent '%s' not found or is not a panel widget"), *NewParentName);
-		return false;
-	}
-
-	// Reject moving a panel into itself or one of its own descendants (would create a cycle).
-	for (UWidget* Ancestor = NewParent; Ancestor; Ancestor = Ancestor->GetParent())
-	{
-		if (Ancestor == Widget)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("UWidgetService::ReparentWidget: '%s' cannot be moved into itself or a descendant"), *WidgetName);
-			return false;
-		}
-	}
-
-	if (Widget->GetParent() == NewParent)
-	{
-		// Already parented here — nothing to do, treat as success.
-		return true;
-	}
-
-	WidgetBP->Modify();
-
-	// Detach from the current parent (preserves the widget object), then add under the new parent.
-	if (UPanelWidget* OldParent = Widget->GetParent())
-	{
-		OldParent->RemoveChild(Widget);
-	}
-
-	UPanelSlot* NewSlot = NewParent->AddChild(Widget);
-	if (!NewSlot)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::ReparentWidget: Failed to add '%s' under '%s' (panel may be full)"), *WidgetName, *NewParentName);
-		return false;
-	}
-
-	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WidgetBP);
-	UE_LOG(LogTemp, Log, TEXT("UWidgetService::ReparentWidget: Moved '%s' under '%s'"), *WidgetName, *NewParentName);
-	return true;
-}
 
 
 
@@ -1966,66 +1853,6 @@ bool UWidgetService::BindEvent(
 	return bBound;
 }
 
-bool UWidgetService::RenameWidget(
-	const FString& WidgetPath,
-	const FString& OldName,
-	const FString& NewName)
-{
-	UWidgetBlueprint* WidgetBP = LoadWidgetBlueprint(WidgetPath);
-	if (!WidgetBP || !WidgetBP->WidgetTree)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::RenameWidget: Widget Blueprint '%s' not found"), *WidgetPath);
-		return false;
-	}
-
-	if (NewName.IsEmpty())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::RenameWidget: NewName must not be empty"));
-		return false;
-	}
-
-	// Find the widget by old name
-	UWidget* TargetWidget = nullptr;
-	TArray<UWidget*> AllWidgets;
-	WidgetBP->WidgetTree->GetAllWidgets(AllWidgets);
-	for (UWidget* Widget : AllWidgets)
-	{
-		if (Widget && Widget->GetName() == OldName)
-		{
-			TargetWidget = Widget;
-			break;
-		}
-	}
-
-	if (!TargetWidget)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::RenameWidget: Widget '%s' not found in '%s'"), *OldName, *WidgetPath);
-		return false;
-	}
-
-	// Check for name collision
-	for (UWidget* Widget : AllWidgets)
-	{
-		if (Widget && Widget != TargetWidget && Widget->GetName() == NewName)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("UWidgetService::RenameWidget: A widget named '%s' already exists in '%s'"), *NewName, *WidgetPath);
-			return false;
-		}
-	}
-
-	WidgetBP->Modify();
-	WidgetBP->WidgetTree->Modify();
-	TargetWidget->Modify();
-
-	const FName NewFName(*NewName);
-	TargetWidget->Rename(*NewName, TargetWidget->GetOuter(), REN_DontCreateRedirectors);
-
-	FBlueprintEditorUtils::MarkBlueprintAsModified(WidgetBP);
-
-	UE_LOG(LogTemp, Log, TEXT("UWidgetService::RenameWidget: Renamed '%s' to '%s' in '%s'"), *OldName, *NewName, *WidgetPath);
-	return true;
-}
-
 // =================================================================
 // ViewModel Helper Methods
 // =================================================================
@@ -2224,53 +2051,6 @@ EMVVMBindingMode UWidgetService::StringToBindingMode(const FString& ModeString)
 // =================================================================
 
 
-
-bool UWidgetService::RemoveViewModel(
-	const FString& WidgetPath,
-	const FString& ViewModelName)
-{
-	UWidgetBlueprint* WidgetBP = LoadWidgetBlueprint(WidgetPath);
-	if (!WidgetBP)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::RemoveViewModel: Widget Blueprint '%s' not found"), *WidgetPath);
-		return false;
-	}
-
-	UMVVMWidgetBlueprintExtension_View* ViewExtension = FindMVVMExtension(WidgetBP);
-	if (!ViewExtension)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::RemoveViewModel: No MVVM extension found"));
-		return false;
-	}
-
-	UMVVMBlueprintView* View = ViewExtension->GetBlueprintView();
-	if (!View)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::RemoveViewModel: No MVVM view found"));
-		return false;
-	}
-
-	// Find the ViewModel by name
-	const FMVVMBlueprintViewModelContext* VMContext = View->FindViewModel(FName(*ViewModelName));
-	if (!VMContext)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UWidgetService::RemoveViewModel: ViewModel '%s' not found"), *ViewModelName);
-		return false;
-	}
-
-	FGuid ViewModelId = VMContext->GetViewModelId();
-	bool bRemoved = View->RemoveViewModel(ViewModelId);
-
-	if (bRemoved)
-	{
-		WidgetBP->Modify();
-		FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(WidgetBP);
-		UE_LOG(LogTemp, Log, TEXT("UWidgetService::RemoveViewModel: Removed ViewModel '%s' from '%s'"),
-			*ViewModelName, *WidgetPath);
-	}
-
-	return bRemoved;
-}
 
 
 

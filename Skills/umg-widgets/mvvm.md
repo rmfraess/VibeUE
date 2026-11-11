@@ -5,8 +5,7 @@ description: MVVM ViewModel support on Epic's MVVMToolset — rules, binding mod
 
 # UMG MVVM ViewModel Support
 
-MVVM is now **Epic's `MVVMToolset`** (31 tools), not `WidgetService`. One `WidgetService` method
-survives: `remove_view_model`, because MVVM can add a ViewModel to a widget but never remove one.
+MVVM uses **Epic's `MVVMToolset`** (31 tools) and `unreal.MVVMEditorSubsystem` for ViewModel removal.
 
 `toolset_name` is `MVVMToolset.MVVMToolset`. Its tools are `BlueprintCallable`, so they are reachable
 both ways — `call_tool` for a single round-trip, or `unreal.MVVMToolset.*` inside `execute_python`.
@@ -147,10 +146,8 @@ properties, **no binding is created**.
 In Python the bool fields read as `b_enabled` / `b_compile` (they are authored with the `b` prefix,
 unlike VibeUE's `bEnabled`).
 
-> ⚠️ `unreal.WidgetService.remove_view_model(path, name)` **invalidates but does not delete** that
-> ViewModel's bindings — they still appear in `ListWidgetViewBindings()` as dangling entries. Call
-> `RemoveWidgetViewBinding` for each binding GUID **before** `remove_view_model` if you need a clean
-> list.
+> ⚠️ Remove the ViewModel's bindings by GUID with `RemoveWidgetViewBinding` before removing the
+> ViewModel if you need a clean list; then verify the remaining bindings and ViewModels.
 
 ## Workflows
 
@@ -226,8 +223,8 @@ wbp  = unreal.load_asset(path)
 for b in list(unreal.MVVMToolset.list_widget_view_bindings(wbp)):
     unreal.MVVMToolset.remove_widget_view_binding(wbp, b.binding_id)
 
-# Then the ViewModel (this one is still VibeUE's - MVVMToolset cannot remove a ViewModel).
-unreal.WidgetService.remove_view_model(path, "VM_Health_C")
+# Then the ViewModel.
+unreal.get_editor_subsystem(unreal.MVVMEditorSubsystem).remove_view_model(wbp, "VM_Health_C")
 
 unreal.BlueprintToolset.compile_blueprint(wbp, False)
 unreal.EditorAssetLibrary.save_asset(path)

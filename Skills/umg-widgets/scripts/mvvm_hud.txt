@@ -9,7 +9,7 @@
 #   hierarchy          -> unreal.WidgetService.add_component           (VibeUE keeps this)
 #   ViewModel+bindings -> unreal.MVVMToolset.*                         (Epic; BlueprintCallable,
 #                                                                       so Python works directly)
-#   removing a VM      -> unreal.WidgetService.remove_view_model       (MVVM cannot remove one)
+#   removing a VM      -> unreal.MVVMEditorSubsystem.remove_view_model
 #
 # Requires a ViewModel class inheriting UMVVMViewModelBase (or implementing
 # INotifyFieldValueChanged) with the property names used below.
@@ -94,8 +94,7 @@ print(f"connected={cmap.connected_count} unconnected={cmap.unconnected_count} "
 for c in cmap.connections:
     print(" ", c.kind, c.connection_name, c.widget or c.target_variable, c.status, c.fix)
 
-# Teardown, if you need it: remove each binding BY GUID first (remove_view_model invalidates but
-# does not delete its bindings, leaving dangling entries in the list):
+# Teardown, if you need it: remove each binding BY GUID first:
 #   for b in list(MVVM.list_widget_view_bindings(wbp)):
 #       MVVM.remove_widget_view_binding(wbp, b.binding_id)
-#   unreal.WidgetService.remove_view_model(asset_path, "VM_GameHUD_C")
+#   unreal.get_editor_subsystem(unreal.MVVMEditorSubsystem).remove_view_model(wbp, "VM_GameHUD_C")

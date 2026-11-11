@@ -125,10 +125,12 @@ list_view_model_bindings("/Game/UI/Tests/WBP_VMTest")
 Remove the ViewModel entirely.
 
 ```
-remove_view_model("/Game/UI/Tests/WBP_VMTest", "GameHudVM")
+import unreal
+unreal.get_editor_subsystem(unreal.MVVMEditorSubsystem).remove_view_model(
+    unreal.load_asset("/Game/UI/Tests/WBP_VMTest"), "GameHudVM")
 ```
 
-**Expected**: Returns `True`. ViewModel removed.
+**Expected**: No return value; verify the ViewModel was removed in Phase 11.
 
 ### Phase 11: Verify ViewModel Removal
 
@@ -196,10 +198,12 @@ remove_view_model_binding("/Game/UI/Tests/WBP_VMTest", 999)
 ### E7: Remove Non-Existent ViewModel
 
 ```
-remove_view_model("/Game/UI/Tests/WBP_VMTest", "DoesNotExist")
+import unreal
+unreal.get_editor_subsystem(unreal.MVVMEditorSubsystem).remove_view_model(
+    unreal.load_asset("/Game/UI/Tests/WBP_VMTest"), "DoesNotExist")
 ```
 
-**Expected**: Returns `False`. ViewModel not found.
+**Expected**: No return value; verify the ViewModel list is unchanged.
 
 ---
 

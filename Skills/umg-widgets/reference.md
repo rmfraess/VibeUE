@@ -1,6 +1,6 @@
 ---
 name: umg-widgets/reference
-description: UMG reference — the 9 surviving WidgetService signatures and their return-struct field names, the Epic toolset index with exact toolset_name strings and tool signatures, child-order rules, common widget properties, and event names.
+description: UMG reference — the 5 surviving WidgetService signatures and their return-struct field names, the Epic toolset index with exact toolset_name strings and tool signatures, child-order rules, common widget properties, and event names.
 ---
 
 # UMG Widget Reference
@@ -8,7 +8,7 @@ description: UMG reference — the 9 surviving WidgetService signatures and thei
 Two surfaces, two call styles. See SKILL.md ▸ "Call styles" before using either.
 
 ## Contents
-- VibeUE `WidgetService` — the 9 survivors
+- VibeUE `WidgetService` — the 5 survivors
 - Return structs (the only 3 still reachable)
 - Child order
 - Epic toolset index (`toolset_name` strings + signatures)
@@ -18,21 +18,17 @@ Two surfaces, two call styles. See SKILL.md ▸ "Call styles" before using eithe
 
 ---
 
-## VibeUE `WidgetService` — the 9 survivors
+## VibeUE `WidgetService` — the 5 survivors
 
 Python, inside `execute_python`. Python names are the snake_case of the C++ method.
 
 | Method | Signature | Returns |
 |---|---|---|
 | `add_component` | `(widget_path, component_type, component_name, parent_name="", is_variable=True, child_index=-1)` | `WidgetAddComponentResult` |
-| `reorder_component` | `(widget_path, component_name, new_index)` | `bool` |
 | `remove_component` | `(widget_path, component_name, remove_children=False)` | `WidgetRemoveComponentResult` |
-| `rename_widget` | `(widget_path, old_name, new_name)` | `bool` |
-| `reparent_widget` | `(widget_path, widget_name, new_parent_name)` | `bool` |
 | `bind_event` | `(widget_path, widget_name, event_name, function_name)` | `bool` |
 | `spawn_widget_in_pie` | `(widget_path, z_order=0)` | `PIEWidgetHandle` |
 | `remove_widget_from_pie` | `(handle)` | `bool` |
-| `remove_view_model` | `(widget_path, view_model_name)` | `bool` |
 
 Notes:
 
@@ -44,10 +40,8 @@ Notes:
   is what makes it the root, not the `is_variable` flag.
 - `remove_component` with `remove_children=False` reports the widgets it orphaned in
   `orphaned_children`.
-- `reparent_widget` preserves the widget object/GUID. It rejects moving a panel into itself or a
-  descendant, and the root cannot be reparented.
-- `rename_widget` preserves the GUID.
-- `remove_view_model` **invalidates but does not delete** that ViewModel's bindings — see `mvvm.md`.
+- Widget moves and renames: `WidgetBlueprintEditorSubsystem.MoveWidget` / `RenameWidget`.
+- ViewModel removal: `unreal.MVVMEditorSubsystem.remove_view_model` — see `mvvm.md`.
 
 ## Return structs (the only 3 still reachable)
 
@@ -98,17 +92,11 @@ or Overlay actually lays out. Two ways to control it:
 - `add_component(..., child_index=N)` — insert the new widget at position `N` instead of appending.
   `child_index` defaults to `-1` (append). Valid values are `0` to the parent's current child count;
   anything else **fails with an error rather than silently appending**, so check `success`.
-- `reorder_component(widget_path, component_name, new_index)` — move a widget that already exists to
-  another position **under its current parent**. Valid range is `0` to `child_count - 1`. Returns
-  `False` (with the reason in the log) for an unknown widget, a widget with no panel parent (i.e.
-  the root), or an out-of-range index. To move a widget to a *different* parent, use
-  `reparent_widget`.
+- Move an existing widget within or between parents with `WidgetBlueprintEditorSubsystem.MoveWidget`.
 
 ```python
 # Insert a banner above everything already in the list
 unreal.WidgetService.add_component(path, "TextBlock", "Banner", "ButtonList", False, 0)
-# ...or move an existing widget to the front
-unreal.WidgetService.reorder_component(path, "PlayButton", 0)
 ```
 
 `child_index` is positional argument 6 — `is_variable` comes before it, so pass both when inserting.

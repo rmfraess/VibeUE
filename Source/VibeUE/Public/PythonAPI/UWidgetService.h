@@ -279,20 +279,6 @@ public:
 		int32 ChildIndex = -1);
 
 	/**
-	 * Move an existing widget component to a new position among its current parent's children.
-	 *
-	 * @param WidgetPath - Full path to the Widget Blueprint
-	 * @param ComponentName - Name of the component to move
-	 * @param NewIndex - New 0-based position among the parent's children
-	 * @return True if the widget was found, has a panel parent, and was moved
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Widgets")
-	static bool ReorderComponent(
-		const FString& WidgetPath,
-		const FString& ComponentName,
-		int32 NewIndex);
-
-	/**
 	 * Remove a widget component from a Widget Blueprint.
 	 *
 	 * @param WidgetPath - Full path to the Widget Blueprint
@@ -305,34 +291,6 @@ public:
 		const FString& WidgetPath,
 		const FString& ComponentName,
 		bool bRemoveChildren = false);
-
-	/**
-	 * Rename a widget component in the Widget Blueprint.
-	 *
-	 * @param WidgetPath - Full path to the Widget Blueprint
-	 * @param OldName - Current name of the widget component
-	 * @param NewName - New name for the widget component
-	 * @return True if the rename was successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Widgets")
-	static bool RenameWidget(
-		const FString& WidgetPath,
-		const FString& OldName,
-		const FString& NewName);
-
-	/**
-	 * Move an existing widget to a new parent panel (re-parent), preserving the widget object.
-	 *
-	 * @param WidgetPath - Full path to the Widget Blueprint
-	 * @param WidgetName - Name of the widget to move
-	 * @param NewParentName - Name of the destination panel widget (must be a UPanelWidget)
-	 * @return True if the widget was re-slotted under the new parent
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Widgets")
-	static bool ReparentWidget(
-		const FString& WidgetPath,
-		const FString& WidgetName,
-		const FString& NewParentName);
 
 	// =================================================================
 	// PIE widget instances
@@ -378,26 +336,6 @@ public:
 		const FString& WidgetName,
 		const FString& EventName,
 		const FString& FunctionName);
-
-	// =================================================================
-	// MVVM removal
-	// =================================================================
-
-	/**
-	 * Remove a ViewModel from a Widget Blueprint.
-	 *
-	 * MVVMToolset can add a ViewModel to a widget (AddViewModelToWidget) and list them
-	 * (ListWidgetViewModels) but has no tool that removes one. Individual bindings are a different
-	 * thing and do have one: MVVMToolset.RemoveWidgetViewBinding, which takes a binding GUID.
-	 *
-	 * @param WidgetPath - Full path to the Widget Blueprint
-	 * @param ViewModelName - Name of the ViewModel to remove
-	 * @return True if the ViewModel was removed successfully
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Widgets|ViewModel")
-	static bool RemoveViewModel(
-		const FString& WidgetPath,
-		const FString& ViewModelName);
 
 private:
 	/** Build slot info by casting Widget->Slot to the concrete slot type */

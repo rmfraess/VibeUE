@@ -301,17 +301,14 @@ import unreal
 
 path = "/Game/UI/WBP_Menu"
 
-unreal.WidgetService.rename_widget(path, "ItemButton", "Item1_ActionButton")   # GUID preserved
-unreal.WidgetService.reparent_widget(path, "BackgroundImage", "MainContainer") # object preserved
-unreal.WidgetService.reorder_component(path, "PlayButton", 0)                  # within its parent
+# Rename or move widgets with WidgetBlueprintEditorSubsystem.RenameWidget / MoveWidget.
 res = unreal.WidgetService.remove_component(path, "Item3")                     # add True to take children
 print(res.success, res.removed_components, res.orphaned_children)
 
 unreal.EditorAssetLibrary.save_asset(path)
 ```
 
-`reparent_widget` rejects moving a panel into itself or a descendant, and the root cannot be
-reparented. After any structural edit, re-read with `DescribeWidget` to confirm before saving.
+After any structural edit, re-read with `DescribeWidget` to confirm before saving.
 
 ## Capture Preview (designer screenshot)
 
