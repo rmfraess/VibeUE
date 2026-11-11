@@ -279,8 +279,8 @@ do. Re-read the engine before trusting a delta recorded against an older version
 crash-prevention features Epic's `execute_python` does not: `auto_save` (default on), a
 `fresh_namespace` option, and replies carrying `resident_maps` / `dirtied_packages` (a non-empty
 `resident_maps` means the next level load *will* fatal the editor). The guard is now explicit rather
-than a hidden default, and nothing became unreachable: `unreal.PythonTools.get_resident_maps()` and
-`get_dirty_packages()` are still tools, and `vibeue.safe_load_level(path)` still refuses a level
+than a hidden default, and nothing became unreachable: `unreal.PythonTools.get_resident_maps()` remains available, `vibeue.dirty_snapshot()` reports dirty
+packages, and `vibeue.safe_load_level(path)` still refuses a level
 change while a map is resident. The agent guide leads with that check.
 
 **Guides and skills rewritten to match.** `Content/samples/AGENTS.md.sample` is the single source for
@@ -324,8 +324,8 @@ keeping the off-game-thread machinery `deep_research` and `terrain_data` still n
 the defunct run-record readers (`last_python_result`, `python_run`, and their path helpers).
 
 **What survives in `UPythonTools`** is exactly the editor-safety surface the agent guide now tells
-agents to call explicitly: `GetResidentMaps`, `GetDirtyPackages` (both AICallable),
-`GetResidentMapWorlds` and `ComputeDirtyPackageDelta`.
+agents to call explicitly: `GetResidentMaps` (AICallable), `GetResidentMapWorlds` and
+`ComputeDirtyPackageDelta`. For the dirty package set, use `vibeue.dirty_snapshot()`.
 
 **Test coverage lost with it, and worth re-adding.** `PythonToolsTests.cpp` goes from 1004 lines to
 92. Four of its twelve tests were kept-or-dropped on whether they had a subject left: only

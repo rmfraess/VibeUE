@@ -89,7 +89,7 @@ if resident:
 vibeue.safe_load_level("/Game/Maps/Target")
 
 # What did my script leave dirty?
-print(unreal.PythonTools.get_dirty_packages())
+print(vibeue.dirty_snapshot())
 ```
 
 `execute_python` does not save before it runs, which VibeUE's tool used to do by default. Save
@@ -206,8 +206,8 @@ YOUR SCRIPT left dirty, and the ones it left clean (saved, cleaned or unloaded),
 after the auto-save sweep and right after the script. Pre-existing dirt and the sweep's own saves never
 show up there. Check `dirtied_packages` after a script that raised: a half-finished edit stays dirty,
 and the next `auto_save=true` call would save it. To read the dirty set mid-script, use
-`unreal.PythonTools.get_dirty_packages()` (pass `False` to leave maps out) instead of snapshotting
-`EditorLoadingAndSavingUtils.get_dirty_content_packages()` by hand. Expect two engine extras in the
+`vibeue.dirty_snapshot()` for content and maps, or use
+`unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages()` for content only. Expect two engine extras in the
 list: a never-saved map appears as `/Temp/Untitled_N`, and a dirty unsaved map's MapBuildData package
 can be marked dirty by the enumeration itself. Both lists are empty after a crashed (SEH) run.
 

@@ -53,28 +53,6 @@ public:
 	static TArray<FString> GetResidentMaps();
 
 	/**
-	 * Names of the packages that are dirty right now, sorted: the content packages, plus the world
-	 * packages (maps and their external actor packages) when bIncludeMaps is true. Same enumeration
-	 * as the execute_python_code auto-save sweep (FEditorFileUtils::GetDirtyContentPackages /
-	 * GetDirtyWorldPackages), so it is exactly the set an auto_save=true call would write.
-	 *
-	 * Two engine side effects to expect with bIncludeMaps: the world enumeration MARKS a dirty map's
-	 * MapBuildData package dirty when that package has no saved name yet (FileHelpers.cpp
-	 * EnumerateDirtyWorldPackages), and a never-saved map shows up under its /Temp/Untitled_N name. Both
-	 * can therefore appear in execute_python_code's dirtied_packages.
-	 *
-	 * @param bIncludeMaps - Also list dirty world packages (default true)
-	 * @return Sorted package names (e.g. "/Game/UI/W_Prompt"); empty when nothing is dirty or GEditor is unavailable.
-	 *
-	 * Python usage:
-	 *   before = set(unreal.PythonTools.get_dirty_packages())
-	 *   # ... edit ...
-	 *   dirtied = set(unreal.PythonTools.get_dirty_packages()) - before
-	 */
-	UFUNCTION(BlueprintCallable, Category="VibeUE|Python", meta=(AICallable))
-	static TArray<FString> GetDirtyPackages(bool bIncludeMaps = true);
-
-	/**
 	 * Diff two dirty-package snapshots. OutDirtied = in After but not Before; OutCleaned = in Before but
 	 * not After. Both come back sorted. Public so the reply fields can be tested without a script that
 	 * has to clean a package.

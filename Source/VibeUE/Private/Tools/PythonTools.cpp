@@ -105,39 +105,6 @@ TArray<FString> UPythonTools::GetResidentMaps()
 	return Resident;
 }
 
-TArray<FString> UPythonTools::GetDirtyPackages(bool bIncludeMaps)
-{
-	TArray<FString> Names;
-	if (!GEditor)
-	{
-		return Names;
-	}
-
-	// The same enumeration as the pre-run auto-save sweep, so this is exactly what an auto_save=true
-	// call would write.
-	TArray<UPackage*> DirtyPackages;
-	FEditorFileUtils::GetDirtyContentPackages(DirtyPackages);
-	if (bIncludeMaps)
-	{
-		FEditorFileUtils::GetDirtyWorldPackages(DirtyPackages);
-	}
-
-	// A TSet, not AddUnique: a World Partition map can have thousands of dirty external-actor packages,
-	// and this runs twice per execute_python_code call.
-	TSet<FString> Unique;
-	Unique.Reserve(DirtyPackages.Num());
-	for (const UPackage* DirtyPackage : DirtyPackages)
-	{
-		if (DirtyPackage)
-		{
-			Unique.Add(DirtyPackage->GetName());
-		}
-	}
-	Names = Unique.Array();
-	Names.Sort();
-	return Names;
-}
-
 void UPythonTools::ComputeDirtyPackageDelta(const TArray<FString>& Before, const TArray<FString>& After,
 	TArray<FString>& OutDirtied, TArray<FString>& OutCleaned)
 {

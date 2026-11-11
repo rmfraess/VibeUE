@@ -70,7 +70,7 @@ if resident:
 A map other than the open level still loaded in memory will **crash the editor on the next level
 load**. Also save before risky work (`unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)`),
 and do not keep level objects in variables across an `await` or a level change — re-fetch them.
-`unreal.PythonTools.get_dirty_packages()` tells you what a script left dirty.
+`vibeue.dirty_snapshot()` lists currently dirty packages, including maps.
 
 **Speed + tokens:** **avoid `describe_toolset` as a habit** — it dumps the full JSON schema of every
 tool in a toolset (the most token-heavy thing here). Reach for a **skill** plus a narrow
@@ -131,7 +131,7 @@ engine toolset first and use these only for the named delta:
 | `TransactionService` | undo/redo stepping only | `UndoHistoryToolset` + `unreal.ScopedEditorTransaction` |
 | Gameplay tags | — | `GameplayTagsToolset`; Python values: `unreal.GameplayTag.import_text` / `unreal.GameplayTagContainer.import_text` |
 | `NiagaraEmitterService` | the three colour-curve tools | `NiagaraToolsets` (57 tools) |
-| `MaterialNodeService` | `create_function_call`, `create_collection_parameter` | `MaterialToolset` / `MaterialInstanceToolset` / `ObjectToolset` (`MaterialService` is deleted) |
+| `MaterialNodeService` | `create_collection_parameter` | `MaterialToolset` / `MaterialInstanceToolset` / `ObjectToolset` (`MaterialService` is deleted) |
 | `WorkflowService` | `get_environment` — engine version, build config, toolchain, build staleness | nothing: Epic reports none of it. `run_scenario` → `AutomationTestToolset`; the run journal → `FileSystemToolset` + `UndoHistoryToolset`; `run_bulk_maintenance` → `BlueprintToolset` / `AssetToolset`, batched by you |
 
 These trimmed services keep only what the engine lacks -- for plain asset/actor/blueprint
@@ -402,7 +402,7 @@ crash handler — MCP will hang; relaunch); fresh and small → the editor is fi
 - **Never** use modal dialogs, `input()`, blocking ops, long `time.sleep()`, or infinite loops.
 - **Full asset paths** (`/Game/Blueprints/BP_Name`). **Colors are 0.0–1.0** (`{"R":1.0,"G":0.5,"B":0.0,"A":1.0}`).
 - **Know what your script dirtied.** `execute_python` does not report this, so ask: 
-  `unreal.PythonTools.get_dirty_packages()` lists what is dirty now, and
+  `vibeue.dirty_snapshot()` lists what is dirty now, and
   `unreal.PythonTools.get_resident_maps()` warns of a map still in memory that would crash the next
   level load. After a script that raised, check both before saving a half-finished edit.
 - **Change level with `vibeue.safe_load_level(path)`**, never a bare `load_level` while `resident_maps` is
