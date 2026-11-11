@@ -26,7 +26,7 @@ keywords:
 
 # Animation Montage Skill
 
-Use `AnimMontageService` for animation montage operations.
+Use `AnimMontageService` for section, slot, segment and blend operations; use native APIs for creation, duplication, notifies and editor access.
 
 ## Quick Reference - Python API
 
@@ -52,16 +52,8 @@ montages = AnimMontageService.find_montages_using_animation(anim_path) -> Array[
 ```
 
 ### Creation Methods
-```python
-# Create montage from an animation sequence
-path = AnimMontageService.create_montage_from_animation(anim_path, dest_path, name) -> str
-
-# Create empty montage for a skeleton
-path = AnimMontageService.create_empty_montage(skeleton_path, dest_path, name) -> str
-
-# Duplicate existing montage
-path = AnimMontageService.duplicate_montage(source_path, dest_path, new_name) -> str
-```
+Create with `unreal.AnimMontageFactory` and `unreal.AssetTools.create_asset`; duplicate with `EditorToolset.AssetToolset.Duplicate`.
+Notify reads and writes: `unreal.AnimationLibrary`.
 
 ### Section Management (CRITICAL for gameplay!)
 ```python
@@ -138,13 +130,8 @@ AnimMontageService.set_blend_in(montage_path, time, option) -> bool
 
 # Set blend out
 AnimMontageService.set_blend_out(montage_path, time, option) -> bool
-
-# Set blend out trigger time (-1 = auto)
-AnimMontageService.set_blend_out_trigger_time(montage_path, time) -> bool
-
-# Get all blend settings
-settings = AnimMontageService.get_blend_settings(montage_path) -> MontageBlendSettings
 ```
+Read blend settings and set the blend-out trigger time with `EditorToolset.ObjectToolset.GetProperties` / `SetProperties`.
 
 ### Branching Points (Frame-Accurate Gameplay Events)
 ```python
@@ -169,9 +156,7 @@ AnimMontageService.set_enable_root_motion_rotation(montage_path, enable) -> bool
 
 ### Editor Methods
 ```python
-# Open montage in Animation Editor
-AnimMontageService.open_montage_editor(montage_path) -> bool
-
+# Open montage with EditorToolset.EditorAppToolset.OpenEditorForAsset.
 # Refresh editor UI: call this ONCE, AFTER all edits are done (see crash warning below)
 AnimMontageService.refresh_montage_editor(montage_path) -> bool
 ```
@@ -180,10 +165,10 @@ AnimMontageService.refresh_montage_editor(montage_path) -> bool
 > Adding/removing **sections, slot tracks, segments, notifies, or branching points** reallocates
 > the montage's internal arrays. If the montage editor (Persona) is open, its live preview holds
 > pointers into those arrays and the next tick will dereference freed memory → **the editor hard-crashes**.
-> Rule: do ALL structural edits FIRST, then `refresh_montage_editor()` / `open_montage_editor()` **exactly once at the very end**.
+> Rule: do ALL structural edits FIRST, then `refresh_montage_editor()` / `EditorToolset.EditorAppToolset.OpenEditorForAsset` **exactly once at the very end**.
 > Do NOT call `refresh_montage_editor()` between edits. (The service now also auto-closes the editor before
-> each structural edit as a safety net, but you should still batch edits and open last so the editor isn't
-> opening and closing repeatedly.)
+> service structural edit as a safety net; native API edits do not use that service safety net. Batch edits
+> and open last so the editor is not opening and closing repeatedly.)
 
 ## IMPORTANT: Asset Path Format
 
@@ -236,11 +221,13 @@ Each struct field is read-only data already populated; just read it.
 import unreal
 
 # 1. Create empty montage
-path = unreal.AnimMontageService.create_empty_montage(
-    "/Game/Characters/SK_Mannequin",
-    "/Game/Montages",
-    "AM_ComboAttack"
-)
+skeleton = unreal.load_asset("/Game/Characters/SK_Mannequin")  # skeleton asset, not a skeletal mesh
+assert isinstance(skeleton, unreal.Skeleton), "Load a skeleton asset"
+factory = unreal.AnimMontageFactory()
+factory.set_editor_property("target_skeleton", skeleton)
+montage = unreal.AssetToolsHelpers.get_asset_tools().create_asset("AM_ComboAttack", "/Game/Montages", unreal.AnimMontage, factory)
+assert montage, "Montage creation failed"
+path = montage.get_path_name()
 
 # 2. Add animation segments sequentially (track 0)
 unreal.AnimMontageService.add_anim_segment(path, 0, "/Game/Animations/Attack1", 0.0)
@@ -279,11 +266,13 @@ unreal.AnimMontageService.refresh_montage_editor(path)
 import unreal
 
 # 1. Create montage from animation
-path = unreal.AnimMontageService.create_montage_from_animation(
-    "/Game/Animations/Reload",
-    "/Game/Montages",
-    "AM_Reload_UpperBody"
-)
+animation = unreal.load_asset("/Game/Animations/Reload")
+assert isinstance(animation, unreal.AnimSequence), "Load an animation sequence"
+factory = unreal.AnimMontageFactory()
+factory.set_editor_property("source_animation", animation)
+montage = unreal.AssetToolsHelpers.get_asset_tools().create_asset("AM_Reload_UpperBody", "/Game/Montages", unreal.AnimMontage, factory)
+assert montage, "Montage creation failed"
+path = montage.get_path_name()
 
 # 2. Change slot to UpperBody for layered blending
 unreal.AnimMontageService.set_slot_name(path, 0, "UpperBody")

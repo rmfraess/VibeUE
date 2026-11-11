@@ -10,12 +10,18 @@ ANIM = "/Game/Anims/AS_Attack"
 DEST = "/Game/Anims/Montages"
 NAME = "AM_Attack"
 
-montage_path = ms.create_montage_from_animation(ANIM, DEST, NAME)   # returns full path
+animation = unreal.load_asset(ANIM)
+assert isinstance(animation, unreal.AnimSequence), "Load an animation sequence"
+factory = unreal.AnimMontageFactory()
+factory.set_editor_property("source_animation", animation)
+montage = unreal.AssetToolsHelpers.get_asset_tools().create_asset(NAME, DEST, unreal.AnimMontage, factory)
+assert montage, "Montage creation failed"
+montage_path = montage.get_path_name()
 print("montage:", montage_path)
 
 # Sections are time-based markers; add one at 0.0 and one partway in
 print("add Start:", ms.add_section(montage_path, "Start", 0.0))
-print("add Combo:", ms.add_section(montage_path, "Combo", ms.get_montage_length(montage_path) * 0.5))
+print("add Combo:", ms.add_section(montage_path, "Combo", unreal.AnimationLibrary.get_sequence_length(montage) * 0.5))
 
 print("info:", ms.get_montage_info(montage_path))
 unreal.EditorAssetLibrary.save_asset(montage_path)

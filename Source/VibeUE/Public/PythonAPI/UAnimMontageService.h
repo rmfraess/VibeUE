@@ -76,43 +76,6 @@ struct FMontageInfo
 };
 
 /**
- * Blend settings for a montage (VibeUE wrapper)
- */
-USTRUCT(BlueprintType)
-struct FVibeMontageBlendSettings
-{
-	GENERATED_BODY()
-
-	/** Blend in time */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	float BlendInTime = 0.25f;
-
-	/** Blend in curve type */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	FString BlendInOption;
-
-	/** Blend out time */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	float BlendOutTime = 0.25f;
-
-	/** Blend out curve type */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	FString BlendOutOption;
-
-	/** When to trigger blend out (-1 = auto at end minus blend time) */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	float BlendOutTriggerTime = -1.0f;
-
-	/** Custom blend in curve (if using custom option) */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	FString BlendInCurvePath;
-
-	/** Custom blend out curve (if using custom option) */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	FString BlendOutCurvePath;
-};
-
-/**
  * Information about a montage section
  */
 USTRUCT(BlueprintType)
@@ -273,51 +236,6 @@ struct FBranchingPointInfo
 	FString SectionName;
 };
 
-/**
- * Information about a montage notify event
- */
-USTRUCT(BlueprintType)
-struct FMontageNotifyInfo
-{
-	GENERATED_BODY()
-
-	/** Index of the notify in the montage */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	int32 NotifyIndex = -1;
-
-	/** Notify name */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	FString NotifyName;
-
-	/** Class name of the notify */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	FString NotifyClass;
-
-	/** Trigger time in seconds */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	float TriggerTime = 0.0f;
-
-	/** Duration (0 for instant notifies) */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	float Duration = 0.0f;
-
-	/** Whether this is a state notify */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	bool bIsState = false;
-
-	/** Whether this is a branching point */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	bool bIsBranchingPoint = false;
-
-	/** Track index in the notify panel */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	int32 TrackIndex = 0;
-
-	/** Section name this notify is linked to */
-	UPROPERTY(BlueprintReadWrite, Category = "Animation")
-	FString LinkedSectionName;
-};
-
 // ============================================================================
 // SERVICE CLASS
 // ============================================================================
@@ -343,9 +261,8 @@ struct FMontageNotifyInfo
  *   for m in montages:
  *       print(f"{m.montage_name}: {m.duration}s, {m.section_count} sections")
  *
- *   # Create a montage from an animation
- *   path = unreal.AnimMontageService.create_montage_from_animation(
- *       "/Game/Animations/Attack", "/Game/Montages", "AM_Attack")
+ *   # Create the montage natively (AnimMontageFactory via unreal.AssetTools.create_asset), then:
+ *   path = "/Game/Montages/AM_Attack"
  *
  *   # Add sections for combo system
  *   unreal.AnimMontageService.add_section(path, "WindUp", 0.0)
@@ -420,19 +337,6 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage")
 	static TArray<FMontageInfo> FindMontagesUsingAnimation(const FString& AnimSequencePath);
 
-	// ============================================================================
-	// MONTAGE PROPERTIES
-	// ============================================================================
-
-	/**
-	 * Get the total duration of a montage in seconds.
-	 *
-	 * @param MontagePath - Path to the montage asset
-	 * @return Duration in seconds, or -1 if not found
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage")
-	static float GetMontageLength(const FString& MontagePath);
-
 	/**
 	 * Get the skeleton asset path for a montage.
 	 *
@@ -469,28 +373,6 @@ public:
 		const FString& MontagePath,
 		float BlendTime,
 		const FString& BlendOption = TEXT("Linear"));
-
-	/**
-	 * Get current blend settings.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @param OutSettings - Output blend settings
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage")
-	static bool GetBlendSettings(
-		const FString& MontagePath,
-		FVibeMontageBlendSettings& OutSettings);
-
-	/**
-	 * Set when blend out begins (-1 = auto, based on blend out time).
-	 *
-	 * @param MontagePath - Path to montage
-	 * @param TriggerTime - Time before end to trigger blend out (-1 for auto)
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage")
-	static bool SetBlendOutTriggerTime(const FString& MontagePath, float TriggerTime);
 
 	// ============================================================================
 	// SECTION MANAGEMENT (Requires C++ - Python cannot modify TArrays)
@@ -725,15 +607,6 @@ public:
 		int32 TrackIndex,
 		const FString& NewSlotName);
 
-	/**
-	 * Get all unique slot names used in the montage.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @return Array of slot names
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage|Slots")
-	static TArray<FString> GetAllUsedSlotNames(const FString& MontagePath);
-
 	// ============================================================================
 	// ANIMATION SEGMENTS (Multiple Animations per Montage)
 	// ============================================================================
@@ -876,53 +749,6 @@ public:
 		int32 SegmentIndex,
 		int32 LoopCount);
 
-	// ============================================================================
-	// MONTAGE NOTIFIES
-	// ============================================================================
-
-	/**
-	 * List all notifies in a montage.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @return Array of notify info structs
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage|Notifies")
-	static TArray<FMontageNotifyInfo> ListNotifies(const FString& MontagePath);
-
-	/**
-	 * Add an instant notify (point in time) to the montage.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @param NotifyClass - Full class path (e.g., "/Script/Engine.AnimNotify")
-	 * @param TriggerTime - Time in seconds when notify triggers
-	 * @param NotifyName - Optional name for the notify
-	 * @return Index of the new notify, or -1 on failure
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage|Notifies")
-	static int32 AddNotify(
-		const FString& MontagePath,
-		const FString& NotifyClass,
-		float TriggerTime,
-		const FString& NotifyName = TEXT(""));
-
-	/**
-	 * Add a notify state (duration-based) to the montage.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @param NotifyStateClass - Full class path (e.g., "/Script/Engine.AnimNotifyState")
-	 * @param StartTime - Start time in seconds
-	 * @param Duration - Duration in seconds
-	 * @param NotifyName - Optional name for the notify
-	 * @return Index of the new notify, or -1 on failure
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage|Notifies")
-	static int32 AddNotifyState(
-		const FString& MontagePath,
-		const FString& NotifyStateClass,
-		float StartTime,
-		float Duration,
-		const FString& NotifyName = TEXT(""));
-
 	/**
 	 * Remove a notify from the montage.
 	 *
@@ -1064,65 +890,6 @@ public:
 		const FString& MontagePath,
 		float Time,
 		FTransform& OutTransform);
-
-	// ============================================================================
-	// MONTAGE CREATION
-	// ============================================================================
-
-	/**
-	 * Create a new montage from an existing animation sequence.
-	 *
-	 * @param AnimSequencePath - Source animation to base montage on
-	 * @param DestPath - Folder to create montage in
-	 * @param MontageName - Name for the new montage asset
-	 * @return Path to created montage, or empty string on failure
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage|Creation")
-	static FString CreateMontageFromAnimation(
-		const FString& AnimSequencePath,
-		const FString& DestPath,
-		const FString& MontageName);
-
-	/**
-	 * Create an empty montage for a skeleton.
-	 *
-	 * @param SkeletonPath - Skeleton the montage is for
-	 * @param DestPath - Folder to create montage in
-	 * @param MontageName - Name for the new montage asset
-	 * @return Path to created montage, or empty string on failure
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage|Creation")
-	static FString CreateEmptyMontage(
-		const FString& SkeletonPath,
-		const FString& DestPath,
-		const FString& MontageName);
-
-	/**
-	 * Duplicate an existing montage.
-	 *
-	 * @param SourcePath - Montage to duplicate
-	 * @param DestPath - Folder for the copy
-	 * @param NewName - Name for the duplicate
-	 * @return Path to duplicated montage, or empty string on failure
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage|Creation")
-	static FString DuplicateMontage(
-		const FString& SourcePath,
-		const FString& DestPath,
-		const FString& NewName);
-
-	// ============================================================================
-	// EDITOR NAVIGATION
-	// ============================================================================
-
-	/**
-	 * Open a montage in the Animation Editor.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @return True if editor opened successfully
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage|Editor")
-	static bool OpenMontageEditor(const FString& MontagePath);
 
 	/**
 	 * Refresh the montage editor by closing and reopening it.
