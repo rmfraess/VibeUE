@@ -1,7 +1,7 @@
 ---
 name: materials
 display_name: Material System
-description: Create and edit materials and material instances — graph nodes, parameters, functions, custom HLSL, and instance overrides. In UE 5.9 this is Epic's MaterialToolset / MaterialInstanceToolset / ObjectToolset via `call_tool`; VibeUE keeps exactly two graph calls (create_function_call, create_collection_parameter). Use when the user asks to create or edit a material/material instance, wire material nodes, add material parameters, set blend/shading modes, or recreate a material graph. For landscape materials load landscape-materials.
+description: Create and edit materials and material instances — graph nodes, parameters, functions, custom HLSL, and instance overrides. In UE 5.9 this is Epic's MaterialToolset / MaterialInstanceToolset / ObjectToolset via `call_tool`; VibeUE keeps one graph call (create_collection_parameter). Use when the user asks to create or edit a material/material instance, wire material nodes, add material parameters, set blend/shading modes, or recreate a material graph. For landscape materials load landscape-materials.
   Also use for generated organic PBR detail, texture seams, projection coordinates, and surface-normal diagnosis.
 vibeue_classes:
   - MaterialNodeService
@@ -28,7 +28,7 @@ LOD-section mapping helper before changing the shader or buying new textures.
 ## 🚨 Who owns what (read this first — the wrong call style just fails)
 
 `UMaterialService` **no longer exists** (all 16 tools deleted). `UMaterialNodeService` is down to
-**exactly two** calls. Everything else is Epic's, in `EditorToolset`, reached with `call_tool`.
+**one** call. Other operations use Epic's toolsets or native Unreal Python.
 
 | Call style | What it covers |
 |---|---|
@@ -37,7 +37,7 @@ LOD-section mapping helper before changing the shader or buying new textures.
 | **`call_tool`** → `EditorToolset.ObjectToolset` | **any** property on a material, instance or expression — this is how you set `ParameterName`, `DefaultValue`, `Group`, `SortPriority`, `BlendMode`, a Custom node's `Code`/`OutputType`/`Inputs` |
 | **`call_tool`** → `EditorToolset.AssetToolset` | `Exists`, `SaveAsset`, `Duplicate`, `Delete`, `GetReferencers`, `GetDependencies` |
 | **`call_tool`** → `EditorToolset.EditorAppToolset` | `OpenEditorForAsset` |
-| **`execute_python`** → `unreal.MaterialNodeService` | **only** `create_function_call` and `create_collection_parameter` |
+| **`execute_python`** → `unreal.MaterialNodeService` | **only** `create_collection_parameter` |
 
 ```python
 MT  = "EditorToolset.MaterialToolset"
@@ -62,32 +62,31 @@ def ref(p):   # "/Game/Materials/M_Foo" -> {"refPath": "/Game/Materials/M_Foo.M_
 
 ## Critical Rules
 
-### 🚨 The two VibeUE survivors — and why they must survive
+### 🚨 Function calls and the collection-parameter survivor
 
-Epic's generic property tool never calls `PostEditChangeProperty`, and two node types need that hook
-to become usable at all:
+Epic's `AddExpression` + `ObjectToolset.SetProperties({"MaterialFunction": ...})` + `Recompile`
+yields a **pin-less node that cannot be wired**: the generic property writer skips
+`PostEditChangeProperty`. Instead, use native Python `set_material_function`, which populates pins.
+For a node inside a MaterialFunction, use `create_material_expression_in_function(func, cls, x, y)`.
 
-- **`create_function_call`** — a `MaterialFunctionCall` node's pins are populated only by
-  `SetMaterialFunctionEx` → `UpdateFromFunctionResource`, reached from that hook. So
-  `AddExpression` + `SetProperties({"MaterialFunction": ...})` + `Recompile` yields a **pin-less node
-  that cannot be wired**. There is no other way.
-- **`create_collection_parameter`** — same shape: the node's `ParameterId` GUID is derived in that
-  hook by looking the name up in the collection. A missing id compiles to
-  `"CollectionParameter has invalid parameter"`.
+For **`create_collection_parameter`**, the node's `ParameterId` GUID is derived by the property
+change hook when looking up the name in the collection. A missing id compiles to
+`"CollectionParameter has invalid parameter"`.
 
 ```python
-# execute_python — these two are VibeUE, NOT call_tool.
-fn = unreal.MaterialNodeService.create_function_call(
-    "/Game/Materials/M_Rock",
-    "/Engine/Functions/Engine_MaterialFunctions01/Texturing/WorldAlignedTexture", -600, 0)
+import unreal
+mat = unreal.load_asset("/Game/Materials/M_Rock")
+fn = unreal.MaterialEditingLibrary.create_material_expression(
+    mat, unreal.MaterialExpressionMaterialFunctionCall, -600, 0)
+fn.set_material_function(unreal.load_asset(
+    "/Engine/Functions/Engine_MaterialFunctions01/Texturing/WorldAlignedTexture"))
 coll = unreal.MaterialNodeService.create_collection_parameter(
     "/Game/Materials/M_Rock", "/Game/Materials/MPC_GlobalParams", "WindStrength", -600, 300)
 ```
 
-Both return a `MaterialExpressionInfo`: read `.id` (session-specific) or `.object_path` (durable),
-plus `.input_names` / `.output_names`. To hand one of these nodes to an Epic call, wrap its
-`object_path`: `{"refPath": fn.object_path}`. Passing the struct itself where a string is expected
-gives `TypeError: Nativize: Cannot nativize 'MaterialExpressionInfo' as 'String'`.
+The function node is a UObject: pass `{"refPath": fn.get_path_name()}` to Epic calls. The collection
+call returns `MaterialExpressionInfo`, with `.id`, `.object_path`, `.input_names` and `.output_names`;
+wrap its `.object_path` in a `refPath` rather than passing the struct itself.
 
 Every other node — parameters, math, texture samples, Custom HLSL — is `AddExpression`.
 
@@ -251,7 +250,7 @@ A parameter is `AddExpression` of the parameter class, then `ObjectToolset.SetPr
 | Texture object (no sampler) | `MaterialExpressionTextureObjectParameter` | `ParameterName`, `Texture` (refPath), **`SamplerType`** |
 | Static switch | `MaterialExpressionStaticSwitchParameter` | `ParameterName`, `DefaultValue` (bool) |
 | Collection parameter | — | **VibeUE `create_collection_parameter`** (see above) |
-| Material function call | — | **VibeUE `create_function_call`** (see above) |
+| Material function call | `MaterialExpressionMaterialFunctionCall` | native Python `set_material_function` (see above) |
 
 > 🚨 **`SamplerType` is the single most common compile failure.** The default is
 > `SAMPLERTYPE_Color`, which is wrong for any data texture. ORM / mask / packed maps need
@@ -323,8 +322,8 @@ call_tool(tool_name="SaveAsset", toolset_name=AT,
 
 For triplanar / world-aligned (the same material on cube, sphere and cylinder with no UV concerns),
 build a master material wrapping `WorldAlignedTexture` / `WorldAlignedNormal` (functions under
-`/Engine/Functions/Engine_MaterialFunctions01/Texturing/`) — via **`create_function_call`**, since a
-function call node is one of the two survivors. Feed its `TextureObject` input from a
+`/Engine/Functions/Engine_MaterialFunctions01/Texturing/`) — create the function-call expression
+and set its function with native Python as above. Feed its `TextureObject` input from a
 `MaterialExpressionTextureObjectParameter` (**not** a `TextureSampleParameter2D` — the function brings
 its own sampler). Feed `TextureSize` from a `Constant3Vector`, or `Multiply(Scalar, Constant3Vector(1,1,1))`;
 **a bare scalar broadcasts incorrectly to V3** in that input slot.

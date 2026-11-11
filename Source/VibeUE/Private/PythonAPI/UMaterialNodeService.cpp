@@ -436,61 +436,6 @@ void UMaterialNodeService::RefreshMaterialGraph(UMaterial* Material)
 
 
 
-// =================================================================
-// Lifecycle Actions
-// =================================================================
-
-// =================================================================
-// Specialized Creation Actions
-// =================================================================
-
-FMaterialExpressionInfo UMaterialNodeService::CreateFunctionCall(
-	const FString& MaterialPath,
-	const FString& FunctionPath,
-	int32 PosX,
-	int32 PosY)
-{
-	UMaterial* Material = LoadMaterialAsset(MaterialPath);
-	if (!Material)
-	{
-		return FMaterialExpressionInfo();
-	}
-
-	// Load the material function asset
-	UMaterialFunction* Function = LoadObject<UMaterialFunction>(nullptr, *FunctionPath);
-	if (!Function)
-	{
-		// Try with explicit class
-		UObject* LoadedObj = UEditorAssetLibrary::LoadAsset(FunctionPath);
-		Function = Cast<UMaterialFunction>(LoadedObj);
-	}
-	if (!Function)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UMaterialNodeService::CreateFunctionCall: Failed to load function: %s"), *FunctionPath);
-		return FMaterialExpressionInfo();
-	}
-
-	FScopedTransaction Transaction(NSLOCTEXT("MaterialNodeService", "Create Function Call", "Create Function Call"));
-	Material->Modify();
-
-	UMaterialExpressionMaterialFunctionCall* FuncCall = Cast<UMaterialExpressionMaterialFunctionCall>(
-		UMaterialEditingLibrary::CreateMaterialExpression(
-			Material, UMaterialExpressionMaterialFunctionCall::StaticClass(), PosX, PosY));
-
-	if (!FuncCall)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UMaterialNodeService::CreateFunctionCall: Failed to create expression"));
-		return FMaterialExpressionInfo();
-	}
-
-	// SetMaterialFunction automatically creates the correct inputs/outputs
-	FuncCall->SetMaterialFunction(Function);
-
-	RefreshMaterialGraph(Material);
-
-	return BuildExpressionInfo(FuncCall);
-}
-
 
 FMaterialExpressionInfo UMaterialNodeService::CreateCollectionParameter(
 	const FString& MaterialPath,

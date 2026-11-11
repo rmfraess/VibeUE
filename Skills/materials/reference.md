@@ -27,7 +27,7 @@ is Epic's `EditorToolset`, via `call_tool`.
 | Reached with | Namespace |
 |---|---|
 | `call_tool` | `EditorToolset.MaterialToolset`, `EditorToolset.MaterialInstanceToolset`, `EditorToolset.ObjectToolset`, `EditorToolset.AssetToolset`, `EditorToolset.EditorAppToolset` |
-| `execute_python` | `unreal.MaterialNodeService.create_function_call`, `unreal.MaterialNodeService.create_collection_parameter` |
+| `execute_python` | `unreal.MaterialNodeService.create_collection_parameter`; native `unreal.MaterialEditingLibrary` for function calls |
 
 Argument conventions for every Epic call: lowerCamelCase arg names, object/class arguments as
 `{"refPath": "/Game/Dir/Asset.Asset"}` handles, enums as their prefixed identifier strings. Results
@@ -132,7 +132,7 @@ refPaths are `/Script/Engine.` + the name below.
 | Texture object (no sampler) | `MaterialExpressionTextureObjectParameter` | `ParameterName`, `Group`, `Texture` (refPath), `SamplerType` |
 | Static switch | `MaterialExpressionStaticSwitchParameter` | `ParameterName`, `Group`, `DefaultValue` (bool); input pins are `True` / `False` |
 | Collection parameter | — | **`unreal.MaterialNodeService.create_collection_parameter`** |
-| Material function call | — | **`unreal.MaterialNodeService.create_function_call`** |
+| Material function call | `MaterialExpressionMaterialFunctionCall` | native Python `set_material_function` (see SKILL.md) |
 
 `SamplerType` values: `SAMPLERTYPE_Color` (sRGB albedo), `SAMPLERTYPE_LinearColor`,
 `SAMPLERTYPE_Normal` (tangent normals), `SAMPLERTYPE_Masks` (ORM / packed data),
@@ -206,9 +206,9 @@ recompiles dependent materials), `ListParameterGroups`, `DiffFunction`.
   `SetProperties` with `bExposeToLibrary`, `Description`, `LibraryCategoriesText`.
 - `GetReferencingMaterials(materialFunction)` lists every material that will recompile when you
   change it — check it before editing a shared function.
-- Referencing a function from a material graph is **`unreal.MaterialNodeService.create_function_call`**,
-  not `AddExpression` (see SKILL.md for why), and its input pin names are the bare names reported by
-  `GetExpressionInputNames` on the created node.
+- Create a function-call expression with `unreal.MaterialEditingLibrary.create_material_expression`,
+  then set its function with `node.set_material_function(unreal.load_asset(func_path))` (see SKILL.md).
+  Its input pin names are the bare names reported by `GetExpressionInputNames` on the created node.
 
 For landscape-specific function patterns, load `landscape-auto-material`.
 
@@ -233,4 +233,4 @@ this is what it becomes.
 | `get_output_properties`, `get_output_connections` | the `MP_*` list above; `GetPropertyInput` per property |
 | `delete_material_expression`, `move` | `MaterialToolset.DeleteExpression`; set `MaterialExpressionEditorX`/`Y` via `ObjectToolset`, or just `LayoutExpressions` |
 | `get_function_info`, `export_function_graph`, `create_material_function`, `add_function_input`/`add_function_output` | `MaterialToolset.CreateFunction`, `GetExpressions`, `GetExpressionInputNames`, `AddExpression` of `FunctionInput`/`FunctionOutput` + `SetProperties` |
-| `create_function_call`, `create_collection_parameter` | **not removed** — still `unreal.MaterialNodeService`, via `execute_python` |
+| `create_collection_parameter` | **not removed** — still `unreal.MaterialNodeService`, via `execute_python` |

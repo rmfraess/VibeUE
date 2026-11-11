@@ -6,7 +6,7 @@
 #
 # UE 5.9: material authoring is Epic's EditorToolset.MaterialToolset, and every property goes
 # through EditorToolset.ObjectToolset. UMaterialService is DELETED; unreal.MaterialNodeService
-# keeps only create_function_call and create_collection_parameter (neither is needed here).
+# keeps only create_collection_parameter (not needed here).
 #
 # From an MCP client you would call these with call_tool:
 #   call_tool(tool_name="CreateMaterial", toolset_name="EditorToolset.MaterialToolset",

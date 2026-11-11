@@ -83,33 +83,6 @@ public:
 
 
 
-	// =================================================================
-	// Specialized Creation Actions
-	// =================================================================
-
-	/**
-	 * Create a MaterialFunctionCall expression referencing a material function asset.
-	 * Maps to action="create_function_call"
-	 *
-	 * The function reference is loaded and set automatically, which creates the
-	 * correct input/output pins matching the function's interface.
-	 *
-	 * @param MaterialPath Full path to the material
-	 * @param FunctionPath Full path to the material function asset (e.g., "/Engine/Functions/Engine_MaterialFunctions03/Procedurals/NoiseFunctions")
-	 * @param PosX X position in graph
-	 * @param PosY Y position in graph
-	 * @return Created expression info with function's inputs/outputs
-	 *
-	 * Example:
-	 *   func = unreal.MaterialNodeService.create_function_call("/Game/M_Test", "/Game/MF_TerrainLayer", -500, 0)
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "MaterialNode")
-	static FMaterialExpressionInfo CreateFunctionCall(
-		const FString& MaterialPath,
-		const FString& FunctionPath,
-		int32 PosX = 0,
-		int32 PosY = 0);
-
 
 	/**
 	 * Create a CollectionParameter expression referencing a MaterialParameterCollection.

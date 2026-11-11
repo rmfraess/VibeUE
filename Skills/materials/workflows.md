@@ -22,8 +22,7 @@ In UE 5.9 material authoring is **Epic's**, via `call_tool`:
 `EditorToolset.MaterialToolset` (materials and functions), `EditorToolset.MaterialInstanceToolset`
 (instances), `EditorToolset.ObjectToolset` (every property), `EditorToolset.AssetToolset` (exists /
 save / duplicate / delete / referencers). `UMaterialService` is gone; `unreal.MaterialNodeService`
-keeps exactly two calls — `create_function_call` and `create_collection_parameter` — run through
-`execute_python`, not `call_tool`.
+keeps only `create_collection_parameter`, run through `execute_python`, not `call_tool`.
 
 Every object/class argument is a `{"refPath": "/Game/Dir/Asset.Asset"}` handle; arg names are
 lowerCamelCase; `materialProperty` is the `EMaterialProperty` name (`"MP_BaseColor"`). All examples
@@ -160,23 +159,27 @@ read its type and legal values with `GetPropertySchema`.
 
 ## Function call node (MaterialFunction)
 
-**VibeUE, through `execute_python`.** Epic's `AddExpression` + `SetProperties({"MaterialFunction": ...})`
-produces a node with **no pins**, because the pins are built by `SetMaterialFunctionEx` →
-`UpdateFromFunctionResource` inside `PostEditChangeProperty`, which the generic property writer never
-calls. `create_function_call` is the only working path.
+**Native Unreal Python, through `execute_python`.** Epic's `AddExpression` +
+`SetProperties({"MaterialFunction": ...})` produces a node with **no pins**, because the generic
+property writer skips `PostEditChangeProperty`. `set_material_function` populates the pins.
 
 ```python
-fn = unreal.MaterialNodeService.create_function_call(path,
-    "/Engine/Functions/Engine_MaterialFunctions02/Utility/BlendAngleCorrectedNormals", -600, 0)
-fn_ref = {"refPath": fn.object_path}      # hand the node to Epic calls as a refPath
+import unreal
+mat = unreal.load_asset(path)
+fn = unreal.MaterialEditingLibrary.create_material_expression(
+    mat, unreal.MaterialExpressionMaterialFunctionCall, -600, 0)
+fn.set_material_function(unreal.load_asset(
+    "/Engine/Functions/Engine_MaterialFunctions02/Utility/BlendAngleCorrectedNormals"))
+fn_ref = {"refPath": fn.get_path_name()}
 
 call_tool(tool_name="ConnectToOutput", toolset_name=MT,
           arguments={"expression": fn_ref, "outputName": "", "materialProperty": "MP_Normal"})
 call_tool(tool_name="Recompile", toolset_name=MT, arguments={"materialOrFunction": ref(path)})
 ```
 
-The node's pin names are on the returned struct (`fn.input_names` / `fn.output_names`), and
-`GetExpressionInputNames(fn_ref)` reports the same bare names — which is what `toInputName` takes.
+`GetExpressionInputNames(fn_ref)` and `GetExpressionOutputNames(fn_ref)` report the node's bare
+pin names; `toInputName` takes the input names. For a MaterialFunction graph, create the node with
+`create_material_expression_in_function(func, cls, x, y)` instead.
 
 ## Custom HLSL expression
 
