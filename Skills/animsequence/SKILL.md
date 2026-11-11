@@ -86,7 +86,7 @@ render in a private preview scene, never the open level, and work during PIE. De
 >   skeleton list call is gone. It is async: `await vibeue.exec_tool_await(...)`, or
 >   `vibeue.exec_tool_async(...)` then `vibeue.collect_tool_result(...)` next call. It returns full
 >   object paths, so strip the trailing `.AssetName` before passing one to a VibeUE service.
-> - `unreal.AnimSequenceService.find_animations_for_skeleton(skeleton_path)` - Find animations
+> - Query Asset Registry Skeleton tags for animations (see Safe Discovery below)
 > - `unreal.AnimSequenceService.list_anim_sequences(search_path, skeleton_filter)` - List all animations
 >
 > These all query the asset registry WITHOUT loading assets into memory.
@@ -272,26 +272,21 @@ for asset_data in anim_assets:
 - Results in exception code 0xC0000005 (access violation)
 
 **Safe alternatives:**
-1. **USE VibeUE's `FindAnimationsForSkeleton()` - BEST OPTION**
-2. Use Asset Registry API to query metadata without loading
-3. Load one asset at a time with explicit unload
-4. Filter by path before loading (limit scope)
+1. **Use the Asset Registry to query metadata without loading**
+2. Load one asset at a time with explicit unload
+3. Filter by path before loading (limit scope)
 
-**BEST: Use VibeUE AnimSequenceService methods**
+**BEST: Use the Asset Registry**
 ```python
-# CORRECT - VibeUE safe discovery (no loading)
+# CORRECT - query metadata without loading animations
 import unreal
 
 skeleton_path = "/Game/Characters/SK_Mannequin"
-
-# Get all animations for a skeleton - no loading!
-anims = unreal.AnimSequenceService.find_animations_for_skeleton(skeleton_path)
-
-for anim_info in anims[:10]:
-    print(f"{anim_info.anim_name}")
-    print(f"  Duration: {anim_info.duration:.2f}s")
-    print(f"  Frames: {anim_info.frame_count}")
-    print(f"  Path: {anim_info.anim_path}")
+ar = unreal.AssetRegistryHelpers.get_asset_registry()
+anims = [a for a in ar.get_assets_by_class(unreal.TopLevelAssetPath('/Script/Engine', 'AnimSequence'))
+         if skeleton_path in str(a.get_tag_value('Skeleton'))]
+for a in anims[:10]:
+    print(a.asset_name, a.package_name)  # AssetData, not AnimSequenceInfo
 ```
 
 **Other safe VibeUE methods:**

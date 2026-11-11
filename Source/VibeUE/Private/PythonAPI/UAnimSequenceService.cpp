@@ -372,125 +372,6 @@ bool UAnimSequenceService::GetAnimSequenceInfo(const FString& AnimPath, FAnimSeq
 	return true;
 }
 
-TArray<FAnimSequenceInfo> UAnimSequenceService::FindAnimationsForSkeleton(const FString& SkeletonPath)
-{
-	TArray<FAnimSequenceInfo> Results;
-
-	if (SkeletonPath.IsEmpty())
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UAnimSequenceService::FindAnimationsForSkeleton: Skeleton path is empty"));
-		return Results;
-	}
-
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
-
-	FARFilter Filter;
-	Filter.ClassPaths.Add(UAnimSequence::StaticClass()->GetClassPathName());
-	Filter.bRecursivePaths = true;
-
-	TArray<FAssetData> AssetList;
-	AssetRegistry.GetAssets(Filter, AssetList);
-
-	// Limit results to prevent memory issues
-	const int32 MaxResults = 100;
-	int32 MatchCount = 0;
-
-	// Extract skeleton name from path for flexible matching
-	// Path can be: "/Game/Path/SK_Name.SK_Name" or "/Game/Path/SK_Name"
-	FString SkeletonName;
-	{
-		int32 LastSlash, LastDot;
-		if (SkeletonPath.FindLastChar(TEXT('/'), LastSlash))
-		{
-			FString AfterSlash = SkeletonPath.RightChop(LastSlash + 1);
-			if (AfterSlash.FindChar(TEXT('.'), LastDot))
-			{
-				SkeletonName = AfterSlash.Left(LastDot);
-			}
-			else
-			{
-				SkeletonName = AfterSlash;
-			}
-		}
-		else
-		{
-			SkeletonName = SkeletonPath;
-		}
-	}
-
-	// NO LOADING VERSION: Build info entirely from asset registry tags
-	for (const FAssetData& Asset : AssetList)
-	{
-		if (MatchCount >= MaxResults)
-		{
-			UE_LOG(LogTemp, Warning, TEXT("FindAnimationsForSkeleton: Limiting results to %d animations"), MaxResults);
-			break;
-		}
-
-		// Filter by skeleton using asset tag ONLY - no loading
-		FAssetTagValueRef SkeletonTag = Asset.TagsAndValues.FindTag(FName(TEXT("Skeleton")));
-		if (!SkeletonTag.IsSet())
-		{
-			continue;  // Skip assets without skeleton tags
-		}
-
-		FString TagSkeletonPath = SkeletonTag.AsString();
-		
-		// Flexible path matching
-		bool bMatches = TagSkeletonPath.Equals(SkeletonPath) ||
-		                TagSkeletonPath.Contains(SkeletonPath) ||
-		                SkeletonPath.Contains(TagSkeletonPath) ||
-		                TagSkeletonPath.Contains(SkeletonName);
-		
-		if (!bMatches)
-		{
-			continue;
-		}
-
-		// Build info from asset registry tags WITHOUT loading the asset
-		FAnimSequenceInfo Info;
-		Info.AnimPath = Asset.GetObjectPathString();
-		Info.AnimName = Asset.AssetName.ToString();
-		Info.SkeletonPath = TagSkeletonPath;
-
-		// Try to get additional info from tags if available
-		FAssetTagValueRef DurationTag = Asset.TagsAndValues.FindTag(FName(TEXT("SequenceLength")));
-		if (DurationTag.IsSet())
-		{
-			Info.Duration = FCString::Atof(*DurationTag.AsString());
-		}
-		
-		FAssetTagValueRef FrameRateTag = Asset.TagsAndValues.FindTag(FName(TEXT("SamplingFrameRate")));
-		if (FrameRateTag.IsSet())
-		{
-			Info.FrameRate = FCString::Atof(*FrameRateTag.AsString());
-		}
-		else
-		{
-			Info.FrameRate = 30.0f;  // Default assumption
-		}
-		
-		// Compute approximate frame count from duration and frame rate
-		if (Info.Duration > 0 && Info.FrameRate > 0)
-		{
-			Info.FrameCount = FMath::CeilToInt(Info.Duration * Info.FrameRate);
-		}
-
-		// Try to get compressed size from tags
-		FAssetTagValueRef CompressedSizeTag = Asset.TagsAndValues.FindTag(FName(TEXT("CompressedSize")));
-		if (CompressedSizeTag.IsSet())
-		{
-			Info.CompressedSize = FCString::Atoi64(*CompressedSizeTag.AsString());
-		}
-
-		Results.Add(Info);
-		MatchCount++;
-	}
-
-	return Results;
-}
-
 // ============================================================================
 // ANIMATION CREATION
 // ============================================================================
@@ -843,39 +724,6 @@ float UAnimSequenceService::GetAnimationFrameRate(const FString& AnimPath)
 	return AnimSeq->GetSamplingFrameRate().AsDecimal();
 }
 
-int32 UAnimSequenceService::GetAnimationFrameCount(const FString& AnimPath)
-{
-	UAnimSequence* AnimSeq = LoadAnimSequence(AnimPath);
-	if (!AnimSeq)
-	{
-		return -1;
-	}
-	return AnimSeq->GetNumberOfSampledKeys();
-}
-
-bool UAnimSequenceService::SetAnimationFrameRate(const FString& AnimPath, float NewFrameRate)
-{
-	UAnimSequence* AnimSeq = LoadAnimSequence(AnimPath);
-	if (!AnimSeq)
-	{
-		return false;
-	}
-
-	if (NewFrameRate <= 0.0f)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UAnimSequenceService::SetAnimationFrameRate: Invalid frame rate: %f"), NewFrameRate);
-		return false;
-	}
-
-	// Note: Changing frame rate typically requires reimport
-	// This sets the target frame rate for the data model
-	IAnimationDataController& Controller = AnimSeq->GetController();
-	Controller.SetFrameRate(FFrameRate(FMath::RoundToInt32(NewFrameRate), 1));
-
-	AnimSeq->MarkPackageDirty();
-	return true;
-}
-
 // ============================================================================
 // BONE TRACK DATA
 // ============================================================================
@@ -1039,44 +887,6 @@ TArray<FCurveKeyframe> UAnimSequenceService::GetCurveKeyframes(
 	}
 
 	return Results;
-}
-
-bool UAnimSequenceService::SetCurveKeys(
-	const FString& AnimPath,
-	const FString& CurveName,
-	const TArray<FCurveKeyframe>& Keys)
-{
-	UAnimSequence* AnimSeq = LoadAnimSequence(AnimPath);
-	if (!AnimSeq)
-	{
-		return false;
-	}
-
-	IAnimationDataController& Controller = AnimSeq->GetController();
-	FAnimationCurveIdentifier CurveId(FName(*CurveName), ERawCurveTrackTypes::RCT_Float);
-
-	// Build rich curve keys
-	TArray<FRichCurveKey> RichKeys;
-	for (const FCurveKeyframe& Key : Keys)
-	{
-		FRichCurveKey RichKey;
-		RichKey.Time = Key.Time;
-		RichKey.Value = Key.Value;
-		RichKey.ArriveTangent = Key.ArriveTangent;
-		RichKey.LeaveTangent = Key.LeaveTangent;
-		RichKey.InterpMode = ERichCurveInterpMode::RCIM_Cubic;
-		RichKey.TangentMode = ERichCurveTangentMode::RCTM_Auto;
-		RichKeys.Add(RichKey);
-	}
-
-	if (!Controller.SetCurveKeys(CurveId, RichKeys))
-	{
-		UE_LOG(LogTemp, Warning, TEXT("UAnimSequenceService::SetCurveKeys: Failed to set keys for curve: %s"), *CurveName);
-		return false;
-	}
-
-	AnimSeq->MarkPackageDirty();
-	return true;
 }
 
 // ============================================================================
@@ -1863,25 +1673,6 @@ FString UAnimSequenceService::ExportAnimationToJson(const FString& AnimPath)
 	FJsonSerializer::Serialize(RootObject.ToSharedRef(), Writer);
 
 	return OutputString;
-}
-
-TArray<FString> UAnimSequenceService::GetSourceFiles(const FString& AnimPath)
-{
-	TArray<FString> Results;
-
-	UAnimSequence* AnimSeq = LoadAnimSequence(AnimPath);
-	if (!AnimSeq)
-	{
-		return Results;
-	}
-
-	// Get import data
-	if (UAssetImportData* ImportData = AnimSeq->AssetImportData)
-	{
-		ImportData->ExtractFilenames(Results);
-	}
-
-	return Results;
 }
 
 // ============================================================================

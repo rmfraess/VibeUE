@@ -49,7 +49,11 @@ Reference poses: `unreal.AnimPoseExtensions.get_reference_pose` / `get_ref_bone_
 ## Safe discovery (no asset loading)
 
 ```python
-AnimSequenceService.find_animations_for_skeleton(skeleton_path) -> Array[AnimSequenceInfo]
+# Skeleton-tag query returns AssetData, not AnimSequenceInfo; no assets are loaded.
+ar = unreal.AssetRegistryHelpers.get_asset_registry()
+anims = [a for a in ar.get_assets_by_class(unreal.TopLevelAssetPath('/Script/Engine', 'AnimSequence'))
+         if skeleton_path in str(a.get_tag_value('Skeleton'))]
+# Use a.package_name and a.asset_name for each result.
 AnimSequenceService.list_anim_sequences(search_path, skeleton_filter) -> Array[AnimSequenceInfo]
 AnimSequenceService.get_anim_sequence_info(anim_path) -> AnimSequenceInfo
 

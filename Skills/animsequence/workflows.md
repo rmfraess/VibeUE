@@ -243,7 +243,7 @@ Use `create_anim_sequence` to create an animation with custom bone tracks and ke
 
 > ✅ Fixed 2026-09-02: the service used to hand the data model one key too few (NumFrames instead
 > of NumFrames + 1), so every track was silently rejected and the "created" asset had no
-> animation (`get_animated_bones` empty, `get_animation_frame_count` -1). It now writes one key
+> animation (`get_animated_bones` empty, no valid frame count). It now writes one key
 > per frame boundary and REFUSES (returns "" and discards the asset) when no track accepted its
 > keys, so an empty string means "look at the log", never "an empty clip is on disk". Always
 > read back `get_animated_bones(anim_path)` after creating a clip.
@@ -443,9 +443,11 @@ for bone_name in target_bones:
 **Step 2: Find an existing animation that raises an arm and analyze it**
 ```python
 # Find animations to analyze
-anims = unreal.AnimSequenceService.find_animations_for_skeleton(skeleton_path)
+ar = unreal.AssetRegistryHelpers.get_asset_registry()
+anims = [a for a in ar.get_assets_by_class(unreal.TopLevelAssetPath('/Script/Engine', 'AnimSequence'))
+         if skeleton_path in str(a.get_tag_value('Skeleton'))]
 for a in anims[:20]:
-    print(f"{a.anim_name}: {a.duration}s")
+    print(a.asset_name, a.package_name)
 
 # Compare idle pose vs raised pose in an existing animation
 anim_path = "/Game/Path/To/Animation"  # Use an animation that moves the arm

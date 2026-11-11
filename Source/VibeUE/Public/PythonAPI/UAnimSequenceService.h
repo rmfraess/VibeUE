@@ -473,9 +473,11 @@ struct FAnimationPreviewState
  *   anim_path = "/Game/Characters/Mannequin/Animations/Run/AS_Run_Forward"
  *
  *   # List all animations for a skeleton
- *   anims = unreal.AnimSequenceService.find_animations_for_skeleton("/Game/SK_Mannequin")
+ *   ar = unreal.AssetRegistryHelpers.get_asset_registry()
+ *   anims = [a for a in ar.get_assets_by_class(unreal.TopLevelAssetPath("/Script/Engine", "AnimSequence"))
+ *            if "/Game/SK_Mannequin" in str(a.get_tag_value("Skeleton"))]
  *   for anim in anims:
- *       print(f"{anim.anim_name}: {anim.duration}s")
+ *       print(anim.asset_name, anim.package_name)
  *
  *   # Add animation notify (use full class path)
  *   unreal.AnimSequenceService.add_notify(
@@ -528,15 +530,6 @@ public:
 		const FString& AnimPath,
 		FAnimSequenceInfo& OutInfo);
 
-	/**
-	 * Find all animations compatible with a specific skeleton.
-	 *
-	 * @param SkeletonPath - Path to the skeleton asset
-	 * @return Array of animation sequence info structs
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Discovery")
-	static TArray<FAnimSequenceInfo> FindAnimationsForSkeleton(const FString& SkeletonPath);
-
 	// ============================================================================
 	// ANIMATION CREATION
 	// ============================================================================
@@ -587,25 +580,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Properties")
 	static float GetAnimationFrameRate(const FString& AnimPath);
-
-	/**
-	 * Get total frame count.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return Frame count, or -1 if not found
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Properties")
-	static int32 GetAnimationFrameCount(const FString& AnimPath);
-
-	/**
-	 * Set animation frame rate (requires reimport for actual change).
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param NewFrameRate - New frame rate to set
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Properties")
-	static bool SetAnimationFrameRate(const FString& AnimPath, float NewFrameRate);
 
 	// ============================================================================
 	// BONE TRACK DATA
@@ -684,20 +658,6 @@ public:
 	static TArray<FCurveKeyframe> GetCurveKeyframes(
 		const FString& AnimPath,
 		const FString& CurveName);
-
-	/**
-	 * Set all keys for a curve.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param CurveName - Name of the curve
-	 * @param Keys - Array of keyframes to set
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Curves")
-	static bool SetCurveKeys(
-		const FString& AnimPath,
-		const FString& CurveName,
-		const TArray<FCurveKeyframe>& Keys);
 
 	// ============================================================================
 	// ANIM NOTIFIES
@@ -994,15 +954,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Export")
 	static FString ExportAnimationToJson(const FString& AnimPath);
-
-	/**
-	 * Get source files associated with the animation.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return Array of source file paths
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Export")
-	static TArray<FString> GetSourceFiles(const FString& AnimPath);
 
 	// ============================================================================
 	// PREVIEW EDITING (Inspect → Preview → Validate → Bake workflow)

@@ -25,8 +25,11 @@ if skeletons is None:
 else:
     print("skeletons:", len(skeletons))
     # Animations for the first skeleton (metadata only, no loading).
-    # FindAssets returns OBJECT paths ("/Game/.../SK_X.SK_X") - strip the suffix for VibeUE.
+    # FindAssets returns OBJECT paths ("/Game/.../SK_X.SK_X"); match the tag by package path.
     if skeletons:
         skeleton_path = skeletons[0].rsplit(".", 1)[0]
-        for a in ass.find_animations_for_skeleton(skeleton_path)[:10]:
-            print(f"{a.anim_name}  frames={a.frame_count}  dur={a.duration:.2f}s  {a.anim_path}")
+        ar = unreal.AssetRegistryHelpers.get_asset_registry()
+        anims = [a for a in ar.get_assets_by_class(unreal.TopLevelAssetPath("/Script/Engine", "AnimSequence"))
+                 if skeleton_path in str(a.get_tag_value("Skeleton"))]
+        for a in anims[:10]:
+            print(a.asset_name, a.package_name)

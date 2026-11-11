@@ -36,11 +36,14 @@ Without `create_skeleton_profile(skeleton_path)` there are no constraints to val
 for p in asset_subsystem.list_assets("/Game", recursive=True):
     anim = unreal.load_asset(p)   # CRASH
 
-# CORRECT — VibeUE safe discovery (queries metadata, no loading)
-for a in unreal.AnimSequenceService.find_animations_for_skeleton(skeleton_path):
-    print(a.anim_name, a.duration, a.frame_count, a.anim_path)
+# CORRECT — Asset Registry discovery (metadata only, no loading)
+ar = unreal.AssetRegistryHelpers.get_asset_registry()
+anims = [a for a in ar.get_assets_by_class(unreal.TopLevelAssetPath('/Script/Engine', 'AnimSequence'))
+         if skeleton_path in str(a.get_tag_value('Skeleton'))]
+for a in anims:
+    print(a.asset_name, a.package_name)
 ```
-Safe alternatives: `find_animations_for_skeleton` (best), `list_anim_sequences`,
+Safe alternatives: the Asset Registry Skeleton-tag query (best), `list_anim_sequences`,
 `get_anim_sequence_info`, Epic's `AssetToolset.FindAssets`, or the Asset Registry API (metadata without loading).
 
 ## `unreal.Transform` has `.translation`, NOT `.location`
