@@ -878,7 +878,7 @@ public:
 	static bool SetEnableRootMotionRotation(const FString& MontagePath, bool bEnable);
 
 	/**
-	 * Get root motion transform at a specific time.
+	 * Get the root motion accumulated from the montage start to Time (all segments of the root-motion track).
 	 *
 	 * @param MontagePath - Path to montage
 	 * @param Time - Time in seconds

@@ -1336,27 +1336,10 @@ bool UAnimMontageService::GetRootMotionAtTime(
 	UAnimMontage* Montage = LoadMontageToRead(MontagePath);
 	if (!Montage) return false;
 
-	// Get root motion from the montage's underlying animation segments
-	OutTransform = FTransform::Identity;
-
-	if (Montage->SlotAnimTracks.Num() > 0 && Montage->SlotAnimTracks[0].AnimTrack.AnimSegments.Num() > 0)
-	{
-		for (const FAnimSegment& Seg : Montage->SlotAnimTracks[0].AnimTrack.AnimSegments)
-		{
-			if (Time >= Seg.StartPos && Time < Seg.StartPos + Seg.GetLength())
-			{
-				if (UAnimSequence* AnimSeq = Cast<UAnimSequence>(Seg.GetAnimReference()))
-				{
-					double LocalTime = static_cast<double>((Time - Seg.StartPos) * Seg.AnimPlayRate + Seg.AnimStartTime);
-					// Use FAnimExtractContext with double to avoid deprecation warning
-					FAnimExtractContext ExtractionContext(LocalTime, true);
-					OutTransform = AnimSeq->ExtractRootMotion(ExtractionContext);
-				}
-				break;
-			}
-		}
-	}
-
+	// Root motion accumulated from the montage start to Time across every segment of the root-motion track.
+	// (Sampling one segment with ExtractRootMotion and no delta time returned identity.)
+	Time = FMath::Clamp(Time, 0.0f, Montage->GetPlayLength());
+	OutTransform = Montage->ExtractRootMotionFromTrackRange(0.0f, Time, FAnimExtractContext());
 	return true;
 }
 

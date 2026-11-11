@@ -621,7 +621,7 @@ public:
 	static TArray<FString> GetAnimatedBones(const FString& AnimPath);
 
 	/**
-	 * Get root motion transform at a specific time.
+	 * Get the root motion accumulated from the start of the sequence to Time.
 	 *
 	 * @param AnimPath - Path to the animation asset
 	 * @param Time - Time in seconds

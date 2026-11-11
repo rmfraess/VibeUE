@@ -921,9 +921,9 @@ bool UAnimSequenceService::GetRootMotionAtTime(
 
 	Time = FMath::Clamp(Time, 0.0f, AnimSeq->GetPlayLength());
 
-	// Use FAnimExtractContext to avoid deprecation warning
-	FAnimExtractContext RootMotionContext(static_cast<double>(Time), true);
-	OutTransform = AnimSeq->ExtractRootMotion(RootMotionContext);
+	// Root motion accumulated from the start to Time. ExtractRootMotion(Context) advances by the context's
+	// delta time and returns identity for a zero delta, so sample the range instead.
+	OutTransform = AnimSeq->ExtractRootMotionFromRange(0.0, static_cast<double>(Time), FAnimExtractContext());
 	return true;
 }
 
@@ -937,9 +937,8 @@ bool UAnimSequenceService::GetTotalRootMotion(
 		return false;
 	}
 
-	// Use FAnimExtractContext to avoid deprecation warning
-	FAnimExtractContext TotalRootMotionContext(static_cast<double>(AnimSeq->GetPlayLength()), true);
-	OutTransform = AnimSeq->ExtractRootMotion(TotalRootMotionContext);
+	// Whole-sequence root motion (ExtractRootMotion with a zero delta would return identity).
+	OutTransform = AnimSeq->ExtractRootMotionFromRange(0.0, static_cast<double>(AnimSeq->GetPlayLength()), FAnimExtractContext());
 	return true;
 }
 
