@@ -159,33 +159,6 @@ struct FUVIslandInfo
 };
 
 /**
- * Lightmap-related build settings on a static mesh source model (LOD 0).
- */
-USTRUCT(BlueprintType)
-struct FUVLightmapSettings
-{
-	GENERATED_BODY()
-
-	UPROPERTY(BlueprintReadWrite, Category = "VibeUE|UVMapping")
-	bool bGenerateLightmapUVs = false;
-
-	UPROPERTY(BlueprintReadWrite, Category = "VibeUE|UVMapping")
-	int32 SourceLightmapIndex = 0;
-
-	UPROPERTY(BlueprintReadWrite, Category = "VibeUE|UVMapping")
-	int32 DestinationLightmapIndex = 1;
-
-	UPROPERTY(BlueprintReadWrite, Category = "VibeUE|UVMapping")
-	int32 LightmapCoordinateIndex = 1;
-
-	UPROPERTY(BlueprintReadWrite, Category = "VibeUE|UVMapping")
-	int32 LightMapResolution = 64;
-
-	UPROPERTY(BlueprintReadWrite, Category = "VibeUE|UVMapping")
-	int32 MinLightmapResolution = 64;
-};
-
-/**
  * UV mapping service exposed directly to Python.
  *
  * Provides automation-grade UV channel manipulation for StaticMesh and SkeletalMesh
@@ -201,9 +174,7 @@ struct FUVLightmapSettings
  * - get_uv_health              : Aggregate health report across all LODs
  *
  * Channel lifecycle:
- * - add_uv_channel             : Append a new empty UV channel to a LOD
  * - remove_uv_channel          : Drop a channel and shift remaining channels down
- * - copy_uv_channel            : Duplicate one channel's UVs into another
  * - set_uv_channel_count       : Resize the channel array exactly
  *
  * Generation:
@@ -215,9 +186,8 @@ struct FUVLightmapSettings
  * - transform_uvs              : Scale, rotate, translate UVs in a channel
  * - flip_uvs                   : Mirror U and/or V in a channel
  *
- * Lightmap settings:
- * - get_lightmap_settings      : Read source/dest indices, resolution, generate flag
- * - set_lightmap_settings      : Configure all lightmap-related fields in one call
+ * Lightmap settings: native StaticMeshEditorSubsystem get/set_lod_build_settings and the mesh's
+ * light_map_resolution / light_map_coordinate_index properties.
  *
  * Visualize:
  * - export_uv_layout_image     : Render a UV layout PNG for AI / human inspection
@@ -234,10 +204,6 @@ struct FUVLightmapSettings
  *   # Generate lightmap UVs into channel 1 from channel 0
  *   result = unreal.UVMappingService.generate_lightmap_uvs(
  *       "/Game/Meshes/SM_Wall", 0, 1, 1.0)
- *
- *   # Configure lightmap settings (resolution + indices) in one call
- *   unreal.UVMappingService.set_lightmap_settings(
- *       "/Game/Meshes/SM_Wall", 1, 0, 128, True)
  *
  *   # Auto-unwrap a custom UV channel using box projection
  *   unreal.UVMappingService.auto_unwrap_uvs(
@@ -285,21 +251,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "VibeUE|UVMapping", meta = (AICallable, DisplayName = "Get UV Health"))
 	static bool GetUVHealth(const FString& MeshPath, FUVHealthReport& OutReport);
 
-	// =================================================================
-	// Channel lifecycle
-	// =================================================================
-
-	/**
-	 * Append a new (zeroed) UV channel to a LOD.
-	 * Maps to action="add_uv_channel".
-	 *
-	 * @param MeshPath - StaticMesh asset path. SkeletalMesh not supported for add/remove (use set count).
-	 * @param LODIndex - LOD to modify.
-	 * @return Result with the new channel index in Message.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|UVMapping", meta = (AICallable, DisplayName = "Add UV Channel"))
-	static FUVMappingResult AddUVChannel(const FString& MeshPath, int32 LODIndex = 0);
-
 	/**
 	 * Remove a UV channel; channels above it shift down by one.
 	 * Maps to action="remove_uv_channel".
@@ -314,17 +265,6 @@ public:
 		int32 ChannelIndex);
 
 	/**
-	 * Copy UVs from one channel into another (creating the destination if needed).
-	 * Maps to action="copy_uv_channel".
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|UVMapping", meta = (AICallable, DisplayName = "Copy UV Channel"))
-	static FUVMappingResult CopyUVChannel(
-		const FString& MeshPath,
-		int32 LODIndex,
-		int32 SourceChannel,
-		int32 DestChannel);
-
-	/**
 	 * Resize the UV channel array on a LOD to exactly Count channels.
 	 * Maps to action="set_uv_channel_count".
 	 *
@@ -335,48 +275,6 @@ public:
 		const FString& MeshPath,
 		int32 LODIndex,
 		int32 Count);
-
-	// =================================================================
-	// Generation
-	// =================================================================
-
-	/**
-	 * Generate a packed lightmap UV channel from an existing source channel.
-	 * Maps to action="generate_lightmap_uvs".
-	 *
-	 * Uses FStaticMeshOperations::GenerateUniqueUVsForStaticMesh to produce a non-overlapping
-	 * unwrap of every triangle, packed into [0,1]^2 with the requested chart spacing.
-	 *
-	 * @param MeshPath - StaticMesh path (skeletal meshes not supported).
-	 * @param SourceUVIndex - Channel to read seam information from (typically 0).
-	 * @param DestUVIndex - Channel to write the generated lightmap into (typically 1).
-	 * @param MinChartSpacingPercent - Padding between charts as a percent of UV space (0.5..2.0 typical).
-	 *
-	 * @note Also sets LightMapCoordinateIndex = DestUVIndex on the static mesh.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|UVMapping", meta = (AICallable, DisplayName = "Generate Lightmap UVs", ScriptName = "generate_lightmap_uvs;generate_lightmap_u_vs"))
-	static FUVMappingResult GenerateLightmapUVs(
-		const FString& MeshPath,
-		int32 SourceUVIndex = 0,
-		int32 DestUVIndex = 1,
-		float MinChartSpacingPercent = 1.0f);
-
-	/**
-	 * Auto-unwrap a UV channel using a projection.
-	 * Maps to action="auto_unwrap_uvs".
-	 *
-	 * @param ProjectionType - "Planar", "Box", or "Cylindrical" (case-insensitive).
-	 * @param HardAngleThreshold - Degrees. Edges sharper than this become chart seams (Box mode only).
-	 *
-	 * @note "Planar" projects along world +Z. "Cylindrical" wraps around world Z axis.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|UVMapping", meta = (AICallable, DisplayName = "Auto Unwrap UVs", ScriptName = "auto_unwrap_uvs;auto_unwrap_u_vs"))
-	static FUVMappingResult AutoUnwrapUVs(
-		const FString& MeshPath,
-		int32 LODIndex,
-		int32 ChannelIndex,
-		const FString& ProjectionType = TEXT("Box"),
-		float HardAngleThreshold = 66.0f);
 
 	/**
 	 * Repack the UV islands of an existing channel into [0,1]^2 with padding.
@@ -390,38 +288,6 @@ public:
 		int32 LODIndex,
 		int32 ChannelIndex,
 		float PaddingPercent = 1.0f);
-
-	// =================================================================
-	// Transform
-	// =================================================================
-
-	/**
-	 * Apply an affine transform to every UV in a channel: scale, rotate (about origin),
-	 * then translate.
-	 * Maps to action="transform_uvs".
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|UVMapping", meta = (AICallable, DisplayName = "Transform UVs", ScriptName = "transform_uvs;transform_u_vs"))
-	static FUVMappingResult TransformUVs(
-		const FString& MeshPath,
-		int32 LODIndex,
-		int32 ChannelIndex,
-		float ScaleU = 1.0f,
-		float ScaleV = 1.0f,
-		float RotationDegrees = 0.0f,
-		float OffsetU = 0.0f,
-		float OffsetV = 0.0f);
-
-	/**
-	 * Mirror UVs across U=0.5 and/or V=0.5 in a channel.
-	 * Maps to action="flip_uvs".
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|UVMapping", meta = (AICallable, DisplayName = "Flip UVs", ScriptName = "flip_uvs;flip_u_vs"))
-	static FUVMappingResult FlipUVs(
-		const FString& MeshPath,
-		int32 LODIndex,
-		int32 ChannelIndex,
-		bool bFlipU = false,
-		bool bFlipV = false);
 
 	// =================================================================
 	// Per-region selection & transform (artist-grade)
@@ -544,34 +410,6 @@ public:
 		float RotationDegrees = 0.0f,
 		float OffsetU = 0.0f,
 		float OffsetV = 0.0f);
-
-	// =================================================================
-	// Lightmap settings
-	// =================================================================
-
-	/**
-	 * Read lightmap-related fields from a static mesh.
-	 * Maps to action="get_lightmap_settings".
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|UVMapping", meta = (AICallable, DisplayName = "Get Lightmap Settings"))
-	static bool GetLightmapSettings(const FString& MeshPath, FUVLightmapSettings& OutSettings);
-
-	/**
-	 * Configure all lightmap-related fields in one call.
-	 * Maps to action="set_lightmap_settings".
-	 *
-	 * @param LightmapCoordinateIndex - The UV channel that lightmaps sample from at runtime.
-	 * @param SourceLightmapIndex - The UV channel that GenerateLightmapUVs reads seams from.
-	 * @param LightMapResolution - Power-of-two preferred (32..512 typical).
-	 * @param bGenerateLightmapUVs - If true, the next build will regenerate the lightmap channel.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|UVMapping", meta = (AICallable, DisplayName = "Set Lightmap Settings"))
-	static FUVMappingResult SetLightmapSettings(
-		const FString& MeshPath,
-		int32 LightmapCoordinateIndex = 1,
-		int32 SourceLightmapIndex = 0,
-		int32 LightMapResolution = 64,
-		bool bGenerateLightmapUVs = true);
 
 	// =================================================================
 	// Visualize
