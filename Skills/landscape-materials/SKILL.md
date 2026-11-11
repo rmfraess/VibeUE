@@ -80,8 +80,7 @@ call_tool MaterialToolset.GetPropertyInput    {"Material": {"refPath": "<materia
   `ConnectExpressions`, `ConnectToOutput`, `GetExpressions`, `GetExpressionInputs`, `Recompile`.
   Plus `ObjectToolset.GetProperties`/`SetProperties` for any material or expression property, and
   `AssetToolset.SaveAsset`/`Exists`.
-- **MaterialNodeService** (`execute_python`) — exactly two tools left: `create_function_call` and
-  `create_collection_parameter`.
+- **MaterialNodeService** (`execute_python`) — one tool left: `create_collection_parameter`.
 - **`MaterialService` is deleted.** Every call that used to go there is now one of the two rows
   above — mind the style: VibeUE is Python, Epic is `call_tool`.
 

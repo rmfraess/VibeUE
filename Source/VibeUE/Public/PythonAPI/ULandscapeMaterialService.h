@@ -211,7 +211,6 @@ struct FLandscapeLayerInfoCreateResult
  *
  * Layer Info Objects:
  * - create_layer_info_object: Create a ULandscapeLayerInfoObject asset
- * - get_layer_info_details: Get details about a layer info object
  *
  * Assignment:
  * - assign_material_to_landscape: Assign material to landscape with layer mapping
@@ -228,8 +227,6 @@ struct FLandscapeLayerInfoCreateResult
  * - setup_height_slope_blend: Wire height/slope masks into a blend node (full auto-blend setup)
  *
  * Existence:
- * - landscape_material_exists: Check if a material exists
- * - layer_info_exists: Check if a layer info object exists
  *
  * Python Usage:
  *   import unreal
@@ -473,21 +470,6 @@ public:
 		const FString& DestinationPath,
 		bool bIsWeightBlended = true);
 
-	/**
-	 * Get details about an existing layer info object.
-	 * Maps to action="get_layer_info_details"
-	 *
-	 * @param LayerInfoAssetPath - Full path to the layer info asset
-	 * @param OutLayerName - Layer name
-	 * @param bOutIsWeightBlended - Whether it's weight blended
-	 * @return True if found
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
-	static bool GetLayerInfoDetails(
-		const FString& LayerInfoAssetPath,
-		FString& OutLayerName,
-		bool& bOutIsWeightBlended);
-
 	// =================================================================
 	// Material Assignment
 	// =================================================================
@@ -670,28 +652,6 @@ public:
 		float HeightBlend = 1000.0f,
 		float SlopeThreshold = 35.0f,
 		float SlopeBlend = 10.0f);
-
-	// =================================================================
-	// Existence Checks
-	// =================================================================
-
-	/**
-	 * Check if a material exists at the given path.
-	 *
-	 * @param MaterialPath - Full path to check
-	 * @return True if material exists
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial|Exists")
-	static bool LandscapeMaterialExists(const FString& MaterialPath);
-
-	/**
-	 * Check if a layer info object exists at the given path.
-	 *
-	 * @param LayerInfoAssetPath - Full path to check
-	 * @return True if layer info object exists
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial|Exists")
-	static bool LayerInfoExists(const FString& LayerInfoAssetPath);
 
 	// ===== Auto-Material Creation =====
 

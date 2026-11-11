@@ -196,10 +196,10 @@ rock_weight = unreal.LandscapeMaterialService.create_layer_weight_node(mat_path,
 ```python
 import unreal
 
-if not unreal.LandscapeMaterialService.landscape_material_exists("/Game/Materials/M_Terrain"):
+if not unreal.EditorAssetLibrary.does_asset_exist("/Game/Materials/M_Terrain"):
     unreal.LandscapeMaterialService.create_landscape_material("M_Terrain", "/Game/Materials")
 
-if not unreal.LandscapeMaterialService.layer_info_exists("/Game/Landscape/LI_Grass"):
+if not unreal.EditorAssetLibrary.does_asset_exist("/Game/Landscape/LI_Grass"):
     unreal.LandscapeMaterialService.create_layer_info_object("Grass", "/Game/Landscape")
 ```
 

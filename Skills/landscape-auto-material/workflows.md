@@ -165,10 +165,12 @@ import unreal
 mat_path = "/Game/Materials/M_Landscape_Master"
 func_path = "/Game/Materials/Functions/MF_Layer_Tropical"
 
-# Create the function-call node directly (resolves the function reference for you).
-# This is one of the TWO tools MaterialNodeService still has — a real VibeUE service call.
-call_id = unreal.MaterialNodeService.create_function_call(
-    mat_path, func_path, -600, 0)
+# Create the function-call node and populate its pins with native Python.
+mat = unreal.load_asset(mat_path)
+node = unreal.MaterialEditingLibrary.create_material_expression(
+    mat, unreal.MaterialExpressionMaterialFunctionCall, -600, 0)
+node.set_material_function(unreal.load_asset(func_path))
+call_ref = {"refPath": node.get_path_name()}
 ```
 
 Then connect it and compile with Epic's `MaterialToolset` (`call_tool`):

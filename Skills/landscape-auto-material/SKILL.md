@@ -113,14 +113,14 @@ saw rather than re-reading the whole graph for every edit.
 ### Two VibeUE Services + Epic's Material Toolsets Work Together
 
 VibeUE keeps the landscape-specific halves; everything generic about materials is Epic's, reached
-with `call_tool`. **`MaterialService` is deleted**, and `MaterialNodeService` is down to exactly two
-tools.
+with `call_tool`. **`MaterialService` is deleted**, and `MaterialNodeService` retains one
+tool.
 
 | Where | Role |
 |---------|------|
 | **LandscapeMaterialService** (`execute_python`) | `create_auto_material`, `find_landscape_textures`, layer blend/weight/coords/sample nodes, layer infos, landscape assignment |
 | **RuntimeVirtualTextureService** (`execute_python`) | RVT assets, volumes, landscape assignment |
-| **MaterialNodeService** (`execute_python`) | exactly two tools left: `create_function_call` and `create_collection_parameter` |
+| **MaterialNodeService** (`execute_python`) | one tool left: `create_collection_parameter` |
 | **`MaterialToolset`** (`call_tool`) | `CreateMaterial`, `CreateFunction`, `AddExpression`, `ConnectExpressions`, `ConnectToOutput`, `GetExpressions`, `GetExpressionInputs`, `LayoutExpressions`, `Recompile`, `GetStatistics` |
 | **`MaterialInstanceToolset`** (`call_tool`) | `Create`, `SetParent`, `ListParameters`, `SetScalarParameter` / `SetVectorParameter` / `SetTextureParameter` / `SetStaticSwitchParameter` |
 | **`ObjectToolset`** (`call_tool`) | `GetProperties` / `SetProperties` for **any** material or expression property |
