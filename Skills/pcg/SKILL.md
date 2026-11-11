@@ -56,6 +56,10 @@ These are the mistakes that cause infinite retry loops. Check each one before ex
 6. **Always save AND reload after every change** — call `save_asset` then `reload_packages` every time. Without the reload the PCG graph editor window won't update and users will think nothing happened.
 7. **Use Volume Sampler for empty levels, not Surface Sampler** — Surface Sampler requires geometry to sample from. An empty level has no geometry, so Surface Sampler always produces 0 points. Use `PCGVolumeSamplerSettings` with `unbounded=True` for empty or sparse levels.
 8. **Never spawn test actors to verify meshes or materials** — do not use `spawn_actor_from_class` to place test cubes. Verify by checking ISM instance counts on the PCGVolume instead: `sum(c.get_instance_count() for c in volume.get_components_by_class(unreal.InstancedStaticMeshComponent))`.
+9. **Manual-Generate loop: set `regenerate_in_editor` False too** — Generate On Demand alone still refreshes existing output on Landscape edits. Verify the instances stay unchanged across an edit, then that a manual Generate updates them.
+10. **`cleanup(True)` finishes on later ticks** — a Generate in the same `execute_python` call still sees the old components and bounds. Confirm in a separate call that no generated components remain, then Generate.
+11. **`get_actor_bounds` on a PCG actor includes its generated content** — read the volume's own extent from its transform (a default volume's half-extent is `scale * 100`), not the actor bounds.
+12. **Judge a map Generate only after a real build and relaunch** — Live Coding has been seen to patch an element for automation tests while a map Generate kept running the old code. Re-check on each engine version.
 
 ## ⚠️ Prerequisites
 

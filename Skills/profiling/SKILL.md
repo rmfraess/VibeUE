@@ -245,6 +245,17 @@ here is a category error; they will not move the number.
    destination *and* the channel set; `Trace.Start` then begins recording. Confirm with
    `Trace.Status` → `GetLogEntries`, because channel naming varies slightly by build.
 
+5. **`RenderThreadMs` includes waits on the RHI fence and GPU `Present`**, so a GPU-bound frame can
+   look render-thread bound (and some settings read it as 0). Run
+   `stat dumpframe -ms=0.4 -root=RenderThread`, subtract the `Wait`/`Stall` entries, and lower only
+   `r.ScreenPercentage`: if render-thread time falls with GPU time, the frame is GPU-bound.
+
+6. **Excluding geometry from ray tracing is not free quality-wise.** Dense foliage loses Lumen
+   self-occlusion and bright meshes stop bouncing light onto neighbours. A/B each component group
+   separately (toggle `visible_in_ray_tracing` per group in one PIE session, bracket off/on/off
+   captures, matched camera) and compare that class's crop and timing: a whole-frame or floor-crop
+   check can pass while one class visibly changes.
+
 ---
 
 ## Trace Control — Epic's `ConsoleToolset` (`call_tool`, not Python)
@@ -355,6 +366,9 @@ and restore the prior value afterward — a background editor throttles even wit
 sparse samples as observations, not stable averages. Compare median/p95/p99 and frame counts above
 33/50/100 ms, and separate cold-start/shader/PSO runs from warm-cache runs. Run `ProfileGPU` or
 `stat dumpframe` separately because their instrumentation stalls contaminate traces.
+After a launch, a throttled (background) Editor also leaves Nanite meshes unstreamed (coarse blocks
+or flat cards): unthrottle and let streaming settle before judging any capture, and do not resize the
+streaming pool as a fix (it flushes everything). Re-verify on each engine version.
 
 ---
 

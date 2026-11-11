@@ -66,6 +66,14 @@ the process cannot tell whether this editor or another holds the port, so `mcpLi
 only that this process's module started a server, not that it won the port — and VibeUE never forces
 `mcpListening` true from a probe result, it only ever reflects the module's own claim.
 
+After a relaunch, a client holding a direct MCP session to the old Editor can fail its first call
+("transport session expired" / `Unknown session id`) without running it: reconnect, and send a
+read-only probe before any mutation. A relay that opens a fresh session per call is unaffected.
+
+The first load of a freshly imported Nanite pack builds Nanite synchronously on the game thread and
+can outlast the MCP timeout. Load new pack meshes a few per call; after a timeout, check the health
+heartbeat, the log and the assets themselves before retrying.
+
 ## A long-running script and the editor's safety rails
 
 Python execution is engine-native on this branch: `editor_toolset.toolsets.python_scripting.PythonScriptingTools.execute_python`
@@ -220,6 +228,11 @@ w = unreal.load_asset("/Game/Maps/Foo")          # loads and KEEPS Foo
 unreal.EditorAssetLibrary.load_asset("/Game/Maps/Foo")
 unreal.find_object(None, "/Game/Maps/Foo.Foo")
 ```
+
+`EditorAssetLibrary.rename_asset` on a map also leaves it resident (verified 5.9): run the
+`get_resident_maps()` guard and collect garbage before the next level change. A map rename can
+also fail with `False` when a class default object soft-references the map (an auto-cancelled
+confirmation); then rename it by hand in the Content Browser and verify by script.
 
 The engine checks on every level load that no other map package is still alive. That check is a
 **fatal, not a warning** - the editor dies with `World Memory Leaks` (`EditorServer.cpp`) and

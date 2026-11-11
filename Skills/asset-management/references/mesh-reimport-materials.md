@@ -32,6 +32,6 @@ as a necessary repair step when authorized; do not treat an empty PIE query as
 proof there are no LODs. The helpers refuse PIE and preflight all requested mappings
 before mutation. They do not start gameplay or save unrelated packages.
 
-A timed-out MCP request may still be importing: consult the matching run's
-`Saved/VibeUE/Signals/python-<pid>-last.json` / log before retrying a mutation.
+A timed-out MCP request may still be importing: check the Editor health heartbeat, the log and
+the assets themselves before retrying a mutation.
 Distinguish completion from visual acceptance and obey the project's testing rules.
