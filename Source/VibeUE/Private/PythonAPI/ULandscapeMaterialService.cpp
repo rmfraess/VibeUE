@@ -851,13 +851,37 @@ bool ULandscapeMaterialService::AssignMaterialToLandscape(
 
 	int32 SuccessfulLayers = 0;
 	int32 FailedLayers = 0;
+	// Target layers persist on the parent Landscape; ULandscapeInfo is transient and rebuilt from them on load.
+	ALandscapeProxy* TargetOwner = LandscapeProxy->GetLandscapeActor() ? static_cast<ALandscapeProxy*>(LandscapeProxy->GetLandscapeActor()) : LandscapeProxy;
 	for (const auto& Pair : LayerInfoPaths)
 	{
 		UObject* LayerObj = UEditorAssetLibrary::LoadAsset(Pair.Value);
 		ULandscapeLayerInfoObject* LayerInfoObj = Cast<ULandscapeLayerInfoObject>(LayerObj);
+		if (LayerInfoObj && !LayerInfoObj->GetLayerName().ToString().Equals(Pair.Key, ESearchCase::IgnoreCase))
+		{
+			FailedLayers++;
+			UE_LOG(LogTemp, Error, TEXT("ULandscapeMaterialService::AssignMaterialToLandscape: Layer info '%s' is for layer '%s', not '%s'"),
+				*Pair.Value, *LayerInfoObj->GetLayerName().ToString(), *Pair.Key);
+			continue;
+		}
 		if (LayerInfoObj)
 		{
-			// Check if layer already exists (PostEditChange may have created entries without LayerInfoObj)
+			// Register in the PERSISTENT target-layer list: writing only Info->Layers made the layer
+			// (and its painted weights) vanish on save/reload.
+			const FName LayerFName = LayerInfoObj->GetLayerName();
+			const FLandscapeTargetLayerSettings* Existing = TargetOwner->GetTargetLayers().Find(LayerFName);
+			if (!Existing)
+			{
+				TargetOwner->Modify();
+				TargetOwner->AddTargetLayer(LayerFName, FLandscapeTargetLayerSettings(LayerInfoObj));
+			}
+			else if (Existing->LayerInfoObj != LayerInfoObj)
+			{
+				TargetOwner->Modify();
+				TargetOwner->UpdateTargetLayer(LayerFName, FLandscapeTargetLayerSettings(LayerInfoObj));
+			}
+
+			// Keep the transient LandscapeInfo in sync for this session
 			bool bExists = false;
 			for (FLandscapeInfoLayerSettings& LayerSettings : Info->Layers)
 			{
