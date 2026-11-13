@@ -459,7 +459,9 @@ struct FAnimationPreviewState
  *
  * This service provides comprehensive CRUD operations for Animation Sequence assets
  * including keyframe access, curve editing, notify management, sync markers,
- * root motion configuration, and animation data extraction.
+ * and animation data extraction. Plain asset properties (rate scale, additive type and
+ * base pose, root motion flags, compression settings, skeleton) belong to Epic's
+ * EditorToolset.ObjectToolset.GetProperties / SetProperties.
  *
  * IMPORTANT: All anim_path parameters require the FULL asset path (package_name from AssetData),
  * NOT the folder path (package_path). For example:
@@ -1378,15 +1380,6 @@ private:
 
 	/** Convert additive type enum to string */
 	static FString AdditiveTypeToString(int32 Type);
-
-	/** Convert string to additive type enum */
-	static int32 StringToAdditiveType(const FString& TypeString);
-
-	/** Convert root lock enum to string */
-	static FString RootLockToString(int32 LockType);
-
-	/** Convert string to root lock enum */
-	static int32 StringToRootLock(const FString& LockString);
 
 	/** Convert interpolation mode to string */
 	static FString InterpModeToString(int32 Mode);

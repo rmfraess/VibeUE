@@ -1031,9 +1031,16 @@ FString UAnimGraphService::AddBlendByInt(const FString& AnimBlueprintPath, const
 	NewNode->NodePosY = PosY;
 	NodeCreator.Finalize();
 
+	// The node starts with 2 pose inputs; add more through the engine's own pin API (one pose + reconstruct each).
+	const int32 WantedPoses = FMath::Clamp(NumPoses, 2, 64);
+	for (int32 Guard = 0; NewNode->Node.GetBlendTimes().Num() < WantedPoses && Guard < WantedPoses; ++Guard)
+	{
+		NewNode->AddPinToBlendList();
+	}
+
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(AnimBlueprint);
 
-	UE_LOG(LogTemp, Log, TEXT("AddBlendByInt: Created in '%s' with %d poses"), *GraphName, NumPoses);
+	UE_LOG(LogTemp, Log, TEXT("AddBlendByInt: Created in '%s' with %d poses"), *GraphName, WantedPoses);
 	return NewNode->NodeGuid.ToString();
 }
 

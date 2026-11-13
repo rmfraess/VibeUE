@@ -35,7 +35,7 @@ if not profile.has_learned_constraints:
 ## Preview and validate a single bone edit
 
 ```python
-import unreal
+import unreal, json
 ass = unreal.AnimSequenceService
 anim_path = "/Game/Anims/AS_Idle"
 skeleton_path = unreal.load_asset(anim_path).get_editor_property("skeleton").get_path_name()

@@ -155,47 +155,6 @@ FString UAnimSequenceService::AdditiveTypeToString(int32 Type)
 	}
 }
 
-int32 UAnimSequenceService::StringToAdditiveType(const FString& TypeString)
-{
-	if (TypeString.Equals(TEXT("LocalSpace"), ESearchCase::IgnoreCase))
-	{
-		return static_cast<int32>(EAdditiveAnimationType::AAT_LocalSpaceBase);
-	}
-	else if (TypeString.Equals(TEXT("MeshSpace"), ESearchCase::IgnoreCase))
-	{
-		return static_cast<int32>(EAdditiveAnimationType::AAT_RotationOffsetMeshSpace);
-	}
-	return static_cast<int32>(EAdditiveAnimationType::AAT_None);
-}
-
-FString UAnimSequenceService::RootLockToString(int32 LockType)
-{
-	switch (static_cast<ERootMotionRootLock::Type>(LockType))
-	{
-		case ERootMotionRootLock::RefPose:
-			return TEXT("RefPose");
-		case ERootMotionRootLock::AnimFirstFrame:
-			return TEXT("AnimFirstFrame");
-		case ERootMotionRootLock::Zero:
-			return TEXT("Zero");
-		default:
-			return TEXT("RefPose");
-	}
-}
-
-int32 UAnimSequenceService::StringToRootLock(const FString& LockString)
-{
-	if (LockString.Equals(TEXT("AnimFirstFrame"), ESearchCase::IgnoreCase))
-	{
-		return static_cast<int32>(ERootMotionRootLock::AnimFirstFrame);
-	}
-	else if (LockString.Equals(TEXT("Zero"), ESearchCase::IgnoreCase))
-	{
-		return static_cast<int32>(ERootMotionRootLock::Zero);
-	}
-	return static_cast<int32>(ERootMotionRootLock::RefPose);
-}
-
 FString UAnimSequenceService::InterpModeToString(int32 Mode)
 {
 	switch (static_cast<ERichCurveInterpMode>(Mode))

@@ -4,6 +4,7 @@
 #
 # Sample script for the animation-editing skill. Run via execute_python.
 # Always specify bone space ("local" for user intent). Cancel if validation fails.
+import json
 import unreal
 ass = unreal.AnimSequenceService
 sks = unreal.SkeletonService

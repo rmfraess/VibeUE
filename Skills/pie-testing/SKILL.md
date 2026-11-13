@@ -367,8 +367,8 @@ automatically (the editor's current game viewport).
 
 ```
 call_tool ListWorlds            → the PIE/Game worlds available
-call_tool CaptureGameViewport   {"World": {"refPath": "<world from ListWorlds>"}}
-call_tool CaptureGameViewport   {"MaxResolution": 1600}   # longest edge, aspect preserved
+call_tool CaptureGameViewport   {"world": {"refPath": "<world from ListWorlds>"}}
+call_tool CaptureGameViewport   {"maxResolution": 1600}   # longest edge, aspect preserved
 ```
 
 `MaxResolution` is capped by the toolset's configured maximum (reported in `Warnings`). A

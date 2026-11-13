@@ -51,22 +51,25 @@ with `call_tool` (`refPath` is the full object path, `/Game/Materials/M_Terrain.
 
 ```
 # Step 1: the material's own properties (blend mode, shading model, two-sided, ...)
-call_tool ObjectToolset.GetProperties {"Object": {"refPath": "/Game/Materials/M_Terrain.M_Terrain"}}
+call_tool ObjectToolset.GetProperties {"instance": {"refPath": "/Game/Materials/M_Terrain.M_Terrain"},
+                                       "properties": ["BlendMode", "ShadingModel", "TwoSided"]}
+#   GetProperties needs the names; ObjectToolset.ListProperties {"instance": {...}} lists them.
 
 # Step 2: every expression that already exists — look for LandscapeLayerBlend / LayerCoords /
 #         TextureSample before you add anything
-call_tool MaterialToolset.GetExpressions {"MaterialOrFunction": {"refPath": "<material>"}}
+call_tool MaterialToolset.GetExpressions {"materialOrFunction": {"refPath": "<material>"}}
 
 # Step 3: the layers on a LayerBlend node, and any other expression field
-call_tool ObjectToolset.GetProperties {"Object": {"refPath": "<the LayerBlend expression>"}}
+call_tool ObjectToolset.GetProperties {"instance": {"refPath": "<the LayerBlend expression>"},
+                                       "properties": ["Layers"]}
 #   ... or, VibeUE's landscape-aware read of the same node:
 #   unreal.LandscapeMaterialService.get_layer_blend_info(mat_path, node_id)   # execute_python
 
 # Step 4: what is wired where — per expression, and per material output
-call_tool MaterialToolset.GetExpressionInputs {"MaterialOrFunction": {"refPath": "<material>"},
-                                               "Expression": {"refPath": "<expression>"}}
-call_tool MaterialToolset.GetPropertyInput    {"Material": {"refPath": "<material>"},
-                                               "MaterialProperty": "MP_BaseColor"}
+call_tool MaterialToolset.GetExpressionInputs {"materialOrFunction": {"refPath": "<material>"},
+                                               "expression": {"refPath": "<expression>"}}
+call_tool MaterialToolset.GetPropertyInput    {"material": {"refPath": "<material>"},
+                                               "materialProperty": "MP_BaseColor"}
 ```
 
 **Why:** Landscape materials often already have LayerBlend nodes, texture samplers, and connected outputs. Adding duplicate nodes without reviewing first creates orphaned expressions and broken connections. Always export → review → plan → modify.
@@ -109,8 +112,8 @@ If `layer_info_paths` contains wrong paths, `assign_material_to_landscape` may r
 Compiling is Epic's (`MaterialService.compile_material` is gone):
 
 ```
-call_tool MaterialToolset.Recompile {"MaterialOrFunction": {"refPath": "/Game/Materials/M_Terrain.M_Terrain"}}
-call_tool AssetToolset.SaveAsset    {"Asset": {"refPath": "/Game/Materials/M_Terrain.M_Terrain"}}
+call_tool MaterialToolset.Recompile {"materialOrFunction": {"refPath": "/Game/Materials/M_Terrain.M_Terrain"}}
+call_tool AssetToolset.SaveAsset    {"assetPath": "/Game/Materials/M_Terrain"}
 ```
 
 (`unreal.EditorAssetLibrary.save_asset(mat_path)` from `execute_python` still saves, if you are

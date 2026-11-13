@@ -47,6 +47,18 @@ import unreal
 svc = unreal.SoundCueService()
 ```
 
+`SoundCueService` owns the cue's **node graph** only. Everything else is Epic's, called from the
+same `execute_python` script with the injected `await call_tool("Toolset.Full.Name.Tool", ...)`:
+
+| Task | Epic tool |
+|------|-----------|
+| Save / duplicate / delete a cue or wave | `EditorToolset.AssetToolset.SaveAsset(assetPath)` / `Duplicate(path, newPath)` / `Delete(path)` |
+| Import a .wav/.mp3/.ogg/.flac/... as a SoundWave | `EditorToolset.SoundWaveToolset.ImportFile(folderPath, assetName, sourceFile, bReplaceExisting=False, bSave=False)` |
+| Cue volume, pitch, sound class, attenuation, concurrency | `EditorToolset.ObjectToolset.SetProperties` / `GetProperties` on the `USoundCue` |
+| SoundWave looping, volume, pitch, subtitle priority | `EditorToolset.ObjectToolset.SetProperties` / `GetProperties` on the `USoundWave` |
+
+`SoundCueService` edits only dirty the package — save with `AssetToolset.SaveAsset` when done.
+
 ---
 
 ## Audio Flow Direction
@@ -73,8 +85,10 @@ UE strips the `b` prefix from bool UPROPERTY names in Python:
 |-----------------|-----------------|
 | `bSuccess`      | `success`       |
 | `bIsRootNode`   | `is_root_node`  |
-| `bLooping`      | `is_looping`    |
-| `bStreaming`    | `is_streaming`  |
+| `bLooping`      | `looping`       |
+| `bStreaming`    | `streaming`     |
+
+(Epic's `ObjectToolset` takes the **C++** names — `bLooping`, not `looping`.)
 
 ### ⚠️ Node indices are positional and may shift
 
@@ -155,13 +169,16 @@ Native import: `SoundWaveToolset.ImportFile` (await completion; explicitly set `
 
 Set a loaded SoundWave property with `sw.set_editor_property(prop, value)` (or ObjectToolset.SetProperties). Common C++ property names (use reflected Python names and typed values in Python):
 
-| PropertyName | Type | Example value |
+| UPROPERTY (C++ name) | Type | Example value |
 |---|---|---|
-| `bLooping` | bool | `"true"` |
-| `bStreaming` | bool | `"true"` |
-| `VolumeMultiplier` | float | `"1.5"` |
-| `PitchMultiplier` | float | `"0.9"` |
-| `SubtitlePriority` | float | `"100.0"` |
+| `bLooping` | bool | `true` |
+| `Volume` | float | `1.5` (ClampMin 0) |
+| `Pitch` | float | `0.9` (0.125 – 4.0) |
+| `SubtitlePriority` | float | `100.0` |
+
+USoundWave has **no** `VolumeMultiplier` / `PitchMultiplier` (those are `USoundCue`'s). `bStreaming`
+is a legacy bare `UPROPERTY()` — not editable, so `SetProperties` cannot set it; streaming is
+controlled by the wave's `LoadingBehavior`.
 
 ### FSoundWaveInfo fields
 

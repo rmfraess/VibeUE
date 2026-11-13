@@ -103,7 +103,14 @@ struct FSoundWaveInfo
  *       print(f"[{n.node_index}] {n.node_class} — children: {n.child_indices}")
  *
  * @note All methods are static
- * @note Save with EditorToolset.AssetToolset.SaveAsset after editing
+ * @note Edits only dirty the package: save with Epic's EditorToolset.AssetToolset.SaveAsset
+ *
+ * Use Epic's engine toolsets for everything outside the cue's node graph:
+ *  - save / duplicate / delete: `EditorToolset.AssetToolset` (SaveAsset / Duplicate / Delete)
+ *  - import an audio file as a SoundWave: `EditorToolset.SoundWaveToolset.ImportFile`
+ *  - cue settings (VolumeMultiplier, PitchMultiplier, SoundClassObject, AttenuationSettings,
+ *    ConcurrencySet) and SoundWave properties (bLooping, Volume, Pitch, SubtitlePriority):
+ *    `EditorToolset.ObjectToolset` (GetProperties / SetProperties)
  *
  * **C++ Source:**
  *

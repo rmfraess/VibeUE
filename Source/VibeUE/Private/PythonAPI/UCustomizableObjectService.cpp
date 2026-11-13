@@ -2,7 +2,6 @@
 
 #include "PythonAPI/UCustomizableObjectService.h"
 
-#include "AssetRegistry/ARFilter.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
 #include "CustomizableObjectServiceInternal.h"

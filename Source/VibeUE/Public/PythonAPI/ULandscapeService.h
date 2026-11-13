@@ -1339,13 +1339,13 @@ public:
 
 	/**
 	 * Set the material on a landscape.
-	 * Maps to action="set_landscape_material"
+	 * Demoted (not an AI tool): use EditorToolset.ObjectToolset.SetProperties ({"LandscapeMaterial": ...}) instead; kept because ResizeLandscape calls it.
 	 *
 	 * @param LandscapeNameOrLabel - Name or label of the landscape
 	 * @param MaterialPath - Full path to the material asset
 	 * @return True if material was assigned
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Landscape")
+	UFUNCTION(BlueprintCallable, Category ="VibeUE|Landscape")
 	static bool SetLandscapeMaterial(
 		const FString& LandscapeNameOrLabel,
 		const FString& MaterialPath);

@@ -4,6 +4,9 @@ display_name: Foliage & Vegetation
 description: Create foliage types and place/scatter foliage instances on landscapes and meshes (FoliageService). Use when the user asks to add trees/grass/bushes/rocks as foliage, create a foliage type from a mesh, scatter or paint foliage instances, or query/remove foliage on a surface.
 vibeue_classes:
   - FoliageService
+engine_toolsets:
+  - EditorToolset.ObjectToolset
+  - EditorToolset.AssetToolset
 unreal_classes:
   - InstancedFoliageActor
   - FoliageType
@@ -286,6 +289,26 @@ result = unreal.FoliageService.clear_all_foliage()
 print(f"Cleared {result.instances_removed} total instances")
 ```
 
+### Edit a Foliage Type (Epic `ObjectToolset`)
+
+Foliage type properties are plain asset properties, so they go through Epic's `ObjectToolset`.
+Nested structs are nested JSON objects (only the fields you name change):
+
+```python
+import json
+OT = "EditorToolset.ObjectToolset"
+ft = {"refPath": "/Game/Foliage/FT_PineTree.FT_PineTree"}   # full object path
+
+ok = await call_tool(f"{OT}.SetProperties", instance=ft, values=json.dumps({
+    "CullDistance": {"Max": 30000},
+    "AlignMaxAngle": 30.0,
+    "RandomYaw": True,
+}))
+cur = await call_tool(f"{OT}.GetProperties", instance=ft, properties=["CullDistance", "AlignMaxAngle"])
+await call_tool("EditorToolset.AssetToolset.SaveAsset", assetPath="/Game/Foliage/FT_PineTree")
+{"ok": ok, "now": cur}
+```
+
 ### Check Existence
 
 ```python
@@ -295,7 +318,7 @@ import unreal
 # load the asset and check its type if a foliage type is required.
 
 # Are there any instances of this type in the level?
-if unreal.FoliageService.has_foliage_instances("/Game/Meshes/SM_Tree_01"):
+if unreal.FoliageService.has_foliage_instances(path):
     print("Instances exist in level")
 ```
 

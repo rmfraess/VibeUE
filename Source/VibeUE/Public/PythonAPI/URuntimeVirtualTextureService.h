@@ -88,8 +88,8 @@ struct FRVTVolumeResult
  *
  * Runtime Virtual Textures enable efficient rendering of large landscapes by
  * caching material results into virtual texture pages. This service provides
- * tools to create RVT assets, place RVT volumes in levels, and assign RVTs
- * to landscape actors.
+ * tools to create RVT assets and place RVT volumes in levels. Assigning an RVT
+ * to a landscape is EditorToolset.ObjectToolset.SetProperties (RuntimeVirtualTextures).
  *
  * Python usage:
  *   import unreal
@@ -110,7 +110,10 @@ struct FRVTVolumeResult
  *       "Landscape", "/Game/RVT/RVT_MyLandscape"
  *   )
  *
- *   # Assigning the RVT to a landscape is a property edit: EditorToolset.ObjectToolset.SetProperties
+ *   # Assign RVT to the landscape (Epic tool, inside execute_python)
+ *   await call_tool("EditorToolset.ObjectToolset.SetProperties",
+ *       instance={"refPath": landscape_actor.get_path_name()},
+ *       values='{"RuntimeVirtualTextures": ["/Game/RVT/RVT_MyLandscape.RVT_MyLandscape"]}')
  */
 UCLASS(BlueprintType)
 class VIBEUE_API URuntimeVirtualTextureService : public UToolsetDefinition

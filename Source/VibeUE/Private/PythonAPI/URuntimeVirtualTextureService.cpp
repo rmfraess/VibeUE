@@ -4,7 +4,6 @@
 #include "VT/RuntimeVirtualTexture.h"
 #include "Components/RuntimeVirtualTextureComponent.h"
 #include "VT/RuntimeVirtualTextureVolume.h"
-#include "RuntimeVirtualTextureSetBounds.h"
 #include "VT/VirtualTextureBuilder.h"
 #include "Landscape.h"
 #include "LandscapeInfo.h"
@@ -299,9 +298,33 @@ FRVTVolumeResult URuntimeVirtualTextureService::CreateRVTVolume(
 		return Result;
 	}
 
-	// Get landscape bounds for the result log; the volume is fitted by the engine's own Set Bounds below
-	FVector Origin, Extent;
-	LandscapeProxy->GetActorBounds(false, Origin, Extent);
+	// Landscape world bounds (ALandscape includes unloaded components, as the engine's own SetBounds does)
+	FBox WorldBounds(ForceInit);
+	if (const ALandscape* LandscapeActor = Cast<ALandscape>(LandscapeProxy))
+	{
+		WorldBounds = LandscapeActor->GetCompleteBounds();
+	}
+	if (!WorldBounds.IsValid)
+	{
+		FVector Origin, Extent;
+		LandscapeProxy->GetActorBounds(false, Origin, Extent);
+		WorldBounds = FBox(Origin - Extent, Origin + Extent);
+	}
+
+	// Same math as RuntimeVirtualTexture::SetBounds (VirtualTexturingEditor, Public/RuntimeVirtualTextureSetBounds.h):
+	// bounds in the landscape's rotated local space -> volume location = min corner, scale = bounds size.
+	const FQuat TargetRotation = LandscapeProxy->GetActorQuat();
+	FTransform LocalTransform;
+	LocalTransform.SetComponents(TargetRotation, WorldBounds.GetCenter(), FVector::OneVector);
+	FBox LocalBounds = WorldBounds.TransformBy(LocalTransform.Inverse());
+	const FVector LocalSize = LocalBounds.GetSize();
+	if (LocalSize.X > UE_KINDA_SMALL_NUMBER && LocalSize.Y > UE_KINDA_SMALL_NUMBER && LocalSize.Z <= UE_KINDA_SMALL_NUMBER)
+	{
+		// Flat landscape: give the volume a little height so it still renders.
+		LocalBounds = LocalBounds.ExpandBy(FVector(0.0, 0.0, 0.5));
+	}
+	FTransform VolumeTransform;
+	VolumeTransform.SetComponents(TargetRotation, LocalTransform.TransformPosition(LocalBounds.Min), LocalBounds.GetSize());
 
 	FString ActorLabel = VolumeName.IsEmpty()
 		? FString::Printf(TEXT("RVT_Volume_%s"), *LandscapeProxy->GetActorLabel())
@@ -309,14 +332,13 @@ FRVTVolumeResult URuntimeVirtualTextureService::CreateRVTVolume(
 
 	FScopedTransaction Transaction(NSLOCTEXT("RVTService", "CreateRVTVolume", "Create RVT Volume"));
 
-	// Spawn the engine's RVT volume actor (it owns a RuntimeVirtualTextureComponent and its bounds box)
+	// Spawn the engine's volume actor (same as the Landscape details panel's "Create Volume" button)
 	FActorSpawnParameters SpawnParams;
 	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 	ARuntimeVirtualTextureVolume* VolumeActor = World->SpawnActor<ARuntimeVirtualTextureVolume>(
-		ARuntimeVirtualTextureVolume::StaticClass(), Origin, FRotator::ZeroRotator, SpawnParams);
-	URuntimeVirtualTextureComponent* RVTComponent = VolumeActor ? VolumeActor->VirtualTextureComponent.Get() : nullptr;
-	if (!RVTComponent)
+		ARuntimeVirtualTextureVolume::StaticClass(), VolumeTransform, SpawnParams);
+	if (!VolumeActor || !VolumeActor->VirtualTextureComponent)
 	{
 		if (VolumeActor)
 		{
@@ -327,15 +349,11 @@ FRVTVolumeResult URuntimeVirtualTextureService::CreateRVTVolume(
 	}
 
 	VolumeActor->SetActorLabel(ActorLabel);
+	VolumeActor->VirtualTextureComponent->SetVirtualTexture(RVT);
+	VolumeActor->VirtualTextureComponent->SetBoundsAlignActor(LandscapeProxy);
 	VolumeActor->Modify();
-	RVTComponent->Modify();
-	RVTComponent->SetVirtualTexture(RVT);
-
-	// Fit the volume to the whole landscape (unloaded components included) the way the details-panel
-	// "Set Bounds" button does: align to the landscape actor, then let the engine compute the transform.
-	ALandscape* LandscapeActor = LandscapeProxy->GetLandscapeActor();
-	RVTComponent->SetBoundsAlignActor(LandscapeActor ? static_cast<AActor*>(LandscapeActor) : static_cast<AActor*>(LandscapeProxy));
-	RuntimeVirtualTexture::SetBounds(RVTComponent);
+	VolumeActor->SetActorTransform(VolumeTransform);
+	VolumeActor->PostEditMove(true);
 
 	Result.bSuccess = true;
 	Result.VolumeName = VolumeActor->GetName();

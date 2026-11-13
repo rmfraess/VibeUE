@@ -47,10 +47,14 @@ struct FInputTypeDiscoveryResult
  *    (ApplyInput takes Entries -- each entry one Action or one Key, with its value -- and
  *    DurationSeconds; IsInputApplied reads back whether they are applied). This is what replaced
  *    VibeUE's held-action and raw-key injection.
- *  - any property on an input asset these calls do not reach: `EditorToolset.ObjectToolset`
- *    (GetProperties / SetProperties / ListProperties)
- *  - finding, saving and validating the assets: `EditorToolset.AssetToolset`
- *    (FindAssets / SaveAsset / ValidateAssets)
+ *  - any property on an input asset: `EditorToolset.ObjectToolset` (GetProperties / SetProperties /
+ *    ListProperties). An Input Action's info is GetProperties(instance=<action path>, properties=
+ *    ["ValueType","bConsumeInput","bTriggerWhenPaused","ActionDescription"]) and configuring it is
+ *    SetProperties(instance=<action path>, values=<JSON of the same names>)
+ *  - finding, existence, saving and validating the assets: `EditorToolset.AssetToolset`
+ *    (FindAssets with filter={"assetType": "/Script/EnhancedInput.InputAction", "maxResults": 0} or
+ *    {"assetType": "/Script/EnhancedInput.InputMappingContext", "maxResults": 0} for all of them
+ *    -- maxResults is a field of the filter object, 0 = no limit / Exists / SaveAsset / ValidateAssets)
  *
  * Python Usage:
  *   import unreal

@@ -22,7 +22,7 @@ description: Step-by-step UMG widget task workflows — create a WBP, build a me
 Each workflow has a matching runnable example under `scripts/` where noted. Field names for the
 return objects used below are in `reference.md`.
 
-Two call styles are in play throughout — `unreal.WidgetService.*` for the 9 survivors,
+Two call styles are in play throughout — `unreal.WidgetService.*` for the 4 survivors,
 `vibeue.exec_tool(toolset, tool, args)` (or `call_tool`) for Epic's toolsets. SKILL.md ▸ "Call
 styles" explains which is which and why `unreal.ObjectToolset.*` does not exist.
 
@@ -37,29 +37,40 @@ asset_tools = unreal.AssetToolsHelpers.get_asset_tools()
 asset_tools.create_asset("MainMenu", "/Game/UI", unreal.WidgetBlueprint, factory)
 ```
 
-Nothing in either surface creates the asset — the factory is the only route. Runnable:
-`scripts/create_widget.txt`.
+Epic's `UMGEditor.WidgetBlueprintEditorSubsystem.CreateWidgetBlueprint(folderPath, assetName, parentClass)`
+also creates the asset (parentClass as a class path, e.g. `/Script/UMG.UserWidget`); the factory above is
+the Python equivalent. VibeUE's `WidgetService` does not create it. Runnable: `scripts/create_widget.txt`.
 
 ## Build a Menu
 
 Root canvas → vertical box → buttons, each with a child text label. The hierarchy is
-`WidgetService`; the label text is `ObjectToolset`.
+`UMGEditor.WidgetBlueprintEditorSubsystem`; the label text is `ObjectToolset`.
 
 ```python
 import json, unreal, vibeue
 
 path = "/Game/UI/WBP_Menu"
+ASSET = "WBP_Menu"
+WS = "UMGEditor.WidgetBlueprintEditorSubsystem"
 OT = "EditorToolset.ObjectToolset"
+wbp = f"{path}.{ASSET}"
+tree = lambda name: f"{wbp}:WidgetTree.{name}"
 
-unreal.WidgetService.add_component(path, "CanvasPanel", "Root", "", True)
-unreal.WidgetService.add_component(path, "VerticalBox", "ButtonList", "Root", False)
+def add(cls, name, parent=None):
+    args = {"widgetBlueprint": wbp, "widgetClass": cls, "widgetDisplayName": name}
+    if parent:
+        args["parentWidget"] = tree(parent)
+    return vibeue.exec_tool(WS, "CreateAndAddWidget", args)
+
+add("/Script/UMG.CanvasPanel", "Root")                  # empty tree -> becomes the root
+add("/Script/UMG.VerticalBox", "ButtonList", "Root")
 
 for btn_name, btn_text in [("PlayButton", "PLAY"), ("QuitButton", "QUIT")]:
-    unreal.WidgetService.add_component(path, "Button", btn_name, "ButtonList", False)
+    add("/Script/UMG.Button", btn_name, "ButtonList")
     text_name = f"{btn_name}Text"
-    unreal.WidgetService.add_component(path, "TextBlock", text_name, btn_name, False)
+    add("/Script/UMG.TextBlock", text_name, btn_name)
     vibeue.exec_tool(OT, "SetProperties", {
-        "instance": f"{path}.WBP_Menu:WidgetTree.{text_name}",
+        "instance": tree(text_name),
         "values": json.dumps({"Text": btn_text}),
     })
 
@@ -292,14 +303,18 @@ MVVM view can bind on that Blueprint.
 > preview instances always read unbound. Simulate a click with `on_clicked.broadcast()` on that
 > instance.
 
-## Edit the Hierarchy (rename / reparent / remove)
+## Edit the Hierarchy (rename / reparent / reorder / remove)
 
-All four are VibeUE's — nothing in Epic's surface mutates a `UWidgetTree`.
+All four are Epic's `UMGEditor.WidgetBlueprintEditorSubsystem`. Widget arguments are object paths in
+the editable tree (`<package>.<Asset>:WidgetTree.<Name>`).
 
 ```python
-import unreal
+import unreal, vibeue
 
 path = "/Game/UI/WBP_Menu"
+WS = "UMGEditor.WidgetBlueprintEditorSubsystem"
+wbp = f"{path}.WBP_Menu"
+tree = lambda name: f"{wbp}:WidgetTree.{name}"
 
 # Rename or move widgets with WidgetBlueprintEditorSubsystem.RenameWidget / MoveWidget.
 res = unreal.WidgetService.remove_component(path, "Item3")                     # add True to take children

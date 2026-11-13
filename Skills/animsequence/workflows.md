@@ -40,7 +40,7 @@ else:
 Safe workflow for editing one bone:
 
 ```python
-import unreal
+import unreal, json
 
 anim_path = "/Game/Anims/AS_Idle"
 skeleton_path = unreal.load_asset(anim_path).get_editor_property("skeleton").get_path_name()

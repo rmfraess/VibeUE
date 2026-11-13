@@ -3261,7 +3261,19 @@ bool ULandscapeService::SetLandscapeMaterial(
 
 	Landscape->Modify();
 	Landscape->LandscapeMaterial = Material;
-	Landscape->PostEditChange();
+
+	// Name the changed property (as ALandscapeProxy::EditorSetLandscapeMaterial does) so
+	// ALandscape::PostEditChangeProperty rebuilds materials and propagates the change to
+	// World Partition streaming proxies; a bare PostEditChange() does not reach them.
+	if (FProperty* MaterialProperty = FindFProperty<FProperty>(ALandscapeProxy::StaticClass(), GET_MEMBER_NAME_CHECKED(ALandscapeProxy, LandscapeMaterial)))
+	{
+		FPropertyChangedEvent PropertyChangedEvent(MaterialProperty);
+		Landscape->PostEditChangeProperty(PropertyChangedEvent);
+	}
+	else
+	{
+		Landscape->PostEditChange();
+	}
 
 	// Refresh components
 	for (ULandscapeComponent* Component : Landscape->LandscapeComponents)

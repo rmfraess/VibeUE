@@ -189,13 +189,16 @@ struct FLandscapeLayerInfoCreateResult
 /**
  * Landscape material service exposed directly to Python.
  *
- * Provides 20 landscape material management actions:
+ * Provides landscape material management actions:
  *
  * Material Creation:
- * - create_landscape_material: Create a material configured for landscape use
+ * - create a plain material with EditorToolset.MaterialToolset.CreateMaterial
+ *   (create_landscape_material is Python-only, kept for create_auto_material)
  *
  * Layer Blend Node:
  * - create_layer_blend_node: Create a LandscapeLayerBlend expression
+ *   (demoted, not an AI tool: agents use EditorToolset.MaterialToolset.AddExpression with
+ *   expressionClass /Script/Landscape.MaterialExpressionLandscapeLayerBlend; kept for the node_id chain)
  * - create_layer_blend_node_with_layers: Create blend node with all layers in one call
  * - add_layer_to_blend_node: Add a layer to an existing blend node
  * - remove_layer_from_blend_node: Remove a layer from a blend node
@@ -233,7 +236,7 @@ struct FLandscapeLayerInfoCreateResult
  * Python Usage:
  *   import unreal
  *
- *   # Create landscape material
+ *   # Create landscape material (Python-only helper; agents use MaterialToolset.CreateMaterial)
  *   mat = unreal.LandscapeMaterialService.create_landscape_material("M_Terrain", "/Game/Materials")
  *
  *   # Add layer blend
@@ -255,13 +258,13 @@ public:
 
 	/**
 	 * Create a new material pre-configured for landscape use.
-	 * Maps to action="create_landscape_material"
+	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.CreateMaterial instead; kept because CreateAutoMaterial calls it.
 	 *
 	 * @param MaterialName - Name for the new material
 	 * @param DestinationPath - Path where to create the asset (e.g., "/Game/Materials")
 	 * @return Create result with asset path
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, Category ="VibeUE|LandscapeMaterial")
 	static FLandscapeMaterialCreateResult CreateLandscapeMaterial(
 		const FString& MaterialName,
 		const FString& DestinationPath);
@@ -274,12 +277,14 @@ public:
 	 * Create a LandscapeLayerBlend node in a material.
 	 * Maps to action="create_layer_blend_node"
 	 *
+	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeLayerBlend"}) instead; kept because it returns the VibeUE blend-node ID that the kept AddLayerToBlendNode / RemoveLayerFromBlendNode / GetLayerBlendInfo / ConnectToLayerInput / SetupLayerTextures tools take, and the landscape-materials workflows chain on it.
+	 *
 	 * @param MaterialPath - Full path to the material
 	 * @param PosX - X position in the material graph
 	 * @param PosY - Y position in the material graph
 	 * @return Blend node info with node ID
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, Category ="VibeUE|LandscapeMaterial")
 	static FLandscapeLayerBlendInfo CreateLayerBlendNode(
 		const FString& MaterialPath,
 		int32 PosX = -400,
@@ -385,13 +390,15 @@ public:
 	 * Create a LandscapeLayerCoords expression for UV mapping.
 	 * Maps to action="create_layer_coords_node"
 	 *
+	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeLayerCoords"}) then EditorToolset.ObjectToolset.SetProperties instead; kept because it returns the VibeUE node ID that ConnectToLayerInput and the other kept node-id tools consume.
+	 *
 	 * @param MaterialPath - Full path to the material
 	 * @param MappingScale - UV tiling scale (default 0.01 = tile every 100 units)
 	 * @param PosX - X position in the material graph
 	 * @param PosY - Y position in the material graph
 	 * @return Expression ID of the created node, or empty string on failure
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, Category ="VibeUE|LandscapeMaterial")
 	static FString CreateLayerCoordsNode(
 		const FString& MaterialPath,
 		float MappingScale = 0.01f,
@@ -409,6 +416,8 @@ public:
 	 * Unlike LandscapeLayerBlend which blends multiple layers, LayerSample outputs
 	 * the raw weight (0-1) of a single layer. Useful for masking and procedural effects.
 	 *
+	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeLayerSample"}) then EditorToolset.ObjectToolset.SetProperties instead; kept because it returns the VibeUE node ID that ConnectToLayerInput and the other kept node-id tools consume.
+	 *
 	 * @param MaterialPath - Full path to the material
 	 * @param LayerName - Name of the landscape layer to sample
 	 * @param PosX - X position in the material graph
@@ -418,7 +427,7 @@ public:
 	 * Example:
 	 *   sample_id = unreal.LandscapeMaterialService.create_layer_sample_node("/Game/M_Test", "Grass", -800, 0)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, Category ="VibeUE|LandscapeMaterial")
 	static FString CreateLayerSampleNode(
 		const FString& MaterialPath,
 		const FString& LayerName,
@@ -436,6 +445,8 @@ public:
 	 * Each entry in GrassTypeNames maps a display name to a grass type asset path.
 	 * The node will have one input per grass type for driving spawn density.
 	 *
+	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeGrassOutput"}) then EditorToolset.ObjectToolset.SetProperties instead; kept because it returns the VibeUE node ID that ConnectToLayerInput and the other kept node-id tools consume.
+	 *
 	 * @param MaterialPath - Full path to the material
 	 * @param GrassTypeNames - Map of input name -> LandscapeGrassType asset path
 	 * @param PosX - X position in the material graph
@@ -446,7 +457,7 @@ public:
 	 *   grass_id = unreal.LandscapeMaterialService.create_grass_output("/Game/M_Test",
 	 *       {"ShortGrass": "/Game/Foliage/LGT_ShortGrass", "TallGrass": "/Game/Foliage/LGT_TallGrass"}, 400, 0)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, Category ="VibeUE|LandscapeMaterial")
 	static FString CreateGrassOutput(
 		const FString& MaterialPath,
 		const TMap<FString, FString>& GrassTypeNames,
@@ -527,6 +538,8 @@ public:
 	 * Create a LandscapeLayerWeight expression (alternative to LandscapeLayerBlend).
 	 * Maps to action="create_layer_weight_node"
 	 *
+	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeLayerWeight"}) then EditorToolset.ObjectToolset.SetProperties instead; kept because it returns the VibeUE node ID that ConnectToLayerInput and the other kept node-id tools consume.
+	 *
 	 * @param MaterialPath - Full path to the material
 	 * @param LayerName - Layer name for this weight node
 	 * @param PreviewWeight - Preview weight value (0.0-1.0)
@@ -534,7 +547,7 @@ public:
 	 * @param PosY - Y position in the material graph
 	 * @return Expression ID of the created node, or empty string on failure
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, Category ="VibeUE|LandscapeMaterial")
 	static FString CreateLayerWeightNode(
 		const FString& MaterialPath,
 		const FString& LayerName,

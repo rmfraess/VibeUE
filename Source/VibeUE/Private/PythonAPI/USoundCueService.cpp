@@ -32,7 +32,6 @@
 #include "Sound/SoundNodeQualityLevel.h"
 #include "Sound/SoundClass.h"
 #include "Sound/SoundAttenuation.h"
-#include "Sound/SoundConcurrency.h"
 #include "SoundCueGraph/SoundCueGraph.h"
 #include "SoundCueGraph/SoundCueGraphNode.h"
 #include "SoundCueGraph/SoundCueGraphNode_Root.h"
@@ -43,7 +42,6 @@
 #include "Misc/Paths.h"
 #include "ScopedTransaction.h"
 #include "Kismet2/BlueprintEditorUtils.h"
-#include "AssetImportTask.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSoundCueService, Log, All);
 

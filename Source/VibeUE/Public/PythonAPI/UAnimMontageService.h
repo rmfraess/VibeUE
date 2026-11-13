@@ -244,9 +244,12 @@ struct FBranchingPointInfo
  * Animation Montage service exposed directly to Python.
  *
  * This service provides comprehensive CRUD operations for Animation Montage assets
- * including section management, slot tracks, animation segments, branching points,
- * and blend settings. These operations require C++ because Python's set_editor_property()
- * returns read-only copies of internal TArrays like CompositeSections and SlotAnimTracks.
+ * including section management, slot tracks, animation segments and branching points.
+ * These operations require C++ because Python's set_editor_property() returns read-only
+ * copies of internal TArrays like CompositeSections and SlotAnimTracks. Plain properties
+ * (Skeleton, BlendIn / BlendOut {BlendTime, BlendOption}, BlendOutTriggerTime) belong to
+ * EditorToolset.ObjectToolset.GetProperties / SetProperties; duplicating a montage is
+ * EditorToolset.AssetToolset.Duplicate.
  *
  * IMPORTANT: All montage_path parameters require the FULL asset path (package_name from AssetData),
  * NOT the folder path (package_path). For example:
@@ -336,34 +339,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage")
 	static TArray<FMontageInfo> FindMontagesUsingAnimation(const FString& AnimSequencePath);
-
-	/**
-	 * Set blend in settings.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @param BlendTime - Blend duration in seconds
-	 * @param BlendOption - Blend curve type as string ("Linear", "Cubic", "HermiteCubic", "Sinusoidal", "QuadraticInOut", "CubicInOut", "QuarticInOut", "QuinticInOut", "CircularIn", "CircularOut", "CircularInOut", "ExpIn", "ExpOut", "ExpInOut", "Custom")
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage")
-	static bool SetBlendIn(
-		const FString& MontagePath,
-		float BlendTime,
-		const FString& BlendOption = TEXT("Linear"));
-
-	/**
-	 * Set blend out settings.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @param BlendTime - Blend duration in seconds
-	 * @param BlendOption - Blend curve type as string
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Montage")
-	static bool SetBlendOut(
-		const FString& MontagePath,
-		float BlendTime,
-		const FString& BlendOption = TEXT("Linear"));
 
 	// ============================================================================
 	// SECTION MANAGEMENT (Requires C++ - Python cannot modify TArrays)
@@ -907,10 +882,4 @@ private:
 
 	/** Fill montage info struct from montage */
 	static void FillMontageInfo(class UAnimMontage* Montage, FMontageInfo& OutInfo);
-
-	/** Convert blend option enum to string */
-	static FString BlendOptionToString(EAlphaBlendOption Option);
-
-	/** Convert string to blend option enum */
-	static EAlphaBlendOption StringToBlendOption(const FString& OptionString);
 };
