@@ -28,13 +28,13 @@ Also provides (agent helpers for PIE, async tools, and asset GC):
   else the pending key to collect_tool_result() later.
 - python_globals_holding() / release_globals() — find and drop the execute_python script
   globals that root an asset (a GCObjectReferencer root), so delete_asset_unattended can proceed.
-- safe_load_level(level_path, *, allow_resident_target=False, discard_temp=True) —
+- safe_load_level(level_path, *, allow_resident_target=False, discard_temp=False) —
   LevelEditorSubsystem.load_level behind a resident-map check: a map loaded as an ASSET (Save-As, a
   Level Instance, load_asset on a map) stays resident, and the next load_level then FATALS the editor
   ("World Memory Leaks"). Raises LevelLoadRefused instead of loading while any map other than the
-  open level is resident, or when the target does not exist. Discards a dirty never-saved /Temp/
-  open level (LevelEditorUnsavedChangesPolicy.DISCARD), never a dirty real map. Returns load_level's
-  bool.
+  open level is resident, or when the target does not exist. With discard_temp=True only, discards a
+  dirty never-saved /Temp/ open level (LevelEditorUnsavedChangesPolicy.DISCARD), never a dirty real
+  map. Returns load_level's bool.
 - pie_session() / capture_game() / game_world() — `async with vibeue.pie_session(1280, 720) as s:`
   sets throttling, the PIE window size (in both places it must go), starts PIE, waits for the player
   controller and hides screen messages, and restores all of it on exit; `await
@@ -550,10 +550,8 @@ def _open_level_package():
 
 
 def _dirty_map_package_names():
-    try:
-        return [str(p.get_name()) for p in unreal.EditorLoadingAndSavingUtils.get_dirty_map_packages()]
-    except Exception:
-        return []
+    # No try/except: an unknown dirty set must refuse the discard, not permit it.
+    return [str(p.get_name()) for p in unreal.EditorLoadingAndSavingUtils.get_dirty_map_packages()]
 
 
 def _unsaved_changes_policy(open_pkg, discard_temp):
@@ -576,7 +574,7 @@ def _unsaved_changes_policy(open_pkg, discard_temp):
     return policy_enum.DISCARD, "discarded the temporary level {}".format(open_pkg)
 
 
-def safe_load_level(level_path, *, allow_resident_target=False, discard_temp=True):
+def safe_load_level(level_path, *, allow_resident_target=False, discard_temp=False):
     """Load a level with LevelEditorSubsystem.load_level, refusing when that would crash the editor.
 
     Reads unreal.PythonTools.get_resident_maps() (map worlds resident besides the open level: the
@@ -592,8 +590,9 @@ def safe_load_level(level_path, *, allow_resident_target=False, discard_temp=Tru
 
     Unsaved changes (issue #680): load_level refuses while the open level has unsaved changes
     ("LoadLevel: There are unsaved level changes in /Temp/... Save them before loading a level, or
-    load it with UnsavedChangesPolicy"). With discard_temp=True (default), when the open level is a
-    never-saved /Temp/ level (a scratch world from a turnaround, preview or new_level) and no real map
+    load it with UnsavedChangesPolicy"). The default keeps that refusal: an Untitled /Temp/ level can
+    hold unsaved work. Pass discard_temp=True only for a scratch level you created: when the open
+    level is a never-saved /Temp/ level (a scratch world from a turnaround, preview or new_level) and no real map
     is dirty, it loads with unreal.LevelEditorUnsavedChangesPolicy.DISCARD (5.9). A dirty REAL map
     is never discarded: the engine still refuses, and the exception names the packages. Save first,
     or call load_level(path, unreal.LevelEditorUnsavedChangesPolicy.SAVE / DISCARD) yourself.
@@ -1551,10 +1550,10 @@ class PieSession(object):
             self.state["player_controller"] = pc
             return self.state
         except BaseException:
-            await self.stop()
+            await self.stop(force=True)
             raise
 
-    async def stop(self) -> dict:
+    async def stop(self, force: bool = False) -> dict:
         """StopPIE (if this session started it), then put back messages, window size and settings."""
         if self._stopped or not self._started:
             return self.state
@@ -1566,9 +1565,14 @@ class PieSession(object):
             if self._hid_messages:
                 unreal.SystemLibrary.execute_console_command(None, "EnableAllScreenMessages")
                 self._hid_messages = False
+        except Exception as exc:
+            unreal.log_warning("vibeue.pie_session: could not re-enable screen messages: {}".format(exc))
+        try:
             # PIE was not running when start() began, so one that runs now is this session's, also
-            # when StartPIE itself raised (its 30 s limit) after the session came up.
-            if (self.state["started_pie"] or self._requested_pie) and self.stop_on_exit and _pie_running():
+            # when StartPIE itself raised (its 30 s limit) after the session came up. A failed start
+            # stops it even with stop_on_exit=False.
+            if (self.state["started_pie"] or self._requested_pie) and (self.stop_on_exit or force) \
+                    and _pie_running():
                 await exec_tool_await(_EDITOR_APP, "StopPIE")
                 if await _await_until(lambda: game_world() is None, 10.0) is None:
                     self.state["notes"].append("the PIE world was still alive 10 s after StopPIE")

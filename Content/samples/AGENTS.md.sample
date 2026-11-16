@@ -104,7 +104,8 @@ error. A pack's deeper pages are linked files: open them with your file-reading 
   than ~15 s: the editor is gone, relaunch. **`slowTask` or `modal` true: the editor is busy and MCP
   refuses calls ("running a slow task" / "showing a modal dialog"); wait until both are false, then call
   again - do not retry in a loop or relaunch.** `gameThreadStallSeconds` above ~10 with both false:
-  wedged, relaunch.
+  probably wedged, but a slow task reads false until its first progress tick; look at the Editor window
+  (or ask the user) before relaunching.
 - A second, headless editor (`UnrealEditor-Cmd.exe <project> -ExecCmds="py <script>"`) can write assets
   beside the GUI editor if it gets its own `-ModelContextProtocolPort` and the two never write the same
   package.
@@ -112,8 +113,9 @@ error. A pack's deeper pages are linked files: open them with your file-reading 
 ## Critical rules
 
 - **Levels:** change level with `vibeue.safe_load_level(path)`. A map loaded as an asset stays resident
-  and the next level load is fatal; `safe_load_level` refuses instead, and discards a dirty never-saved
-  `/Temp/` level (`unreal.LevelEditorUnsavedChangesPolicy.DISCARD`) but never a dirty real map. Never
+  and the next level load is fatal; `safe_load_level` refuses instead. It refuses over unsaved changes
+  too; pass `discard_temp=True` only to drop a never-saved `/Temp/` level you created yourself (an Untitled
+  level can hold the user's work); a dirty real map is never discarded. Never
   `load_asset` a map to look at it.
 - **PIE:** `async with vibeue.pie_session(1280, 720) as s:` sets up and restores everything;
   `await vibeue.capture_game(path)` saves a screenshot (UMG included) and returns the path. Drive a live UI

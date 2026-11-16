@@ -162,7 +162,7 @@ waiting on a hanging call (Epic's MCP endpoint runs on the game thread with no r
 | File missing, or `updatedUtc` older than ~15 s | The process is gone | Relaunch |
 | `slowTask: true` (`slowTaskText` says what, e.g. a build or a save) | Busy, not wedged. MCP refuses tool calls ("Not run: the Unreal Editor is running a slow task") and the stall grows while it runs | Do not retry in a loop and do not relaunch: watch the file and call again once `slowTask` is false |
 | `modal: true` (`modalTitle`) | A modal dialog is open; MCP refuses calls ("is showing a modal dialog") | Ask the user to close it (or dismiss it if you opened it), then call again |
-| `gameThreadStallSeconds` above ~10 with both flags false | Wedged: a native message box, a crash handler, or a hang | Relaunch |
+| `gameThreadStallSeconds` above ~10 with both flags false | Probably wedged: a native message box, a crash handler, or a hang. The flags are best-effort: a slow task reads false until its first progress tick | Confirm (Editor window, or ask the user) before relaunching; a relaunch loses unsaved work |
 | Fresh, small stall | Healthy | Look for the problem elsewhere |
 
 A slow task that reports no progress, or a native OS message box, does not set the flags; then only the
@@ -182,9 +182,10 @@ Change level with **`vibeue.safe_load_level(path)`**:
   `allow_resident_target=True`), or when no map exists at the path.
 - `load_level` refuses while the open level has unsaved changes ("There are unsaved level changes in
   /Temp/..."). 5.9 added `unreal.LevelEditorUnsavedChangesPolicy` (`FAIL`, `SAVE`, `DISCARD`) as
-  `load_level`'s second argument. `safe_load_level` (with `discard_temp=True`, the default) passes
-  `DISCARD` when the open level is a never-saved `/Temp/` level (a turnaround, preview or scratch world)
-  and no real map is dirty. A dirty real map is never discarded: save it, or pass the policy yourself if
+  `load_level`'s second argument. By default `safe_load_level` keeps that refusal: an Untitled `/Temp/`
+  level can hold the user's unsaved work. With `discard_temp=True` it passes `DISCARD` when the open level
+  is a never-saved `/Temp/` level you created (a turnaround, preview or scratch world) and no real map is
+  dirty; if the dirty maps cannot be listed it refuses. A dirty real map is never discarded: save it, or pass the policy yourself if
   losing the changes is intended.
 
 Do not hold level objects in variables across an `await` or a level change; fetch them again.

@@ -150,7 +150,7 @@ Set the display rate first (`seq.set_display_rate(unreal.FrameRate(30, 1))`) and
   forward, and let it settle about 1 s (temporal AA, streaming) before a capture.
 
 ```python
-import unreal, vibeue
+import asyncio, unreal, vibeue
 
 seq = unreal.load_asset("/Game/Cinematics/LS_Intro")      # load assets BEFORE PIE starts
 shots = []

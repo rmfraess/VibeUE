@@ -68,16 +68,24 @@ def _check_safe_load_level(results):
         refused = "unsaved level changes" in str(exc)
     _check(results, "discard_temp=False still refuses a dirty /Temp level", True, refused)
 
-    # 2. Default: the scratch level is discarded and the target opens.
-    loaded = vibeue.safe_load_level(MAP_A)
+    # 2. Default refuses too: an Untitled level can hold unsaved work.
+    try:
+        vibeue.safe_load_level(MAP_A)
+        refused = False
+    except Exception as exc:
+        refused = "unsaved level changes" in str(exc)
+    _check(results, "default still refuses a dirty /Temp level", True, refused)
+
+    # 3. discard_temp=True: the scratch level is discarded and the target opens.
+    loaded = vibeue.safe_load_level(MAP_A, discard_temp=True)
     _check(results, "safe_load_level loads over a dirty /Temp level", True, bool(loaded))
     _check(results, "open level after the load", MAP_A, _open_package())
 
-    # 3. A dirty REAL map is never discarded.
+    # 4. A dirty REAL map is never discarded.
     unreal.get_editor_subsystem(unreal.EditorActorSubsystem).spawn_actor_from_class(
         unreal.StaticMeshActor, unreal.Vector(100, 0, 0))
     try:
-        vibeue.safe_load_level(MAP_B)
+        vibeue.safe_load_level(MAP_B, discard_temp=True)
         refused = False
     except Exception as exc:
         refused = "unsaved level changes" in str(exc)

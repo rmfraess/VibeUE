@@ -32,7 +32,7 @@ def legacy_fbx(on=True):
 def import_anim(fbx, dest, name, skeleton):
     t = unreal.AssetImportTask()
     t.filename, t.destination_path, t.destination_name = fbx, dest, name
-    t.automated, t.save, t.replace_existing = True, True, True
+    t.automated, t.save, t.replace_existing = True, True, False   # True only for an asset you own
     o = unreal.FbxImportUI()
     o.import_mesh, o.import_as_skeletal, o.import_animations = False, True, True
     o.import_materials = o.import_textures = o.create_physics_asset = False
@@ -139,7 +139,7 @@ inp.ik_retarget_asset = unreal.load_asset("/Game/Anim/Source/RTG_Source_to_MH")
 inp.search, inp.replace = "_Src", "_Hero"                    # output name: A_Wave_Hero
 inp.target_path = "/Game/Anim/Body"
 inp.include_referenced_assets = False
-inp.overwrite_existing_files = True
+inp.overwrite_existing_files = False                        # True only over outputs you own
 results = unreal.IKRetargetBatchOperation.run_batch_retarget_with_results(inp)
 [(str(r.source_asset.package_name), str(r.retargeted_asset.package_name), str(r.status), r.reason)
  for r in results]
@@ -175,7 +175,7 @@ def fix_pelvis(path, ref_path):
     kids = ["spine_01", "thigh_l", "thigh_r"]
     out = {b: ([], [], []) for b in ["pelvis"] + kids}
     for k in range(n):
-        t = min(length, k * length / (n - 1))
+        t = min(length, k * length / max(n - 1, 1))
         pelvis = AL.get_bone_pose_for_time(a, "pelvis", t, False)
         cs = {b: AL.get_bone_pose_for_time(a, b, t, False).multiply(pelvis) for b in kids}
         spine = AL.get_bone_pose_for_time(a, "spine_01", t, False)
