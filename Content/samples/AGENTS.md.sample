@@ -386,8 +386,11 @@ When asked to rebuild / relaunch / test, use the project script — not manual `
 runs on the game thread with NO request timeout, so a dead or wedged editor hangs MCP calls for the
 client's full timeout (300s observed). Before waiting on a suspect call — or whenever results come
 back empty/strange — read the health file instead: file missing or `updatedUtc` older than ~15s →
-the process is gone (relaunch); `gameThreadStallSeconds` > ~10 → alive but wedged (modal dialog /
-crash handler — MCP will hang; relaunch); fresh and small → the editor is fine, look elsewhere.
+the process is gone (relaunch); `slowTask` or `modal` true → busy (a build, a save, a dialog): MCP
+refuses calls, so wait until both are false and call again, never relaunch; `gameThreadStallSeconds`
+> ~10 with both false → probably wedged (native message box / crash handler), but a slow task reads
+false until its first progress tick, so confirm in the Editor window or with the user before relaunching
+(a relaunch loses unsaved work); fresh and small → the editor is fine, look elsewhere.
 
 ---
 
