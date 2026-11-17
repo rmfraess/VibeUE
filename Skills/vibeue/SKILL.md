@@ -66,7 +66,7 @@ pie = await call_tool("EditorToolset.EditorAppToolset.IsPIERunning")
 | `unrecognized parameter(s) [code]`, `Unable to import JSON value into property script` | The old `execute_python_code` shape | `arguments={"script": {"language": "Python", "content": "..."}}` |
 | `imports must be at the top level of the script` | An import inside a function / `if` / `try` | Move every import to the top |
 | `KeyError: 'returnValue'`, a KeyError listing fields | Unwrapping an envelope `call_tool` already removed, or a guessed field name | Use the value as returned; check field names with `get_symbol(name="<full tool name>")` |
-| `Toolset ... not found`, `ToolsetIsNotRegistered` | Short toolset name | Full name, e.g. `SceneCaptureToolset.SceneCaptureToolset` |
+| `Toolset ... not found`, `ToolsetIsNotRegistered` | Short toolset name; or the Python toolset just after launch | Full name, e.g. `SceneCaptureToolset.SceneCaptureToolset`; after a launch, wait ~30 s and retry once (section 3) |
 | `get_symbol` rejects `class_name` / `method_filter` | Old VibeUE discovery shape | `get_symbol(name="LandscapeService")` or `get_symbol(name="LandscapeService.import_heightmap")`; `search_symbols(pattern="landscape.*layer")` |
 
 **Discover before you write.** `search_symbols(pattern, kinds, match, accepts, returns)` searches the
@@ -147,6 +147,9 @@ relaunch opens the project default map unless you pass `-Map /Game/Maps/YourMap`
 you launched the editor yourself, trust the signal only when `sessionStartUtc` is later than your launch.
 `mcpListening` is normally `false` for a moment at startup and then `true`; if it stays `false` past
 ~15 s this editor has no MCP server (usually it lost the port to another editor; see section 6).
+The signal covers VibeUE's own registration, not Epic's Python toolset: right after it (seen ~13 s after
+launch) `execute_python` can still fail with the Python toolset "not found" although `list_toolsets`
+lists it. Wait about 30 s, check the health file, and retry once.
 
 After a relaunch, a client holding a direct MCP session to the old Editor can fail its first call
 ("transport session expired" / `Unknown session id`) without running it: reconnect, and send a
