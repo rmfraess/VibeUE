@@ -424,6 +424,8 @@ false until its first progress tick, so confirm in the Editor window or with the
   level load. After a script that raised, check both before saving a half-finished edit.
 - **Change level with `vibeue.safe_load_level(path)`**, never a bare `load_level` while `resident_maps` is
   non-empty: a resident map makes the next level load FATAL the editor. It refuses (raises) instead.
+  It refuses over unsaved changes too; pass `discard_temp=True` only to drop a never-saved `/Temp/` level
+  you created yourself (an Untitled level can hold the user's work); a dirty real map is never discarded.
 - **`unreal.EditorLevelLibrary` is deprecated** — use `EditorActorSubsystem` (`get_all_level_actors()`
   + `isinstance` filtering; `get_all_level_actors_of_class` does not exist).
 
