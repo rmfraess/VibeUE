@@ -825,7 +825,7 @@ public:
 	 * @param Space - Coordinate space: "local", "component", or "world"
 	 * @param PreviewFrame - Frame to preview at (default: current frame)
 	 * @param OutResult - Result with applied changes and any clamping
-	 * @return True if preview was applied successfully
+	 * @return Always true so Python gets the result struct; check OutResult.bSuccess
 	 *
 	 * Example:
 	 *   # Preview rotating the upper arm 30 degrees
@@ -857,7 +857,7 @@ public:
 	 * @param Space - Coordinate space: "local", "component", or "world"
 	 * @param PreviewFrame - Frame to preview at
 	 * @param OutResult - Result with applied changes
-	 * @return True if all previews were applied successfully
+	 * @return Always true so Python gets the result struct; check OutResult.bSuccess
 	 *
 	 * Example:
 	 *   deltas = [
@@ -912,7 +912,7 @@ public:
 	 * @param AnimPath - Path to the animation asset
 	 * @param bUseLearnedConstraints - Use learned constraints instead of manual
 	 * @param OutResult - Validation result with violations and suggestions
-	 * @return True if validation completed (check OutResult.bIsValid for pass/fail)
+	 * @return True if validation ran; OutResult.bIsValid is false (with a message) when no preview is active
 	 *
 	 * Example:
 	 *   result = unreal.AnimSequenceService.validate_pose("/Game/Anims/AS_Idle", True)

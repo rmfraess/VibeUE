@@ -639,12 +639,14 @@ public:
 		float NewTime);
 
 	/**
-	 * Link a notify to a specific section.
+	 * Move a notify to a section's start time.
+	 * Montages link notifies to slot segments, not sections: moving the section later
+	 * does not move the notify.
 	 *
 	 * @param MontagePath - Path to montage
 	 * @param NotifyIndex - Index of the notify
-	 * @param SectionName - Name of the section to link to
-	 * @return True if successful
+	 * @param SectionName - Name of the section whose start time to use
+	 * @return True if the notify was moved
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Montage|Notifies")
 	static bool SetNotifyLinkToSection(

@@ -286,7 +286,7 @@ public:
 	 *   for t in unreal.BlueprintService.get_timelines("/Game/StateTree/BP_Cube"):
 	 *       print(t.timeline_name, "tracks:", t.track_count, "len:", t.length)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Blueprints")
 	static TArray<FBlueprintTimelineInfo> GetTimelines(
 		const FString& BlueprintPath
 	);

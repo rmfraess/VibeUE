@@ -1443,7 +1443,8 @@ bool UAnimSequenceService::ValidatePose(
 
 	if (!ActivePreviews.Contains(AnimPath))
 	{
-		// No preview active - nothing to validate
+		OutResult.bIsValid = false;
+		OutResult.ViolationMessages.Add(FString::Printf(TEXT("No active preview for %s: call preview_bone_rotation or preview_pose_delta first"), *AnimPath));
 		return true;
 	}
 

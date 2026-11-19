@@ -383,18 +383,25 @@ bool UAnimMontageService::RenameSection(
 	const FName OldFName(*OldName);
 	const FName NewFName(*NewName);
 
+	if (Montage->GetSectionIndex(OldFName) == INDEX_NONE)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UAnimMontageService::RenameSection: Section '%s' not found"), *OldName);
+		return false;
+	}
+
 	for (FCompositeSection& Section : Montage->CompositeSections)
 	{
 		if (Section.SectionName == OldFName)
 		{
 			Section.SectionName = NewFName;
-			MarkMontageModified(Montage);
-			return true;
+		}
+		if (Section.NextSectionName == OldFName) // keep links (and loops) pointing at the renamed section
+		{
+			Section.NextSectionName = NewFName;
 		}
 	}
-
-	UE_LOG(LogTemp, Warning, TEXT("UAnimMontageService::RenameSection: Section '%s' not found"), *OldName);
-	return false;
+	MarkMontageModified(Montage);
+	return true;
 }
 
 bool UAnimMontageService::SetSectionStartTime(

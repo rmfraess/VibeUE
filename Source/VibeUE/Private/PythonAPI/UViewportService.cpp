@@ -402,7 +402,7 @@ FString UViewportService::GetViewMode()
 	case VMI_ShaderComplexity:     return TEXT("shadercomplexity");
 	case VMI_PathTracing:          return TEXT("pathtracing");
 	case VMI_Clay:                 return TEXT("clay");
-	default:                       return TEXT("unknown");
+	default:                       return StaticEnum<EViewModeIndex>()->GetNameStringByValue(Client->GetViewMode()).Replace(TEXT("VMI_"), TEXT("")).Replace(TEXT("_"), TEXT("")).ToLower();
 	}
 }
 

@@ -337,10 +337,12 @@ bool UInputService::AddModifier(
 	MappingContext->Modify();
 	
 	UInputModifier* NewModifier = NewObject<UInputModifier>(MappingContext, ModifierClass);
-	if (NewModifier)
+	if (!NewModifier)
 	{
-		Mappings[MappingIndex].Modifiers.Add(NewModifier);
+		UE_LOG(LogTemp, Error, TEXT("UInputService::AddModifier: failed to create %s"), *ModifierClass->GetName());
+		return false;
 	}
+	Mappings[MappingIndex].Modifiers.Add(NewModifier);
 
 	// Save
 	UPackage* Package = MappingContext->GetOutermost();

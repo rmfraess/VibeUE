@@ -1770,8 +1770,15 @@ bool UAnimGraphService::SetTransitionBlend(const FString& AnimBlueprintPath, con
 		return false;
 	}
 
+	const EAlphaBlendOption BlendOption = ParseBlendOption(BlendMode);
+	if (BlendOption == EAlphaBlendOption::Linear && !BlendMode.IsEmpty() && !BlendMode.Equals(TEXT("linear"), ESearchCase::IgnoreCase))
+	{
+		UE_LOG(LogTemp, Error, TEXT("SetTransitionBlend: unknown BlendMode '%s' (linear, cubic, hermitecubic, sinusoidal, quadraticinout, cubicinout, expinout, circularin, circularout, circularinout)"), *BlendMode);
+		return false;
+	}
+
 	Transition->CrossfadeDuration = FMath::Max(0.0f, BlendDuration);
-	Transition->BlendMode = ParseBlendOption(BlendMode);
+	Transition->BlendMode = BlendOption;
 	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(AnimBlueprint);
 	UE_LOG(LogTemp, Log, TEXT("SetTransitionBlend: '%s'->'%s' blend %.2fs (%s)"), *SourceStateName, *DestStateName, BlendDuration, *BlendMode);
 	return true;
@@ -2042,7 +2049,11 @@ FString UAnimGraphService::SetStateAnimation(const FString& AnimBlueprintPath, c
 
 	SeqPlayer->Node.SetSequence(Sequence);
 	SeqPlayer->Node.SetLoopAnimation(bLoop);
-	SeqPlayer->Node.SetPlayRate(PlayRate);
+	// SetPlayRate only writes per-instance data, so on an editor graph node it does nothing; set the folded property.
+	if (FFloatProperty* PlayRateProp = FindFProperty<FFloatProperty>(FAnimNode_SequencePlayer::StaticStruct(), TEXT("PlayRate")))
+	{
+		PlayRateProp->SetPropertyValue_InContainer(&SeqPlayer->Node, PlayRate);
+	}
 
 	// Wire the player's pose output to the state's Output Pose (result) node.
 	UAnimGraphNode_StateResult* ResultNode = nullptr;
