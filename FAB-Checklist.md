@@ -61,14 +61,14 @@ _Last verified: 2026-06-21 against the `5-8` branch (UE 5.8)._
     and dev files (FAB-DESCRIPTION.md, FAB_Tech_Details.md, FAB-Checklist.md, .gitignore)
 - [x] FilterPlugin.ini includes custom distribution folders
   - Includes: `/README.md`, `/test_prompts/...` (Content/, Resources/, Source/, Config/ and the
-    `.uplugin` are included automatically; `Content/Python/init_unreal.py` registers skills at startup)
+    `.uplugin` are included automatically; `/Skills/...` ships the Markdown skills UE 5.9 discovers natively)
 - [x] All file paths from the plugin folder are ≤170 characters (longest ≈78)
 
 ### Build & Dependencies
 - [x] Plugin generates no errors or consequential warnings — builds clean under warnings-as-errors
   (`bWarningsAsErrors = true`, `-StrictRebuild`)
 - [ ] C++ third-party code/libraries in ThirdParty folder — *N/A, no C++ third-party code*
-- [x] Shipped Python (`Content/Python/init_unreal.py`) imports only engine modules (`unreal`, `toolset_registry`) — no third-party packages
+- [x] Shipped Python (`Content/Python/vibeue.py`) imports only the standard library and `unreal` — no third-party packages
 - [x] Third Party Software form — *N/A, no third-party libraries shipped*
 
 ## Validation Summary

@@ -224,7 +224,7 @@ public:
 	 *   if result is not None:
 	 *       source_file, error = result
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, CPP_Default_NewSourcePath = ""), Category = "VibeUE|Assets")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write", CPP_Default_NewSourcePath = ""), Category = "VibeUE|Assets")
 	static bool ReimportAsset(
 		const FString& AssetPath,
 		const FString& NewSourcePath,

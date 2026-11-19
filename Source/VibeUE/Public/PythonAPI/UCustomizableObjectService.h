@@ -397,40 +397,40 @@ public:
 	// ---- Availability & assets ----------------------------------------------------------------
 
 	/** True when the Mutable plugin (CustomizableObject + CustomizableObjectEditor modules) is loaded. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Mutable")
 	static bool IsMutableAvailable();
 
 	/**
 	 * Parent/child relationships, graph parameters, and — when the object is compiled — its compiled
 	 * parameters (with enum options), states and components. Read-only.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Mutable")
 	static FVibeCOObjectInfo GetObjectInfo(const FString& AssetPath);
 
 	// ---- Graph reads --------------------------------------------------------------------------
 
 	/** Every node (with pins and links) plus a flat connection list. Read-only. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Mutable")
 	static FVibeCOGraphInfo GetGraph(const FString& AssetPath);
 
 	/** One node by NodeId (NodeGuid) or node name. Check NodeId on the result: empty means not found. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Mutable")
 	static FVibeCONodeInfo GetNode(const FString& AssetPath, const FString& NodeId);
 
 	/**
 	 * Node classes AddNode accepts, optionally filtered by a case-insensitive substring of the class
 	 * or display name. Non-placeable and legacy classes are left out unless bIncludeHidden.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Mutable")
 	static TArray<FVibeCONodeTypeInfo> DiscoverNodeTypes(const FString& Filter = TEXT(""),
 		bool bIncludeHidden = false);
 
 	/** Properties of a node class with their default values — what AddNode's PropertiesJson can set. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Mutable")
 	static TArray<FVibeCOPropertyInfo> GetNodeTypeProperties(const FString& NodeClass);
 
 	/** Properties of one node in the graph, with current values. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Mutable")
 	static TArray<FVibeCOPropertyInfo> GetNodeProperties(const FString& AssetPath, const FString& NodeId);
 
 	// ---- Graph writes (each one saves the asset) ----------------------------------------------
@@ -443,16 +443,16 @@ public:
 	 * is created with one output pin per LOD/section. Values are strings in property text format;
 	 * JSON numbers and booleans are converted. The result lists the new node's pins.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Mutable")
 	static FVibeCOEditResult AddNode(const FString& AssetPath, const FString& NodeClass,
 		int32 PosX = 0, int32 PosY = 0, const FString& PropertiesJson = TEXT(""));
 
 	/** Break every link on the node and delete it. The Base Object node cannot be deleted. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Mutable")
 	static FVibeCOEditResult RemoveNode(const FString& AssetPath, const FString& NodeId);
 
 	/** Move a node in the graph editor. Cosmetic; does not affect the compiled object. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Mutable")
 	static FVibeCOEditResult SetNodePosition(const FString& AssetPath, const FString& NodeId,
 		int32 PosX, int32 PosY);
 
@@ -461,7 +461,7 @@ public:
 	 * then case-insensitively, then by display name. The schema's own rules apply: a single-link
 	 * input drops its previous link, and any links broken to make room are listed in Notes.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Mutable")
 	static FVibeCOEditResult ConnectPins(const FString& AssetPath, const FString& FromNodeId,
 		const FString& FromPin, const FString& ToNodeId, const FString& ToPin);
 
@@ -469,7 +469,7 @@ public:
 	 * Break links on a pin. With OtherNodeId/OtherPin, only that one link; otherwise every link on
 	 * the pin.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Mutable")
 	static FVibeCOEditResult DisconnectPins(const FString& AssetPath, const FString& NodeId,
 		const FString& PinName, const FString& OtherNodeId = TEXT(""), const FString& OtherPin = TEXT(""));
 
@@ -480,12 +480,12 @@ public:
 	 * rebuild their option pins. A value that fails to parse is rolled back. ValueAfterWrite is read
 	 * back; Pins are the node's pins afterwards.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Mutable")
 	static FVibeCOEditResult SetNodeProperty(const FString& AssetPath, const FString& NodeId,
 		const FString& PropertyName, const FString& Value);
 
 	/** Rebuild a node's pins (ReconstructNode), keeping links whose pins still exist. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Mutable")
 	static FVibeCOEditResult RefreshNode(const FString& AssetPath, const FString& NodeId);
 
 	/**
@@ -493,7 +493,7 @@ public:
 	 * set, and ParentObjectGroupId to the Group node GroupNodeId in the parent's graph. Pass an empty
 	 * ParentAssetPath to detach. Compile the ROOT object to see the child's contribution.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Mutable")
 	static FVibeCOEditResult SetParentObject(const FString& ChildAssetPath, const FString& ParentAssetPath,
 		const FString& GroupNodeId);
 
@@ -506,7 +506,7 @@ public:
 	 * OptimizationLevel: "None" (fast, default), "Maximum" or "FromCustomizableObject".
 	 * TextureCompression: "Fast" (default), "None" or "HighQuality".
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Mutable")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Mutable")
 	static FVibeCOCompileResult CompileObject(const FString& AssetPath,
 		const FString& OptimizationLevel = TEXT("None"), const FString& TextureCompression = TEXT("Fast"));
 };

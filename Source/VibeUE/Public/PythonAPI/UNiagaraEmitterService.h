@@ -52,7 +52,7 @@ public:
 	 *   # Shift to blue
 	 *   unreal.NiagaraEmitterService.shift_color_hue("/Game/VFX/NS_Fire", "Flames", 240)
 	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|NiagaraEmitter", meta = (AICallable, DisplayName = "Shift Color Hue"))
+	UFUNCTION(BlueprintCallable, Category = "VibeUE|NiagaraEmitter", meta = (AICallable, AIAccessMode = "Write", DisplayName = "Shift Color Hue"))
 	static bool ShiftColorHue(
 		const FString& SystemPath,
 		const FString& EmitterName,

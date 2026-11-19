@@ -184,7 +184,7 @@ public:
 	 * before/after node counts in the log, and a name for the operation — not a capability those
 	 * lack.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|EQS")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|EQS")
 	static FString RepairGraphFromOptions(const FString& AssetPath);
 
 	/**
@@ -228,7 +228,7 @@ public:
 	 * by the time any setter returns, but one edited by hand in an open Environment Query editor tab
 	 * and not saved will run as its saved version.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|EQS")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Execute"), Category = "VibeUE|EQS")
 	static FEQSRunResult RunQuery(const FString& AssetPath, const FString& QuerierActorNameOrLabel,
 		const FString& RunMode = TEXT("AllMatching"));
 };

@@ -462,7 +462,7 @@ static FString BoundHint(const FString& Bound)
 {
 	if (Bound == TEXT("GPU"))
 	{
-		return TEXT("GPU-bound. NOW it is worth profiling the GPU: StartTrace (channels frame,gpu,cpu), then 'r.ProfileGPU.ShowUI 0' + 'ProfileGPU' and read the pass breakdown from the log. Levers: shadows (Virtual Shadow Maps), Lumen GI/reflections, translucency, post-process, ScreenPercentage. Confirm with the resolution test: 'r.ScreenPercentage 50' should noticeably raise FPS if truly GPU-bound.");
+		return TEXT("GPU-bound. NOW it is worth profiling the GPU: ConsoleToolset.ConsoleToolset.RunConsoleCommand('Trace.Start frame,gpu,cpu'), then 'r.ProfileGPU.ShowUI 0' + 'ProfileGPU' and read the pass breakdown from the log. Levers: shadows (Virtual Shadow Maps), Lumen GI/reflections, translucency, post-process, ScreenPercentage. Confirm with the resolution test: 'r.ScreenPercentage 50' should noticeably raise FPS if truly GPU-bound.");
 	}
 	if (Bound == TEXT("RenderThread"))
 	{
@@ -552,7 +552,7 @@ FString UPerformanceService::ForceHitch(const FString& Thread, float Millisecond
 		{
 			R->SetStringField(TEXT("note"), TEXT("PIE is not running — the GPU load lands on the editor viewport frame. Start PIE for a game-representative validation."));
 		}
-		R->SetStringField(TEXT("hint"), TEXT("GPU cost is scene-dependent and not self-measured — call FrameTiming on a following frame and confirm bound=GPU. Unlike the CPU paths this reads back cleanly (the GPU cost persists across frames)."));
+		R->SetStringField(TEXT("hint"), TEXT("GPU cost is scene-dependent and not self-measured — read PerfToolset.StatsToolset.GetFrameTimings on a following frame and confirm gpuMs is the largest. Unlike the CPU paths this reads back cleanly (the GPU cost persists across frames)."));
 		return OkJson(R);
 	}
 
@@ -650,9 +650,9 @@ FString UPerformanceService::ForceHitch(const FString& Thread, float Millisecond
 	R->SetBoolField(TEXT("verdict_matched_expect"), bMatched);
 	if (!IsPIERunning())
 	{
-		R->SetStringField(TEXT("note"), TEXT("PIE is not running — the stall was still induced and measured directly on the editor frame, so verdict_matched_expect is valid. Start PIE for a game-representative FrameTiming reading."));
+		R->SetStringField(TEXT("note"), TEXT("PIE is not running — the stall was still induced and measured directly on the editor frame, so verdict_matched_expect is valid. Start PIE for a game-representative GetFrameTimings reading."));
 	}
-	R->SetStringField(TEXT("hint"), TEXT("Validation is self-contained: 'verdict_matched_expect' compares the stall this call actually induced ('observed_peak_*_ms') against 'expect' — no follow-up FrameTiming needed (that read races the stall on the game thread and misses it)."));
+	R->SetStringField(TEXT("hint"), TEXT("Validation is self-contained: 'verdict_matched_expect' compares the stall this call actually induced ('observed_peak_*_ms') against 'expect' — no follow-up GetFrameTimings needed (that read races the stall on the game thread and misses it)."));
 	return OkJson(R);
 }
 
@@ -776,7 +776,7 @@ FString UPerformanceService::Analyse(const FString& Source, const FString& File)
 
 	if (Src == TEXT("trace"))
 	{
-		if (TraceFile.IsEmpty()) return ErrJson(TEXT("NO_TRACE"), TEXT("No trace file known. Run StartTrace first, or pass File=<path>."));
+		if (TraceFile.IsEmpty()) return ErrJson(TEXT("NO_TRACE"), TEXT("No trace file known. Run Trace.Start via ConsoleToolset.ConsoleToolset.RunConsoleCommand first, or pass File=<path>."));
 		return VibeUEPerformanceAnalysis::AnalyseTrace(TraceFile);
 	}
 	if (Src == TEXT("logs"))

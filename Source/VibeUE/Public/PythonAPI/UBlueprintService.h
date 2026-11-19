@@ -226,7 +226,7 @@ public:
 	 * @param MacroName     - Name for the new macro graph
 	 * @return True if successful (idempotent — returns true if the macro already exists)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool CreateMacroGraph(
 		const FString& BlueprintPath,
 		const FString& MacroName
@@ -266,7 +266,7 @@ public:
 	 * Example:
 	 *   node_id = unreal.BlueprintService.add_timeline("/Game/StateTree/BP_Cube", "EventGraph", "LookAtTimeline", 0.5)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static FString AddTimeline(
 		const FString& BlueprintPath,
 		const FString& GraphName,
@@ -292,7 +292,7 @@ public:
 	 * Example:
 	 *   unreal.BlueprintService.add_timeline_float_track("/Game/StateTree/BP_Cube", "LookAtTimeline", "Alpha")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool AddTimelineFloatTrack(
 		const FString& BlueprintPath,
 		const FString& TimelineName,
@@ -314,7 +314,7 @@ public:
 	 *   unreal.BlueprintService.add_timeline_float_key("/Game/StateTree/BP_Cube", "LookAtTimeline", "Alpha", 0.0, 0.0)
 	 *   unreal.BlueprintService.add_timeline_float_key("/Game/StateTree/BP_Cube", "LookAtTimeline", "Alpha", 0.5, 1.0)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool AddTimelineFloatKey(
 		const FString& BlueprintPath,
 		const FString& TimelineName,
@@ -334,7 +334,7 @@ public:
 	 *   for t in unreal.BlueprintService.get_timelines("/Game/StateTree/BP_Cube"):
 	 *       print(t.timeline_name, "tracks:", t.track_count, "len:", t.length)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static TArray<FBlueprintTimelineInfo> GetTimelines(
 		const FString& BlueprintPath
 	);
@@ -358,7 +358,7 @@ public:
 	 * Example:
 	 *   unreal.BlueprintService.modify_timeline("/Game/StateTree/BP_Cube", "LookAtTimeline", "", 0.75, -1, -1, -1, -1, -1)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool ModifyTimeline(
 		const FString& BlueprintPath,
 		const FString& TimelineName,
@@ -381,7 +381,7 @@ public:
 	 * Example:
 	 *   unreal.BlueprintService.remove_timeline("/Game/StateTree/BP_Cube", "LookAtTimeline")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool RemoveTimeline(
 		const FString& BlueprintPath,
 		const FString& TimelineName
@@ -395,7 +395,7 @@ public:
 	 * @param TrackName - Name of the new track (also the output pin name on the node)
 	 * @return True if the track was added
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool AddTimelineVectorTrack(
 		const FString& BlueprintPath,
 		const FString& TimelineName,
@@ -410,7 +410,7 @@ public:
 	 * @param TrackName - Name of the new track (also the output pin name on the node)
 	 * @return True if the track was added
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool AddTimelineColorTrack(
 		const FString& BlueprintPath,
 		const FString& TimelineName,
@@ -426,7 +426,7 @@ public:
 	 * @param TrackName - Name of the new event track (also the exec output pin name)
 	 * @return True if the track was added
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool AddTimelineEventTrack(
 		const FString& BlueprintPath,
 		const FString& TimelineName,
@@ -441,7 +441,7 @@ public:
 	 * @param TrackName - Name of the track to remove
 	 * @return True if the track existed and was removed
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool RemoveTimelineTrack(
 		const FString& BlueprintPath,
 		const FString& TimelineName,
@@ -457,7 +457,7 @@ public:
 	 * @param NewTrackName - New track name (must be unique on the timeline)
 	 * @return True if the track was found and renamed
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool RenameTimelineTrack(
 		const FString& BlueprintPath,
 		const FString& TimelineName,
@@ -476,7 +476,7 @@ public:
 	 * @param InterpMode - "Auto" (smooth), "Linear", "Constant", "CubicUser"
 	 * @return True if the key was added
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool AddTimelineVectorKey(
 		const FString& BlueprintPath,
 		const FString& TimelineName,
@@ -499,7 +499,7 @@ public:
 	 * @param InterpMode - "Auto" (smooth), "Linear", "Constant", "CubicUser"
 	 * @return True if the key was added
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool AddTimelineColorKey(
 		const FString& BlueprintPath,
 		const FString& TimelineName,
@@ -521,7 +521,7 @@ public:
 	 * @param Time - Time in seconds at which the event fires
 	 * @return True if the key was added
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool AddTimelineEventKey(
 		const FString& BlueprintPath,
 		const FString& TimelineName,
@@ -539,7 +539,7 @@ public:
 	 * @param Tolerance - Time tolerance for matching the key (default 0.001)
 	 * @return True if at least one key was removed
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool RemoveTimelineKey(
 		const FString& BlueprintPath,
 		const FString& TimelineName,
@@ -556,7 +556,7 @@ public:
 	 * @param TrackName - Name of the track to clear
 	 * @return True if the track was found and cleared
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool ClearTimelineTrackKeys(
 		const FString& BlueprintPath,
 		const FString& TimelineName,
@@ -588,7 +588,7 @@ public:
 	 *   data = json.loads(report)
 	 *   assert data["nodeOverlaps"] == 0 and data["backwardExecWires"] == 0
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints|BatchGraph")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints|BatchGraph")
 	static bool AnalyzeGraphLayout(
 		const FString& BlueprintPath,
 		const FString& GraphName,
@@ -611,7 +611,7 @@ public:
 	 * Example:
 	 *   unreal.BlueprintService.refresh_blueprint_editor("/Game/Props/BP_Refrigerator")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blueprints")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
 	static bool RefreshBlueprintEditor(const FString& BlueprintPath);
 
 

@@ -32,7 +32,7 @@ public:
 	 * question RenameBlackboardKey answers after the fact, answerable before deciding to rename
 	 * or remove. A failure returns a single entry prefixed "ERROR: ".
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blackboard")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Blackboard")
 	static TArray<FString> FindBlackboardKeyReferences(const FString& AssetPath,
 		const FString& KeyName);
 
@@ -45,7 +45,7 @@ public:
 	 * "<btPath>:<node>.<property>", where btPath always starts with a content root such as
 	 * "/Game/"). A successful rename that nothing referenced returns a plain empty array.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Blackboard")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blackboard")
 	static TArray<FString> RenameBlackboardKey(const FString& AssetPath, const FString& OldName,
 		const FString& NewName);
 };

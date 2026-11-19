@@ -37,10 +37,10 @@ public:
 	 * access through CanGetPropertyValue/CheckCanSetProperty, which refuse exactly that shape.
 	 * UE5 has no per-actor rotation or scale lock -- location only.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Actors")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Actors")
 	static bool SetActorLockLocation(const FString& ActorNameOrLabel, bool bLocked);
 
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Actors")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Actors")
 	static bool GetActorLockLocation(const FString& ActorNameOrLabel, bool& OutLocked);
 
 	/**
@@ -56,7 +56,7 @@ public:
 	 * Example:
 	 *   unreal.ActorService.rerun_construction_scripts("BP_Refrigerator_2")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Actors")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Actors")
 	static bool RerunConstructionScripts(const FString& ActorLabelOrPath);
 
 	/** Resolve an actor in the editor world by object name or display label. Not a tool; shared with

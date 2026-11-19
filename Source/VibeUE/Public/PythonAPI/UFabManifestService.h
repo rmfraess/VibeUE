@@ -32,7 +32,7 @@ public:
 	 *                      unreal-engine installOptions entry. Empty = the running engine.
 	 * @param MaxFiles      Maximum file rows to return; 0 = all files.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Fab")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Execute"), Category = "VibeUE|Fab")
 	static FString InspectOwnedManifest(const FString& ListingId, const FString& EngineVersion = TEXT(""),
 	                                    int32 MaxFiles = 1000);
 };

@@ -147,12 +147,12 @@ public:
 	 *       root_flag = " [ROOT]" if n.is_root_node else ""
 	 *       print(f"[{n.node_index}] {n.node_class}{root_flag} children={n.child_indices}")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Audio|Inspection")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Audio|Inspection")
 	static TArray<FSoundCueNodeInfo> ListNodes(const FString& AssetPath);
 
 	/** Reposition a node in the graph editor (purely visual).
 	 *  Call list_nodes() first to get the correct index. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Audio|Nodes")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Audio|Nodes")
 	static bool MoveNode(
 		const FString& AssetPath,
 		int32 NodeIndex,
@@ -181,7 +181,7 @@ public:
 	 *   val = unreal.SoundCueService.get_node_property("/Game/Audio/SC_Footstep", 0, "PitchMin")
 	 *   print(val)  # "0.95"
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Audio|NodeProperties")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Audio|NodeProperties")
 	static FString GetNodeProperty(
 		const FString& AssetPath,
 		int32 NodeIndex,
@@ -205,7 +205,7 @@ public:
 	 *   unreal.SoundCueService.set_node_property("/Game/Audio/SC_Footstep", 0, "PitchMin", "0.85")
 	 *   unreal.SoundCueService.set_node_property("/Game/Audio/SC_Footstep", 0, "bLooping", "true")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Audio|NodeProperties")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Audio|NodeProperties")
 	static bool SetNodeProperty(
 		const FString& AssetPath,
 		int32 NodeIndex,
@@ -224,7 +224,7 @@ public:
 	 *   unreal.SoundCueService.set_wave_player_asset(
 	 *       "/Game/Audio/SC_Footstep", 1, "/Game/Audio/SW_Step_Gravel")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Audio|NodeProperties")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Audio|NodeProperties")
 	static bool SetWavePlayerAsset(
 		const FString& AssetPath,
 		int32 NodeIndex,
@@ -244,7 +244,7 @@ public:
 	 *   info = unreal.SoundCueService.get_sound_wave_info("/Game/Audio/SW_Step_Stone")
 	 *   print(f"Duration: {info.duration}s, Channels: {info.num_channels}")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Audio|SoundWave")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Audio|SoundWave")
 	static FSoundWaveInfo GetSoundWaveInfo(const FString& SoundWavePath);
 
 private:

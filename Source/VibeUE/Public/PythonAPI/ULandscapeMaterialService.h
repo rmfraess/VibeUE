@@ -308,7 +308,7 @@ public:
 	 *             FLandscapeMaterialLayerConfig(LayerName="Rock", BlendType="LB_WeightBlend")]
 	 *   blend = unreal.LandscapeMaterialService.create_layer_blend_node_with_layers(mat_path, layers)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|LandscapeMaterial")
 	static FLandscapeLayerBlendInfo CreateLayerBlendNodeWithLayers(
 		const FString& MaterialPath,
 		const TArray<FLandscapeMaterialLayerConfig>& Layers,
@@ -325,7 +325,7 @@ public:
 	 * @param BlendType - Blend type: "LB_WeightBlend" (default), "LB_AlphaBlend", "LB_HeightBlend"
 	 * @return True if layer was added
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|LandscapeMaterial")
 	static bool AddLayerToBlendNode(
 		const FString& MaterialPath,
 		const FString& BlendNodeId,
@@ -341,7 +341,7 @@ public:
 	 * @param LayerName - Name of the layer to remove
 	 * @return True if layer was removed
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|LandscapeMaterial")
 	static bool RemoveLayerFromBlendNode(
 		const FString& MaterialPath,
 		const FString& BlendNodeId,
@@ -355,7 +355,7 @@ public:
 	 * @param BlendNodeId - ID of the blend node expression
 	 * @return Blend info with all layer configurations
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|LandscapeMaterial")
 	static FLandscapeLayerBlendInfo GetLayerBlendInfo(
 		const FString& MaterialPath,
 		const FString& BlendNodeId);
@@ -373,7 +373,7 @@ public:
 	 *                   or "Alpha" (for LB_AlphaBlend — alias for "Height")
 	 * @return True if connection was made
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|LandscapeMaterial")
 	static bool ConnectToLayerInput(
 		const FString& MaterialPath,
 		const FString& SourceExpressionId,
@@ -477,7 +477,7 @@ public:
 	 * @param bIsWeightBlended - True for weight-blended (default), false for non-weight-blended
 	 * @return Create result with asset path and layer name
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|LandscapeMaterial")
 	static FLandscapeLayerInfoCreateResult CreateLayerInfoObject(
 		const FString& LayerName,
 		const FString& DestinationPath,
@@ -496,7 +496,7 @@ public:
 	 * @param LayerInfoPaths - Map of layer name -> layer info asset path
 	 * @return True if assignment succeeded
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|LandscapeMaterial")
 	static bool AssignMaterialToLandscape(
 		const FString& LandscapeNameOrLabel,
 		const FString& MaterialPath,
@@ -520,7 +520,7 @@ public:
 	 * @param TextureTilingScale - UV tiling scale (default 0.01)
 	 * @return True if setup succeeded
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|LandscapeMaterial")
 	static bool SetupLayerTextures(
 		const FString& MaterialPath,
 		const FString& BlendNodeId,
@@ -581,7 +581,7 @@ public:
 	 *   mask_id = svc.create_height_mask_node("/Game/M_Terrain", 5000.0, 8000.0)
 	 *   svc.connect_to_layer_input("/Game/M_Terrain", mask_id, "", blend_id, "Snow", "Alpha")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|LandscapeMaterial")
 	static FString CreateHeightMaskNode(
 		const FString& MaterialPath,
 		float MinHeight,
@@ -612,7 +612,7 @@ public:
 	 *   mask_id = svc.create_slope_mask("/Game/M_Terrain", 30.0, 60.0)
 	 *   svc.connect_to_layer_input("/Game/M_Terrain", mask_id, "", blend_id, "Rock", "Alpha")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|LandscapeMaterial")
 	static FString CreateSlopeMaskNode(
 		const FString& MaterialPath,
 		float MinSlopeDegrees = 30.0f,
@@ -656,7 +656,7 @@ public:
 	 *       height_layer_name="Snow", height_threshold=8000.0, height_blend=2000.0,
 	 *       slope_layer_name="Rock",  slope_threshold=35.0,    slope_blend=10.0)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|LandscapeMaterial")
 	static bool SetupHeightSlopeBlend(
 		const FString& MaterialPath,
 		const FString& BlendNodeId,
@@ -695,7 +695,7 @@ public:
 	 * @param SlopeBlend - Transition width for slope blending (degrees)
 	 * @return Result with material path, layer info paths, and any errors
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial|AutoMaterial")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|LandscapeMaterial|AutoMaterial")
 	static FLandscapeAutoMaterialResult CreateAutoMaterial(
 		const FString& LandscapeNameOrLabel,
 		const FString& MaterialName,
@@ -722,7 +722,7 @@ public:
 	 * @param bIncludeNormals - Also return matching normal maps
 	 * @return Array of discovered texture sets grouped by terrain type
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|LandscapeMaterial|AutoMaterial")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|LandscapeMaterial|AutoMaterial")
 	static TArray<FLandscapeTextureSet> FindLandscapeTextures(
 		const FString& SearchPath = TEXT(""),
 		const FString& TerrainType = TEXT(""),

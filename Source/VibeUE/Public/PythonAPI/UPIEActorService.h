@@ -76,7 +76,7 @@ public:
 	 * Example:
 	 *   unreal.PIEActorService.resolve_world("server")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|PIE|Actors")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|PIE|Actors")
 	static FString ResolveWorld(const FString& WorldSelector);
 
 	/**
@@ -105,7 +105,7 @@ public:
 	 * Example:
 	 *   unreal.PIEActorService.spawn_actor("server", "/Script/Engine.StaticMeshActor", unreal.Transform())
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|PIE|Actors")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|PIE|Actors")
 	static FString SpawnActor(
 		const FString& WorldSelector,
 		const FString& ClassPath,
@@ -128,7 +128,7 @@ public:
 	 * Example:
 	 *   unreal.PIEActorService.destroy_actor(handle)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|PIE|Actors")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|PIE|Actors")
 	static FString DestroyActor(const FString& Handle);
 
 	/**
@@ -141,7 +141,7 @@ public:
 	 * Example:
 	 *   unreal.PIEActorService.destroy_all()
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|PIE|Actors")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|PIE|Actors")
 	static FString DestroyAll();
 
 	/**
@@ -154,7 +154,7 @@ public:
 	 * Example:
 	 *   unreal.PIEActorService.list_spawned()
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|PIE|Actors")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|PIE|Actors")
 	static FString ListSpawned();
 
 	/**
@@ -200,7 +200,7 @@ public:
 	 * Example:
 	 *   unreal.PIEActorService.call_function("client:1", "BP_Test_C_0", "Server_BeginInteract", '{"Target":"Lever_0"}')
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|PIE|Actors")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Execute"), Category = "VibeUE|PIE|Actors")
 	static FString CallFunction(
 		const FString& WorldSelector,
 		const FString& ObjectPath,
@@ -223,7 +223,7 @@ public:
 	 * Example:
 	 *   unreal.PIEActorService.console_command("server", "stat unit")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|PIE|Actors")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Execute"), Category = "VibeUE|PIE|Actors")
 	static FString ConsoleCommand(const FString& WorldSelector, const FString& Command);
 
 	/**

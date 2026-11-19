@@ -180,7 +180,7 @@ public:
 	 *
 	 * @return Viewport state including type, camera transform, FOV, exposure, layout
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Viewport")
 	static FViewportInfo GetViewportInfo();
 
 	/**
@@ -208,7 +208,7 @@ public:
 	 * @return True if a level viewport client was found and the snapshot applied; false
 	 *         (with a Warning log) when there is no level viewport.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static bool RestoreViewportInfo(const FViewportInfo& Info);
 
 	// =================================================================
@@ -221,7 +221,7 @@ public:
 	 * @param ViewType - One of: "perspective", "top", "bottom", "left", "right", "front", "back"
 	 * @return True if the view type was changed successfully
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static bool SetViewportType(const FString& ViewType);
 
 
@@ -237,7 +237,7 @@ public:
 	 *
 	 * @return Current view mode as string (e.g., "lit", "wireframe", "unlit")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Viewport")
 	static FString GetViewMode();
 
 	// =================================================================
@@ -255,7 +255,7 @@ public:
 	 * @param FOVDegrees - Field of view in degrees (typically 60-120, default 90)
 	 * @return True if FOV was set successfully
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static bool SetFOV(float FOVDegrees);
 
 
@@ -269,7 +269,7 @@ public:
 	 * @param Distance - Near clip distance in Unreal units. Use -1 to reset to engine default (GNearClippingPlane).
 	 * @return True if set successfully
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static bool SetNearClipPlane(float Distance);
 
 	/**
@@ -278,7 +278,7 @@ public:
 	 * @param Distance - Far clip distance in Unreal units. Use 0 for infinity (default).
 	 * @return True if set successfully
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static bool SetFarClipPlane(float Distance);
 
 	// =================================================================
@@ -299,7 +299,7 @@ public:
 	 * @param EV100 - EV100 exposure compensation value (default 1.0)
 	 * @return True if set successfully
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static bool SetExposure(bool bFixed, float EV100 = 1.0f);
 
 
@@ -315,7 +315,7 @@ public:
 	 * @param bEnable - True to enable Game View, false to disable
 	 * @return True if set successfully
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static bool SetGameView(bool bEnable);
 
 	/**
@@ -325,7 +325,7 @@ public:
 	 * @param bAllow - True to allow cinematic control
 	 * @return True if set successfully
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static bool SetAllowCinematicControl(bool bAllow);
 
 	// =================================================================
@@ -338,7 +338,7 @@ public:
 	 * @param bRealtime - True for realtime rendering, false for on-demand
 	 * @return True if set successfully
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static bool SetRealtime(bool bRealtime);
 
 	// =================================================================
@@ -351,7 +351,7 @@ public:
 	 * @param SpeedSetting - Speed index from 1 (slowest) to 8 (fastest)
 	 * @return True if set successfully
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static bool SetCameraSpeed(int32 SpeedSetting);
 
 	// =================================================================
@@ -378,7 +378,7 @@ public:
 	 * @param LayoutName - Layout configuration name
 	 * @return True if layout was changed successfully
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static bool SetViewportLayout(const FString& LayoutName);
 
 	/**
@@ -386,7 +386,7 @@ public:
 	 *
 	 * @return Layout name (e.g., "OnePane", "FourPanes2x2")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Viewport")
 	static FString GetViewportLayout();
 
 	// =================================================================
@@ -436,7 +436,7 @@ public:
 	 *        -4 is a good first try for bright scenes.
 	 * @return FSceneCaptureResult with bSuccess, OutputPath, Width/Height, FileSizeBytes, ErrorMessage.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static FSceneCaptureResult CaptureScene(
 		FVector Location,
 		FRotator Rotation,
@@ -482,7 +482,7 @@ public:
 	 * @param EV100 - Fixed EV100 for the shot when bFixedExposure is true (higher = darker).
 	 * @return FSceneCaptureResult with bSuccess, OutputPath, Width/Height, FileSizeBytes, ErrorMessage.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static FSceneCaptureResult CaptureWithView(
 		FVector Location,
 		FRotator Rotation,
@@ -525,7 +525,7 @@ public:
 	 *         {"success": false, "error_code": "NO_WINDOW", "error_message": str} when there is no
 	 *         main editor window (headless / -nullrhi runs).
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Viewport")
 	static FString GetEditorWindowState();
 
 	/**
@@ -542,7 +542,7 @@ public:
 	 *         success is true when the requested state holds afterwards. Failures add
 	 *         "error_code" ("NO_WINDOW", "BAD_STATE" or "STATE_NOT_REACHED") and "error_message".
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Viewport")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static FString SetEditorWindowState(const FString& State);
 
 private:

@@ -98,7 +98,7 @@ public:
 	 * Example:
 	 *   node = unreal.MaterialNodeService.create_collection_parameter("/Game/M_Test", "/Game/MPC_Weather", "WindStrength", -500, 0)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "MaterialNode")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "MaterialNode")
 	static FMaterialExpressionInfo CreateCollectionParameter(
 		const FString& MaterialPath,
 		const FString& CollectionPath,

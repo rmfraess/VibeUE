@@ -52,6 +52,6 @@ public:
 	 *
 	 * Returns an empty string on success, else the error.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|BehaviorTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|BehaviorTree")
 	static FString RepairGraphFromRuntimeTree(const FString& AssetPath);
 };

@@ -79,7 +79,7 @@ public:
 	 *
 	 * @return Discovery result with action value types, modifiers, and triggers
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Input")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Input")
 	static FInputTypeDiscoveryResult DiscoverTypes();
 
 	/**
@@ -89,7 +89,7 @@ public:
 	 * @param Filter - Optional filter string to narrow results
 	 * @return Array of available key names
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Input")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Input")
 	static TArray<FString> GetAvailableKeys(const FString& Filter = TEXT(""));
 
 	// =================================================================
@@ -105,7 +105,7 @@ public:
 	 * @param ModifierType - Type of modifier (e.g., "Negate", "Scalar", "DeadZone")
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Input")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Input")
 	static bool AddModifier(
 		const FString& ContextPath,
 		int32 MappingIndex,
@@ -131,7 +131,7 @@ public:
 	 *        and adds nothing. A running PIE session keeps its copy of the triggers: restart PIE to see it.
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Input")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Input")
 	static bool AddTrigger(
 		const FString& ContextPath,
 		int32 MappingIndex,
@@ -151,7 +151,7 @@ public:
 	 * Example:
 	 *   unreal.InputService.add_action_trigger("/Game/Input/IA_Block", "Hold", '{"hold_time_threshold": 0.4}')
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category ="VibeUE|Input")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Input")
 	static FString AddActionTrigger(
 		const FString& ActionPath,
 		const FString& TriggerType,

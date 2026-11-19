@@ -209,13 +209,13 @@ public:
 	 * EditorToolset.EditorAppToolset.StartPIE (async: it is not live in the same call), then read the
 	 * live instance through SlateInspectorToolset.Snapshot -> GetUMGInfo -> ObjectToolset.GetProperties.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Widgets|PIE")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Widgets|PIE")
 	static FPIEWidgetHandle SpawnWidgetInPIE(
 		const FString& WidgetPath,
 		int32 ZOrder = 0);
 
 	/** Remove a widget instance spawned by SpawnWidgetInPIE from the PIE viewport. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Widgets|PIE")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Widgets|PIE")
 	static bool RemoveWidgetFromPIE(const FPIEWidgetHandle& Handle);
 
 	// =================================================================
@@ -235,7 +235,7 @@ public:
 	 * @param FunctionName - Name of the function to call
 	 * @return True if binding was successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Widgets")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Widgets")
 	static bool BindEvent(
 		const FString& WidgetPath,
 		const FString& WidgetName,

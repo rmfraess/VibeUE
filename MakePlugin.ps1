@@ -96,7 +96,7 @@ $ExcludeDevFiles = @(
 )
 
 # Note: test_prompts folder is now included for user reference and examples.
-# Note: Content/Python ships — init_unreal.py registers VibeUE's skills at editor startup.
+# Note: Content/Python ships the vibeue.py helpers; skills are Markdown under /Skills, discovered natively by UE 5.9.
 
 Write-Host "Copying plugin files (excluding build artifacts)..." -ForegroundColor Green
 

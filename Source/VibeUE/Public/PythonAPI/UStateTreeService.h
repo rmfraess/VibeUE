@@ -419,11 +419,11 @@ public:
 	 * Get all registered task type names.
 	 * Returns both struct-backed task types (e.g. "FStateTreeDelayTask") and blueprint task classes (e.g. "STT_Rotate_C").
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|StateTree")
 	static TArray<FString> GetAvailableTaskTypes();
 
 	/** Get all registered evaluator struct names discoverable from class iteration. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|StateTree")
 	static TArray<FString> GetAvailableEvaluatorTypes();
 
 	// ---- Asset Creation ----
@@ -439,7 +439,7 @@ public:
 	 *                        project -- run ObjectToolset.SearchSubclasses on UStateTreeSchema for
 	 *                        the valid names.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|StateTree")
 	static bool CreateStateTree(const FString& AssetPath, const FString& SchemaClassName = TEXT("StateTreeComponentSchema"));
 
 	// ---- State Management ----
@@ -455,7 +455,7 @@ public:
 	/**
 	 * Set a state's theme color by display name. Creates or updates the named color entry if needed.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|StateTree")
 	static bool SetStateThemeColor(const FString& AssetPath, const FString& StatePath,
 	                              const FString& ColorName, const FLinearColor& Color);
 
@@ -466,7 +466,7 @@ public:
 	 * @param OldColorName Current display name of the color entry (e.g. "Default Color")
 	 * @param NewColorName New display name to assign (e.g. "Idle")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|StateTree")
 	static bool RenameThemeColor(const FString& AssetPath, const FString& OldColorName, const FString& NewColorName);
 
 	/**
@@ -474,7 +474,7 @@ public:
 	 * Returns each color's display name, color value, and which states reference it.
 	 * @param AssetPath Content path to the StateTree
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|StateTree")
 	static TArray<FStateTreeThemeColorInfo> GetThemeColors(const FString& AssetPath);
 
 	/**
@@ -483,7 +483,7 @@ public:
 	 * @param StatePath Path of the state (e.g. "Root" or "Root/Walking")
 	 * @param bExpanded true to expand, false to collapse
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|StateTree")
 	static bool SetStateExpanded(const FString& AssetPath, const FString& StatePath, bool bExpanded);
 
 	/**
@@ -496,7 +496,7 @@ public:
 	 * @param StatePath Path of the state to select (e.g. "Root/Idle")
 	 * @return true if the selection was applied successfully
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|StateTree")
 	static bool SelectState(const FString& AssetPath, const FString& StatePath);
 
 
@@ -512,7 +512,7 @@ public:
 	// ---- Utility AI Considerations ----
 
 	/** Get all registered consideration struct names (Constant, FloatInput, EnumInput, plus any custom). */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|StateTree")
 	static TArray<FString> GetAvailableConsiderationTypes();
 
 
@@ -527,16 +527,16 @@ public:
 	 * @param Type  "Bool", "Int32", "Int64", "Float", "Double", "Name", "String", "Text"
 	 * @param DefaultValue  Initial/default value as a string (e.g. "3.14", "true", "Hello")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|StateTree")
 	static bool AddOrUpdateRootParameter(const FString& AssetPath, const FString& Name,
 	                                     const FString& Type, const FString& DefaultValue = TEXT(""));
 
 	/** Remove a root parameter by name. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|StateTree")
 	static bool RemoveRootParameter(const FString& AssetPath, const FString& Name);
 
 	/** Rename a root parameter without breaking existing bindings. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|StateTree")
 	static bool RenameRootParameter(const FString& AssetPath, const FString& OldName, const FString& NewName);
 
 	// ---- Level Actor Component Parameter Overrides ----
@@ -555,7 +555,7 @@ public:
 	 * @param Value             New value as a string (e.g. "3.14", "true", "Hello")
 	 * @return true if the override was applied successfully
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|StateTree")
 	static bool SetComponentParameterOverride(const FString& ActorNameOrLabel,
 	                                          const FString& ParameterName,
 	                                          const FString& Value);
@@ -565,7 +565,7 @@ public:
 
 
 	/** Reorder a transition within the state's Transitions array. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|StateTree")
 	static bool MoveTransition(const FString& AssetPath, const FString& StatePath, int32 FromIndex, int32 ToIndex);
 
 	// ---- Task Management ----
@@ -582,7 +582,7 @@ public:
 
 
 	/** Get all registered condition struct names discoverable from class iteration. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|StateTree")
 	static TArray<FString> GetAvailableConditionTypes();
 
 
@@ -591,14 +591,14 @@ public:
 
 
 	/** Add a condition to an existing transition. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|StateTree")
 	static bool AddTransitionCondition(const FString& AssetPath, const FString& StatePath,
 	                                   int32 TransitionIndex, const FString& ConditionStructName);
 
 
 
 	/** Get all editable properties on a transition condition node. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|StateTree")
 	static TArray<FStateTreePropertyInfo> GetTransitionConditionPropertyNames(const FString& AssetPath, const FString& StatePath,
 	                                                                           int32 TransitionIndex, const FString& ConditionStructName,
 	                                                                           int32 ConditionMatchIndex = -1);
@@ -608,12 +608,12 @@ public:
 	 * Kept pending a live check of whether the engine's GetBindingOptions covers this; unverified
 	 * either way, so prefer it over assuming an engine equivalent exists.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|StateTree")
 	static TArray<FStateTreePropertyInfo> GetTransitionEventPayloadPropertyNames(const FString& AssetPath, const FString& StatePath,
 	                                                                            int32 TransitionIndex);
 
 	/** Set a property on a transition condition node. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|StateTree")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|StateTree")
 	static bool SetTransitionConditionPropertyValue(const FString& AssetPath, const FString& StatePath,
 	                                                int32 TransitionIndex, const FString& ConditionStructName,
 	                                                const FString& PropertyPath, const FString& Value,

@@ -355,7 +355,7 @@ public:
 	 *   info = unreal.SkeletonService.get_skeleton_info("/Game/SK_Mannequin")
 	 *   print(f"Bones: {info.bone_count}")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Discovery")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Skeleton|Discovery")
 	static bool GetSkeletonInfo(
 		const FString& SkeletonPath,
 		FSkeletonAssetInfo& OutInfo);
@@ -377,7 +377,7 @@ public:
 	 * Example:
 	 *   transform = unreal.SkeletonService.get_bone_transform("/Game/SKM_Mannequin", "hand_r", True)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Bones")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Skeleton|Bones")
 	static FTransform GetBoneTransform(
 		const FString& AssetPath,
 		const FString& BoneName,
@@ -406,7 +406,7 @@ public:
 	 *   )
 	 *   unreal.SkeletonService.commit_bone_changes("/Game/SKM_Mannequin")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Modification")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Skeleton|Modification")
 	static bool AddBone(
 		const FString& SkeletalMeshPath,
 		const FString& BoneName,
@@ -426,7 +426,7 @@ public:
 	 *   unreal.SkeletonService.remove_bone("/Game/SKM_Mannequin", "extra_bone", True)
 	 *   unreal.SkeletonService.commit_bone_changes("/Game/SKM_Mannequin")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Modification")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Skeleton|Modification")
 	static bool RemoveBone(
 		const FString& SkeletalMeshPath,
 		const FString& BoneName,
@@ -445,7 +445,7 @@ public:
 	 *   unreal.SkeletonService.rename_bone("/Game/SKM_Mannequin", "old_name", "new_name")
 	 *   unreal.SkeletonService.commit_bone_changes("/Game/SKM_Mannequin")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Modification")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Skeleton|Modification")
 	static bool RenameBone(
 		const FString& SkeletalMeshPath,
 		const FString& OldBoneName,
@@ -498,7 +498,7 @@ public:
 	 *   )
 	 *   unreal.SkeletonService.commit_bone_changes("/Game/SKM_Mannequin")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Modification")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Skeleton|Modification")
 	static bool SetBoneTransform(
 		const FString& SkeletalMeshPath,
 		const FString& BoneName,
@@ -521,7 +521,7 @@ public:
 	 *   # For automated/silent operations:
 	 *   unreal.SkeletonService.commit_bone_changes("/Game/SKM_Mannequin", True)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Modification")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Skeleton|Modification")
 	static bool CommitBoneChanges(const FString& SkeletalMeshPath, bool bForce = false);
 
 
@@ -543,7 +543,7 @@ public:
 	 * Example:
 	 *   unreal.SkeletonService.set_bone_retargeting_mode("/Game/SK_Mannequin", "pelvis", "Skeleton")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Retargeting")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Skeleton|Retargeting")
 	static bool SetBoneRetargetingMode(
 		const FString& SkeletonPath,
 		const FString& BoneName,
@@ -562,7 +562,7 @@ public:
 	 * Example:
 	 *   profiles = unreal.SkeletonService.list_blend_profiles("/Game/SK_Mannequin")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|BlendProfiles")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Skeleton|BlendProfiles")
 	static TArray<FString> ListBlendProfiles(const FString& SkeletonPath);
 
 	/**
@@ -576,7 +576,7 @@ public:
 	 * Example:
 	 *   profile = unreal.SkeletonService.get_blend_profile("/Game/SK_Mannequin", "UpperBody")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|BlendProfiles")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Skeleton|BlendProfiles")
 	static bool GetBlendProfile(
 		const FString& SkeletonPath,
 		const FString& ProfileName,
@@ -592,7 +592,7 @@ public:
 	 * Example:
 	 *   unreal.SkeletonService.create_blend_profile("/Game/SK_Mannequin", "UpperBody")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|BlendProfiles")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Skeleton|BlendProfiles")
 	static bool CreateBlendProfile(
 		const FString& SkeletonPath,
 		const FString& ProfileName);
@@ -610,7 +610,7 @@ public:
 	 *   unreal.SkeletonService.set_blend_profile_bone("/Game/SK_Mannequin", "UpperBody", "spine_01", 1.0)
 	 *   unreal.SkeletonService.set_blend_profile_bone("/Game/SK_Mannequin", "UpperBody", "pelvis", 0.0)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|BlendProfiles")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Skeleton|BlendProfiles")
 	static bool SetBlendProfileBone(
 		const FString& SkeletonPath,
 		const FString& ProfileName,
@@ -645,7 +645,7 @@ public:
 	 *   profile = unreal.SkeletonService.create_skeleton_profile("/Game/SK_Mannequin")
 	 *   print(f"Bones: {profile.bone_count}, Constraints: {len(profile.constraints)}")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Profiles")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Skeleton|Profiles")
 	static bool CreateSkeletonProfile(
 		const FString& SkeletonPath,
 		FSkeletonProfile& OutProfile);
@@ -663,7 +663,7 @@ public:
 	 *   if not profile.is_valid:
 	 *       profile = unreal.SkeletonService.create_skeleton_profile("/Game/SK_Mannequin")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Profiles")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Skeleton|Profiles")
 	static bool GetSkeletonProfile(
 		const FString& SkeletonPath,
 		FSkeletonProfile& OutProfile);
@@ -684,7 +684,7 @@ public:
 	 *   for bone_range in constraints.bone_ranges:
 	 *       print(f"{bone_range.bone_name}: {bone_range.min_rotation} to {bone_range.max_rotation}")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Profiles")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Skeleton|Profiles")
 	static bool LearnFromAnimations(
 		const FString& SkeletonPath,
 		int32 MaxAnimations,
@@ -694,7 +694,7 @@ public:
 	/** Learn from an explicit corpus on this exact skeleton. Sort/deduplicate,
 	 * reject missing/mismatched references, retain observed extrema, and update
 	 * the cache atomically. No assets are modified. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Profiles")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Skeleton|Profiles")
 	static bool LearnFromAnimationReferences(const FString& SkeletonPath,
 		const TArray<FString>& AnimationPaths, int32 SamplesPerAnimation,
 		FLearnedConstraintsInfo& OutConstraints);
@@ -712,7 +712,7 @@ public:
 	 *       for br in constraints.bone_ranges:
 	 *           print(f"{br.bone_name}: samples={br.sample_count}")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Profiles")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Skeleton|Profiles")
 	static bool GetLearnedConstraints(
 		const FString& SkeletonPath,
 		FLearnedConstraintsInfo& OutConstraints);
@@ -739,7 +739,7 @@ public:
 	 *       1                              # Y axis (pitch)
 	 *   )
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Profiles")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Skeleton|Profiles")
 	static bool SetBoneConstraints(
 		const FString& SkeletonPath,
 		const FString& BoneName,
@@ -769,7 +769,7 @@ public:
 	 *       print(f"Violation: {result.violation_type} - {result.message}")
 	 *       print(f"Use clamped value: {result.clamped_rotation}")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Skeleton|Profiles")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Skeleton|Profiles")
 	static bool ValidateBoneRotation(
 		const FString& SkeletonPath,
 		const FString& BoneName,

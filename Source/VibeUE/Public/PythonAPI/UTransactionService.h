@@ -45,19 +45,19 @@ public:
 	// =================================================================
 
 	/** Undo the most recent transaction. Returns true if an undo was performed. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Transactions")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Transactions")
 	static bool Undo();
 
 	/** Redo the most recently undone transaction. Returns true if a redo was performed. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Transactions")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Transactions")
 	static bool Redo();
 
 	/** Undo the last N transactions. Returns the number actually undone. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Transactions")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Transactions")
 	static int32 UndoMultiple(int32 Count);
 
 	/** Redo the last N undone transactions. Returns the number actually redone. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Transactions")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Transactions")
 	static int32 RedoMultiple(int32 Count);
 
 	// =================================================================
@@ -65,11 +65,11 @@ public:
 	// =================================================================
 
 	/** True if an undo can be performed. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Transactions")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Transactions")
 	static bool CanUndo();
 
 	/** True if a redo can be performed. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Transactions")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Transactions")
 	static bool CanRedo();
 
 	// =================================================================
@@ -80,6 +80,6 @@ public:
 	 * Reset (clear) the entire undo/redo buffer. This clears HISTORY only — it does NOT
 	 * change anything in the level/world. Returns true on success.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Transactions")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Transactions")
 	static bool ResetBuffer(const FString& Reason);
 };

@@ -515,7 +515,7 @@ public:
 	 * @param SkeletonFilter - Optional skeleton path to filter by
 	 * @return Array of animation sequence info structs
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Discovery")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Discovery")
 	static TArray<FAnimSequenceInfo> ListAnimSequences(
 		const FString& SearchPath = TEXT("/Game"),
 		const FString& SkeletonFilter = TEXT(""));
@@ -527,7 +527,7 @@ public:
 	 * @param OutInfo - Output animation info
 	 * @return True if animation was found
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Discovery")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Discovery")
 	static bool GetAnimSequenceInfo(
 		const FString& AnimPath,
 		FAnimSequenceInfo& OutInfo);
@@ -546,7 +546,7 @@ public:
 	 * @param Duration - Duration of the animation in seconds (default: 1.0)
 	 * @return Path to the created animation, or empty string on failure
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Creation")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Creation")
 	static FString CreateFromPose(
 		const FString& SkeletonPath,
 		const FString& AnimName,
@@ -565,7 +565,7 @@ public:
 	 * @param BoneTracks - Array of bone track data with keyframes
 	 * @return Path to the created animation, or empty string on failure
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Creation")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Creation")
 	static FString CreateAnimSequence(
 		const FString& SkeletonPath,
 		const FString& AnimName,
@@ -580,7 +580,7 @@ public:
 	 * @param AnimPath - Path to the animation asset
 	 * @return Frame rate, or -1 if not found
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Properties")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Properties")
 	static float GetAnimationFrameRate(const FString& AnimPath);
 
 	// ============================================================================
@@ -593,7 +593,7 @@ public:
 	 * @param AnimPath - Path to the animation asset
 	 * @return Array of bone names
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|BoneTracks")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|BoneTracks")
 	static TArray<FString> GetAnimatedBones(const FString& AnimPath);
 
 	/**
@@ -604,7 +604,7 @@ public:
 	 * @param OutTransform - Output root motion transform
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Pose")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Pose")
 	static bool GetRootMotionAtTime(
 		const FString& AnimPath,
 		float Time,
@@ -617,7 +617,7 @@ public:
 	 * @param OutTransform - Output total root motion transform
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Pose")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Pose")
 	static bool GetTotalRootMotion(
 		const FString& AnimPath,
 		FTransform& OutTransform);
@@ -632,7 +632,7 @@ public:
 	 * @param AnimPath - Path to the animation asset
 	 * @return Array of curve info structs
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Curves")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Curves")
 	static TArray<FAnimCurveInfo> ListCurves(const FString& AnimPath);
 
 	/**
@@ -643,7 +643,7 @@ public:
 	 * @param OutInfo - Output curve info
 	 * @return True if curve was found
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Curves")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Curves")
 	static bool GetCurveInfo(
 		const FString& AnimPath,
 		const FString& CurveName,
@@ -656,7 +656,7 @@ public:
 	 * @param CurveName - Name of the curve
 	 * @return Array of curve keyframes
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Curves")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Curves")
 	static TArray<FCurveKeyframe> GetCurveKeyframes(
 		const FString& AnimPath,
 		const FString& CurveName);
@@ -671,7 +671,7 @@ public:
 	 * @param AnimPath - Path to the animation asset
 	 * @return Array of notify info structs
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Notifies")
 	static TArray<FAnimNotifyInfo> ListNotifies(const FString& AnimPath);
 
 	/**
@@ -682,7 +682,7 @@ public:
 	 * @param OutInfo - Output notify info
 	 * @return True if notify was found
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Notifies")
 	static bool GetNotifyInfo(
 		const FString& AnimPath,
 		int32 NotifyIndex,
@@ -697,7 +697,7 @@ public:
 	 * @param NotifyName - Optional name for the notify
 	 * @return Index of the new notify, or -1 on failure
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Notifies")
 	static int32 AddNotify(
 		const FString& AnimPath,
 		const FString& NotifyClass,
@@ -711,7 +711,7 @@ public:
 	 * @param NotifyIndex - Index of the notify to remove
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Notifies")
 	static bool RemoveNotify(const FString& AnimPath, int32 NotifyIndex);
 
 	/**
@@ -722,7 +722,7 @@ public:
 	 * @param NewTime - New trigger time in seconds
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Notifies")
 	static bool SetNotifyTriggerTime(
 		const FString& AnimPath,
 		int32 NotifyIndex,
@@ -736,7 +736,7 @@ public:
 	 * @param NewDuration - New duration in seconds
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Notifies")
 	static bool SetNotifyDuration(
 		const FString& AnimPath,
 		int32 NotifyIndex,
@@ -750,7 +750,7 @@ public:
 	 * @param TrackIndex - New track index
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Notifies")
 	static bool SetNotifyTrack(
 		const FString& AnimPath,
 		int32 NotifyIndex,
@@ -766,7 +766,7 @@ public:
 	 * @param NewName - New notify name
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Notifies")
 	static bool SetNotifyName(
 		const FString& AnimPath,
 		int32 NotifyIndex,
@@ -780,7 +780,7 @@ public:
 	 * @param NewColor - New color (RGBA, 0-1 range)
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Notifies")
 	static bool SetNotifyColor(
 		const FString& AnimPath,
 		int32 NotifyIndex,
@@ -794,7 +794,7 @@ public:
 	 * @param TriggerChance - Chance to trigger (0.0 = never, 1.0 = always)
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Notifies")
 	static bool SetNotifyTriggerChance(
 		const FString& AnimPath,
 		int32 NotifyIndex,
@@ -808,7 +808,7 @@ public:
 	 * @param bTriggerOnServer - True to trigger on dedicated servers
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Notifies")
 	static bool SetNotifyTriggerOnServer(
 		const FString& AnimPath,
 		int32 NotifyIndex,
@@ -822,7 +822,7 @@ public:
 	 * @param bTriggerOnFollower - True to trigger on followers
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Notifies")
 	static bool SetNotifyTriggerOnFollower(
 		const FString& AnimPath,
 		int32 NotifyIndex,
@@ -837,7 +837,7 @@ public:
 	 * @param WeightThreshold - Minimum blend weight to trigger (0.0-1.0)
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Notifies")
 	static bool SetNotifyTriggerWeightThreshold(
 		const FString& AnimPath,
 		int32 NotifyIndex,
@@ -852,7 +852,7 @@ public:
 	 * @param FilterLOD - LOD level to filter from (0 = highest detail)
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Notifies")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Notifies")
 	static bool SetNotifyLODFilter(
 		const FString& AnimPath,
 		int32 NotifyIndex,
@@ -868,7 +868,7 @@ public:
 	 * @param TrackIndex - Index of the track to remove
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|NotifyTracks")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|NotifyTracks")
 	static bool RemoveNotifyTrack(
 		const FString& AnimPath,
 		int32 TrackIndex);
@@ -881,7 +881,7 @@ public:
 	 * @param Time - Time of the marker to remove
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|SyncMarkers")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|SyncMarkers")
 	static bool RemoveSyncMarker(
 		const FString& AnimPath,
 		const FString& MarkerName,
@@ -895,7 +895,7 @@ public:
 	 * @param NewTime - New time in seconds
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|SyncMarkers")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|SyncMarkers")
 	static bool SetSyncMarkerTime(
 		const FString& AnimPath,
 		int32 MarkerIndex,
@@ -912,7 +912,7 @@ public:
 	 * @param NewTime - New time in seconds
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|SyncMarkers")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|SyncMarkers")
 	static bool SetSyncMarkerTimeByName(
 		const FString& AnimPath,
 		const FString& MarkerName,
@@ -930,7 +930,7 @@ public:
 	 * @param OutInfo - Output compression info
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Compression")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Compression")
 	static bool GetCompressionInfo(
 		const FString& AnimPath,
 		FAnimCompressionInfo& OutInfo);
@@ -941,7 +941,7 @@ public:
 	 * @param AnimPath - Path to the animation asset
 	 * @return True if successful
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Compression")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Compression")
 	static bool CompressAnimation(const FString& AnimPath);
 
 	// ============================================================================
@@ -954,7 +954,7 @@ public:
 	 * @param AnimPath - Path to the animation asset
 	 * @return JSON string with animation data
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Export")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Export")
 	static FString ExportAnimationToJson(const FString& AnimPath);
 
 	// ============================================================================
@@ -986,7 +986,7 @@ public:
 	 *   if result.was_clamped:
 	 *       print("Rotation was clamped to constraints")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Preview")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Preview")
 	static bool PreviewBoneRotation(
 		const FString& AnimPath,
 		const FString& BoneName,
@@ -1014,7 +1014,7 @@ public:
 	 *   ]
 	 *   result = unreal.AnimSequenceService.preview_pose_delta("/Game/Anims/AS_Idle", deltas, "local", 0)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Preview")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Preview")
 	static bool PreviewPoseDelta(
 		const FString& AnimPath,
 		const TArray<FBoneDelta>& BoneDeltas,
@@ -1032,7 +1032,7 @@ public:
 	 *   # Discard previewed changes
 	 *   unreal.AnimSequenceService.cancel_preview("/Game/Anims/AS_Idle")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Preview")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Preview")
 	static bool CancelPreview(const FString& AnimPath);
 
 	/**
@@ -1047,7 +1047,7 @@ public:
 	 *   if state.is_active:
 	 *       print(f"Previewing {state.pending_edit_count} edits")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Preview")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Preview")
 	static bool GetPreviewState(
 		const FString& AnimPath,
 		FAnimationPreviewState& OutState);
@@ -1067,7 +1067,7 @@ public:
 	 *       for violation in result.violation_messages:
 	 *           print(f"Violation: {violation}")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Preview")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Preview")
 	static bool ValidatePose(
 		const FString& AnimPath,
 		bool bUseLearnedConstraints,
@@ -1094,7 +1094,7 @@ public:
 	 *   if result.success:
 	 *       print(f"Baked frames {result.start_frame} to {result.end_frame}")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Preview")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Preview")
 	static bool BakePreviewToKeyframes(
 		const FString& AnimPath,
 		int32 StartFrame,
@@ -1127,7 +1127,7 @@ public:
 	 *       True  # Delta mode
 	 *   )
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Preview")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Preview")
 	static bool ApplyBoneRotation(
 		const FString& AnimPath,
 		const FString& BoneName,
@@ -1161,7 +1161,7 @@ public:
 	 *       []  # All bones
 	 *   )
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Pose")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Pose")
 	static bool CopyPose(
 		const FString& SrcAnimPath,
 		int32 SrcFrame,
@@ -1184,7 +1184,7 @@ public:
 	 *   result = unreal.AnimSequenceService.mirror_pose("/Game/Anims/AS_Wave", 15, "X")
 	 *   print(f"Mirrored {len(result.modified_bones)} bones")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Pose")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Pose")
 	static bool MirrorPose(
 		const FString& AnimPath,
 		int32 Frame,
@@ -1224,7 +1224,7 @@ public:
 	 *       unreal.Vector(-0.33, 0.93, -0.07),  # fingers forward
 	 *       unreal.Vector(0.18, 0.15, 0.97))    # palm up
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Pose")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Pose")
 	static FAnimationEditResult SolveLimbIK(
 		const FString& AnimPath,
 		int32 Frame,
@@ -1257,7 +1257,7 @@ public:
 	 *   result = unreal.AnimSequenceService.apply_hand_pose(
 	 *       "/Game/Anims/AS_Offer", 28, "hand_r", "open", 1.0)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Pose")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Pose")
 	static FAnimationEditResult ApplyHandPose(
 		const FString& AnimPath,
 		int32 Frame,
@@ -1281,7 +1281,7 @@ public:
 	 *   unreal.AnimSequenceService.interpolate_bone_frames(
 	 *       "/Game/Anims/AS_Offer", [], 10, 28, "smooth")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Pose")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Pose")
 	static FAnimationEditResult InterpolateBoneFrames(
 		const FString& AnimPath,
 		const TArray<FString>& BoneNames,
@@ -1322,7 +1322,7 @@ public:
 	 * Note: The mesh is rendered in a private preview scene - the open level is never
 	 * touched or dirtied, and the capture works while PIE is active.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Capture")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Capture")
 	static FAnimationPoseCaptureResult CaptureAnimationPose(
 		const FString& AnimPath,
 		float Time,
@@ -1354,7 +1354,7 @@ public:
 	 *   for r in results:
 	 *       print(f"Frame {r.captured_frame}: {r.image_path}")
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Animation|Capture")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Capture")
 	static TArray<FAnimationPoseCaptureResult> CaptureAnimationSequence(
 		const FString& AnimPath,
 		const FString& OutputDirectory,

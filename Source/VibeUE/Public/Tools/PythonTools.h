@@ -49,7 +49,7 @@ public:
 	 *   if stranded:
 	 *       print("restart the editor before changing level:", list(stranded))
 	 */
-	UFUNCTION(BlueprintCallable, Category="VibeUE|Python", meta=(AICallable))
+	UFUNCTION(BlueprintCallable, Category="VibeUE|Python", meta=(AICallable, AIAccessMode = "Read"))
 	static TArray<FString> GetResidentMaps();
 
 	/**

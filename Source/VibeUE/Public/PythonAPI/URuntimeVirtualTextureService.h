@@ -147,7 +147,7 @@ public:
 	 * @param bSinglePhysicalSpace - If true, use single physical space (default: false)
 	 * @return Result with asset path and any errors
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|RVT")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|RVT")
 	static FRVTCreateResult CreateRuntimeVirtualTexture(
 		const FString& AssetName,
 		const FString& DirectoryPath,
@@ -169,7 +169,7 @@ public:
 	 * @param AssetPath - Full path to the RVT asset
 	 * @return Info struct with configuration details
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|RVT")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|RVT")
 	static FRVTInfo GetRuntimeVirtualTextureInfo(const FString& AssetPath);
 
 	// =================================================================
@@ -188,7 +188,7 @@ public:
 	 * @param VolumeName - Optional name for the volume actor (auto-generated if empty)
 	 * @return Result with volume actor info and any errors
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|RVT")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|RVT")
 	static FRVTVolumeResult CreateRVTVolume(
 		const FString& LandscapeNameOrLabel,
 		const FString& RVTAssetPath,

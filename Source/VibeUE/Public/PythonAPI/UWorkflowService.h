@@ -14,7 +14,7 @@ class VIBEUE_API UWorkflowService : public UToolsetDefinition
 
 public:
 	/** Authoritative project/engine/toolchain/build context as JSON. Read-only. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Workflow")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Workflow")
 	static FString GetEnvironment();
 
 

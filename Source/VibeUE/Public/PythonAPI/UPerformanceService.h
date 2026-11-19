@@ -44,7 +44,7 @@ public:
 	 * @param Frames       Consecutive frames to sustain the hitch. Clamped to [1, 600]; CPU frames further
 	 *                     capped so total synchronous stall stays under ~10 s. Use >1 to simulate jitter.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Performance")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Execute"), Category = "VibeUE|Performance")
 	static FString ForceHitch(const FString& Thread = TEXT("game"), float Milliseconds = 250.0f, int32 Frames = 1);
 
 
@@ -61,7 +61,7 @@ public:
 	 * @param Source "trace", "logs", or "both" (default).
 	 * @param File Optional override path; empty uses the last trace started/stopped.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Performance")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Performance")
 	static FString Analyse(const FString& Source = TEXT("both"), const FString& File = TEXT(""));
 
 	/**
@@ -69,15 +69,15 @@ public:
 	 * initial response is pending (not successful) until GetStandaloneStatus verifies the child PID
 	 * and exact non-empty trace destination.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Performance")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Execute"), Category = "VibeUE|Performance")
 	static FString StartStandalone(const FString& Name = TEXT("standalone_capture"), const FString& Channels = TEXT(""));
 
 	/** Stop the tracked standalone process and verify graceful exit plus exact trace finalization. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Performance")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Execute"), Category = "VibeUE|Performance")
 	static FString StopStandalone();
 
 	/** Report tracked session/PID/map/path provenance and capture/finalization verification state. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Performance")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Performance")
 	static FString GetStandaloneStatus();
 
 
@@ -91,11 +91,11 @@ public:
 	 * bEnabled=false before automated PIE runs; pass true to restore the default. Also defeats the
 	 * minimized-window render disable. Session-only — nothing is saved to EditorSettings.ini.
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Performance")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Performance")
 	static FString SetBackgroundThrottling(bool bEnabled);
 
 	/** Report the current background-throttling state (see SetBackgroundThrottling). */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Performance")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Performance")
 	static FString GetBackgroundThrottling();
 
 	/**
