@@ -201,7 +201,7 @@ public:
 	 * @param SaveImagePath - optional absolute file path to also write the sheet to (.png or .jpg)
 	 * @return the sheet, with one cell per URL (ImageOrigin "fab", SourceWidth/Height, bLowDetail, Error)
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Fab")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Execute"), Category = "VibeUE|Fab")
 	static UVibeUEPreviewSheetResult* ListingImageSheet(
 		const TArray<FString>& ImageUrls,
 		const TArray<FString>& Labels,
@@ -221,7 +221,7 @@ public:
 	 * @param SaveImagePath - optional absolute file path to also write the sheet to (.png or .jpg)
 	 * @return the sheet, Cells (asset path, class, ImageOrigin), ClassCounts, TotalAssets, MatchedAssets, BytesOnDisk
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Fab")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Fab")
 	static FVibeUEPreviewSheet PackSheet(
 		const FString& ContentPath,
 		const FString& ClassNames = TEXT("StaticMesh,SkeletalMesh"),
@@ -243,7 +243,7 @@ public:
 	 * @param bSave - save the changed packages (default true; false leaves them dirty)
 	 * @return Refreshed / Failed object paths, SavedPackages, Summary
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable), Category = "VibeUE|Fab")
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Fab")
 	static FVibeUEThumbnailRefresh RefreshThumbnails(
 		const FString& ContentPath,
 		const FString& ClassNames = TEXT("StaticMesh,SkeletalMesh"),
