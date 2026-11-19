@@ -16,8 +16,9 @@ the old `build_graph` node types this file used to document.
 ## Timelines — full CRUD (`unreal.BlueprintService.*timeline*`)
 
 A Timeline is a `UK2Node_Timeline` node **plus** a `UTimelineTemplate` on the Blueprint.
-`add_timeline` creates both. Nothing in `BlueprintToolsets` or `EditorToolset` touches a
-`UTimelineTemplate`, which is why this whole surface stayed in VibeUE. The DSL can **anchor** to a
+`add_timeline` creates both. The engine's `unreal.BlueprintEditorLibrary.add_timeline(graph, name, location)`
+only declares and places one; length, play/loop flags, tracks and keys stay VibeUE-only, which is why
+this surface stayed in VibeUE. The DSL can **anchor** to a
 timeline node that already exists (`` (`Timeline|Name` …) ``) but cannot create one.
 
 All of these are plain Python inside `execute_python`, and every one refuses while PIE is running.

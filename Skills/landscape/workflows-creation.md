@@ -227,6 +227,7 @@ temp_path = os.path.join(unreal.Paths.project_saved_dir(), "temp_heightmap.raw")
 unreal.LandscapeService.export_heightmap("SourceLandscape", temp_path)
 unreal.LandscapeService.import_heightmap("DestLandscape", temp_path)
 os.remove(temp_path)  # Clean up
+os.remove(os.path.splitext(temp_path)[0] + ".json")  # .raw export writes a width/height/bpp sidecar
 ```
 
 ### Copy Paint Layers Between Landscapes
