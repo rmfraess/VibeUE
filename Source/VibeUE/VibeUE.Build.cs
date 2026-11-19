@@ -154,7 +154,7 @@ public class VibeUE : ModuleRules
 
 			if (bFabPluginPresent)
 			{
-				PrivateDependencyModuleNames.Add("Fab");                 // FabManifestService: IFabModule::GetDownloadInfo
+				PrivateDependencyModuleNames.Add("Fab");                 // FabManifestService: IFabModule agents-API host + token
 				PrivateDependencyModuleNames.Add("BuildPatchServices");  // FabManifestService: parse the BuildPatch manifest
 			}
 		}

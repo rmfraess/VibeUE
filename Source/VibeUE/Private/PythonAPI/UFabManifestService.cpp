@@ -38,6 +38,7 @@ FString UFabManifestService::InspectOwnedManifest(const FString&, const FString&
 #else // WITH_VIBEUE_FAB
 
 #include "FabModule.h"
+#include "GenericPlatform/GenericPlatformHttp.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/PlatformTime.h"
 #include "HttpManager.h"
@@ -66,6 +67,43 @@ namespace
 			FPlatformProcess::Sleep(0.01f);
 		}
 		return bDone;
+	}
+
+	struct FFetchState
+	{
+		bool bDone = false;
+		int32 Code = 0;
+		TArray<uint8> Data;
+	};
+
+	/** Blocking GET; Code stays 0 on a transport failure or timeout. */
+	TSharedRef<FFetchState, ESPMode::ThreadSafe> FetchUrl(const FString& Url, const FString& BearerToken)
+	{
+		const TSharedRef<FFetchState, ESPMode::ThreadSafe> Fetch = MakeShared<FFetchState, ESPMode::ThreadSafe>();
+		const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = FHttpModule::Get().CreateRequest();
+		HttpRequest->SetVerb(TEXT("GET"));
+		HttpRequest->SetURL(Url);
+		if (!BearerToken.IsEmpty())
+		{
+			HttpRequest->SetHeader(TEXT("accept"), TEXT("application/json"));
+			HttpRequest->SetHeader(TEXT("Authorization"), TEXT("Bearer ") + BearerToken);
+		}
+		HttpRequest->OnProcessRequestComplete().BindLambda(
+			[Fetch](FHttpRequestPtr, FHttpResponsePtr Response, bool bSucceeded)
+			{
+				if (bSucceeded && Response.IsValid())
+				{
+					Fetch->Code = Response->GetResponseCode();
+					Fetch->Data = Response->GetContent();
+				}
+				Fetch->bDone = true;
+			});
+		HttpRequest->ProcessRequest();
+		if (!PumpHttpUntil(Fetch->bDone))
+		{
+			HttpRequest->CancelRequest();
+		}
+		return Fetch;
 	}
 
 	FString TypeHint(const FString& Path)
@@ -99,77 +137,78 @@ FString UFabManifestService::InspectOwnedManifest(const FString& ListingId, cons
 		return ErrJson(TEXT("FAB_UNAVAILABLE"), TEXT("The Fab plugin is not enabled in this project."));
 	}
 
-	FFabDownloadInfoRequest Request;
-	Request.ListingUid = ListingId;
-	Request.AssetFormat = TEXT("unreal-engine");
+	FString RequestEngineVersion;
 	if (EngineVersion.IsEmpty())
 	{
 		const FEngineVersion& Current = FEngineVersion::Current();
-		Request.EngineVersion = FString::Printf(TEXT("UE_%u.%u"), static_cast<uint32>(Current.GetMajor()), static_cast<uint32>(Current.GetMinor()));
+		RequestEngineVersion = FString::Printf(TEXT("UE_%u.%u"), static_cast<uint32>(Current.GetMajor()), static_cast<uint32>(Current.GetMinor()));
 	}
 	else
 	{
-		Request.EngineVersion = EngineVersion.StartsWith(TEXT("UE_")) ? EngineVersion : TEXT("UE_") + EngineVersion;
+		RequestEngineVersion = EngineVersion.StartsWith(TEXT("UE_")) ? EngineVersion : TEXT("UE_") + EngineVersion;
 	}
 
-	struct FResolveState
+	// 5.9 Preview 2 moved IFabModule::GetDownloadInfo into FabToolset's private client, so call its
+	// /p/agents download-info route directly, signed with the token IFabModule hands out per url.
+	const FString Host = Fab->GetAgentsApiHost();
+	if (Host.IsEmpty())
 	{
-		bool bDone = false;
-		bool bOk = false;
-		FFabDownloadInfo Info;
-		FString Error;
-	};
-	const TSharedRef<FResolveState> Resolve = MakeShared<FResolveState>();
-	Fab->GetDownloadInfo(Request, FFabDownloadInfoDelegate::CreateLambda(
-		[Resolve](bool bOk, const FFabDownloadInfo& Info, const FString& Error)
+		return ErrJson(TEXT("FAB_UNAVAILABLE"), TEXT("No Fab environment is configured."));
+	}
+	const FString InfoUrl = Host + TEXT("/p/agents/listings/") + FGenericPlatformHttp::UrlEncode(ListingId)
+		+ TEXT("/download-info?assetFormat=unreal-engine&engineVersion=") + FGenericPlatformHttp::UrlEncode(RequestEngineVersion)
+		+ TEXT("&platform=") + FString(FPlatformProperties::IniPlatformName());
+	const FString Token = Fab->GetAuthTokenForUrl(InfoUrl);
+	if (Token.IsEmpty())
+	{
+		return ErrJson(TEXT("MANIFEST_RESOLUTION_FAILED"),
+			TEXT("Fab is not signed in. After an editor start Fab restores its sign-in on the first Fab call, which this blocking call cannot drive: run FabToolset.SearchFabMyLibrary once, then retry."));
+	}
+	const TSharedRef<FFetchState, ESPMode::ThreadSafe> Info = FetchUrl(InfoUrl, Token);
+	if (!Info->bDone || Info->Code == 0)
+	{
+		return ErrJson(TEXT("MANIFEST_RESOLUTION_TIMEOUT"), TEXT("Fab did not answer in time."));
+	}
+	const FString InfoBody = FString(FUTF8ToTCHAR(reinterpret_cast<const ANSICHAR*>(Info->Data.GetData()), Info->Data.Num()));
+	if (Info->Code < 200 || Info->Code >= 300)
+	{
+		// Error bodies only; a success body carries signed urls and is never returned.
+		return ErrJson(TEXT("MANIFEST_RESOLUTION_FAILED"), FString::Printf(TEXT("Fab download-info HTTP %d: %s"), Info->Code, *InfoBody.Left(500)));
+	}
+	TSharedPtr<FJsonObject> InfoJson;
+	if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(InfoBody), InfoJson) || !InfoJson.IsValid())
+	{
+		return ErrJson(TEXT("MANIFEST_RESOLUTION_FAILED"), TEXT("Fab returned a download-info response that is not JSON."));
+	}
+	const FString ItemId = InfoJson->GetStringField(TEXT("itemId"));
+	FString ArtifactId;
+	FString ManifestUrl;
+	const TArray<TSharedPtr<FJsonValue>>* Entries = nullptr;
+	if (InfoJson->TryGetArrayField(TEXT("downloadInfo"), Entries))
+	{
+		for (const TSharedPtr<FJsonValue>& Entry : *Entries)
 		{
-			Resolve->bDone = true;
-			Resolve->bOk = bOk;
-			Resolve->Info = Info;
-			Resolve->Error = Error;
-		}));
-	if (!PumpHttpUntil(Resolve->bDone))
-	{
-		return ErrJson(TEXT("MANIFEST_RESOLUTION_TIMEOUT"),
-			TEXT("Fab did not answer in time. After an editor start Fab restores its sign-in on the first Fab call, which this blocking call cannot drive: run FabToolset.SearchFabMyLibrary once, then retry."));
+			const TSharedPtr<FJsonObject>* EntryJson = nullptr;
+			if (Entry.IsValid() && Entry->TryGetObject(EntryJson) && (*EntryJson)->GetStringField(TEXT("type")) == TEXT("manifest"))
+			{
+				ArtifactId = (*EntryJson)->GetStringField(TEXT("artifactId"));
+				ManifestUrl = (*EntryJson)->GetStringField(TEXT("downloadUrl"));
+				break;
+			}
+		}
 	}
-	if (!Resolve->bOk)
-	{
-		return ErrJson(TEXT("MANIFEST_RESOLUTION_FAILED"), Resolve->Error);
-	}
-	const FFabResolvedDownload* Download = Resolve->Info.Downloads.FindByPredicate(
-		[](const FFabResolvedDownload& Candidate) { return Candidate.IsManifest(); });
-	if (Download == nullptr || Download->DownloadUrl.IsEmpty())
+	if (ManifestUrl.IsEmpty())
 	{
 		return ErrJson(TEXT("NOT_A_MANIFEST"), TEXT("Fab resolved this listing to a plain file, not a BuildPatch manifest."));
 	}
+	if (!ManifestUrl.StartsWith(TEXT("https://")))
+	{
+		// Same rule as Fab's own parser: a signed url never travels in plaintext.
+		return ErrJson(TEXT("MANIFEST_RESOLUTION_FAILED"), TEXT("Fab returned a manifest location this editor will not fetch from."));
+	}
 
 	// The signed manifest location stays in this function: it is fetched, never returned.
-	struct FFetchState
-	{
-		bool bDone = false;
-		int32 Code = 0;
-		TArray<uint8> Data;
-	};
-	const TSharedRef<FFetchState, ESPMode::ThreadSafe> Fetch = MakeShared<FFetchState, ESPMode::ThreadSafe>();
-	const TSharedRef<IHttpRequest, ESPMode::ThreadSafe> HttpRequest = FHttpModule::Get().CreateRequest();
-	HttpRequest->SetVerb(TEXT("GET"));
-	HttpRequest->SetURL(Download->DownloadUrl);
-	HttpRequest->OnProcessRequestComplete().BindLambda(
-		[Fetch](FHttpRequestPtr, FHttpResponsePtr Response, bool bSucceeded)
-		{
-			if (bSucceeded && Response.IsValid())
-			{
-				Fetch->Code = Response->GetResponseCode();
-				Fetch->Data = Response->GetContent();
-			}
-			Fetch->bDone = true;
-		});
-	HttpRequest->ProcessRequest();
-	if (!PumpHttpUntil(Fetch->bDone))
-	{
-		HttpRequest->CancelRequest();
-	}
+	const TSharedRef<FFetchState, ESPMode::ThreadSafe> Fetch = FetchUrl(ManifestUrl, FString());
 	if (Fetch->Code < 200 || Fetch->Code >= 300 || Fetch->Data.Num() == 0)
 	{
 		return ErrJson(TEXT("MANIFEST_DOWNLOAD_FAILED"),
@@ -203,10 +242,10 @@ FString UFabManifestService::InspectOwnedManifest(const FString& ListingId, cons
 
 	const TSharedRef<FJsonObject> Object = MakeShared<FJsonObject>();
 	Object->SetBoolField(TEXT("success"), true);
-	Object->SetStringField(TEXT("product_id"), Resolve->Info.ItemId);
+	Object->SetStringField(TEXT("product_id"), ItemId);
 	Object->SetStringField(TEXT("listing_id"), ListingId);
-	Object->SetStringField(TEXT("artifact_id"), Download->ArtifactId);
-	Object->SetStringField(TEXT("engine_version"), Request.EngineVersion);
+	Object->SetStringField(TEXT("artifact_id"), ArtifactId);
+	Object->SetStringField(TEXT("engine_version"), RequestEngineVersion);
 	Object->SetStringField(TEXT("metadata_fidelity"), TEXT("manifest"));
 	Object->SetNumberField(TEXT("manifest_bytes"), Fetch->Data.Num());
 	Object->SetNumberField(TEXT("build_size_bytes"), static_cast<double>(Manifest->GetBuildSize()));
