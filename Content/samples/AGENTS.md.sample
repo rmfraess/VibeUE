@@ -103,18 +103,19 @@ renders. `CaptureActiveEditorView` / `CaptureEditorViewport` capture the scene w
 gone — 5.9 covers every source it had, including the UMG HUD it was built for.
 
 **VibeUE services (call from Python inside `execute_python`):** `unreal.<Name>Service.<method>()`
-— StateTree, AnimSequence, Landscape(+Material), AnimMontage, AnimGraph, SoundCue, Input, Skeleton,
+— StateTree, AnimSequence, Landscape(+Material), AnimMontage, AnimGraph, Input, Skeleton,
 UVMapping, NiagaraScratchPad, Blueprint (+BlueprintGraph via BlueprintService), MapBlockout,
-CustomizableObject, Viewport, Foliage, Widget, Transaction, RuntimeVirtualTexture, Actor,
+CustomizableObject, Viewport, Foliage, Widget, RuntimeVirtualTexture, Actor,
 NiagaraEmitter, AssetDiscovery, Blackboard, EnvQuery, GameplayTag, MaterialNode, PythonTools,
-BehaviorTree, Workflow (`get_environment` only), **Performance** (`force_hitch`, `analyse`,
+BehaviorTree, Workflow (`get_environment` only), **Performance** (`analyse`,
 standalone capture, background throttling), **PIEActor**
 (`unreal.PIEActorService.spawn_actor(...)` -- spawn/destroy transient actors in a running PIE world).
 
 **Deleted services — do not call them, and do not expect a VibeUE equivalent:** `MaterialService`
 (→ Epic `MaterialToolset` / `MaterialInstanceToolset` / `ObjectToolset` / `AssetToolset`),
-`ProjectSettingsService` and `EngineSettingsService` (→ Epic `ConfigSettingsToolset`; only the
-Python-only `get_pie_settings` / `set_pie_settings` helpers remain), `FabService`, `NiagaraService`
+`ProjectSettingsService` and `EngineSettingsService` (→ Epic `ConfigSettingsToolset`), `TransactionService`
+(→ `UndoHistoryToolset`, `unreal.ToolsetLibrary.undo_transaction`, console `TRANSACTION REDO`), `SoundCueService`
+(→ `unreal.SoundCueEditorSubsystem` + `ObjectToolset`), `FabService`, `NiagaraService`
 (→ Epic `NiagaraToolsets`), `MetaSoundService` (→ Epic `MetaSoundToolset`) and `EnumStructService`
 (→ Epic `UserDefinedEnumToolset` / `UserDefinedStructToolset`).
 
@@ -128,7 +129,6 @@ engine toolset first and use these only for the named delta:
 | `EnvQueryService` | `run_query`, `repair_graph_from_options` | `AIModuleToolset.EnvironmentQueryToolset` (14 tools) |
 | `ActorService` | `rerun_construction_scripts` | `ActorToolset` / `LevelToolset` / `ObjectToolset` / `EditorAppToolset` |
 | `AssetDiscoveryService` | `reimport_asset` | `AssetToolset` / `TextureToolset` / `FileSystemToolset` |
-| `TransactionService` | undo/redo stepping only | `UndoHistoryToolset` + `unreal.ScopedEditorTransaction` |
 | Gameplay tags | — | `GameplayTagsToolset`; Python values: `unreal.GameplayTag.import_text` / `unreal.GameplayTagContainer.import_text` |
 | `NiagaraEmitterService` | the three colour-curve tools | `NiagaraToolsets` (57 tools) |
 | `MaterialNodeService` | `create_collection_parameter` | `MaterialToolset` / `MaterialInstanceToolset` / `ObjectToolset` (`MaterialService` is deleted) |
@@ -312,9 +312,9 @@ call_tool ConsoleToolset.RunConsoleCommand {"command": "Trace.Stop"}
 ```
 ```python
 import unreal
-# Still VibeUE's: analysing a capture, forcing a hitch to validate a verdict, standalone capture.
+# Still VibeUE's: analysing a capture and standalone capture.
 print(unreal.PerformanceService.analyse("both", ""))       # frame stats + worst frames + log hitches
-print(unreal.PerformanceService.force_hitch("game", 250.0, 1))
+# To validate a verdict, stall the game thread on purpose (time.sleep(0.25)), then read GetFrameTimings.
 ```
 Load the `profiling` and `frame-rate` skills for the full drill-down.
 
@@ -333,9 +333,9 @@ a one-tick tap; a positive duration holds then releases. The asynchronous call c
 For an indefinite Enhanced Input hold, use `unreal.EnhancedInputLocalPlayerSubsystem` continuous
 injection APIs and release it explicitly. The tool selects a local player automatically; it has no
 `pie_instance` parameter. Verify gameplay state after input.
-PIE net mode and client count: `unreal.EngineSettingsService.set_pie_settings("ListenServer", 3, True)`
-(net mode, clients 1-10, run under one process; it is saved to the user's ini), read back with
-`get_pie_settings()` — these two are **Python-only helpers**, not MCP tools.
+PIE net mode and client count: read `unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).get_play_settings()`
+(`play_net_mode`, `play_number_of_clients`, `run_under_one_process`); write them with
+`ConfigSettingsToolset.SetSectionProperties` (Editor / LevelEditor / PlayIn; saved to the user's ini).
 
 For gate harnesses, `import vibeue` adds `wait_for` / `wait_for_players` (non-blocking waits: never
 `time.sleep()` on the game thread, it freezes every PIE net driver), `gate_session` (throttling + PIE
@@ -347,11 +347,10 @@ spawn can't do (they hit the editor world or refuse during PIE):
 `unreal.PIEActorService.spawn_actor("server", "/Script/Engine.StaticMeshActor", unreal.Transform())`
 (role selector `server`/`client`/`client:N`/`instance:N`; transient; `destroy_all()` to clean up;
 handles die with the PIE session). See the `pie-testing` skill.
-To call a UFUNCTION or RPC in PIE from Python with REAL net routing (plain Python calls run every RPC
-locally): `unreal.PIEActorService.call_function("client:1", "BP_Test_C_0", "Server_Foo", '{"Arg": 1}')`;
-its `callspace` field (`local`/`remote`/`local+remote`/`absorbed`) says whether an RPC was sent.
-`unreal.PIEActorService.console_command("server", "r.VSync 0")` runs a console command in one PIE world
-the same way.
+To call a UFUNCTION in PIE, find the actor in the PIE world
+(`unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()`) and use
+`actor.call_method("Server_Foo", (1,))`; 5.9 routes RPCs from Python calls natively. A console command in
+the PIE world: `unreal.SystemLibrary.execute_console_command(world, "r.VSync 0")`.
 
 ---
 

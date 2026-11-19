@@ -62,9 +62,6 @@ VibeUE **complements** them — it focuses on the domains and depth the engine d
 - **StateTree** — Epic's `StateTreeToolset` owns states, tasks, conditions and node data. VibeUE keeps
   property **binding** (24 tools), asset creation, node-type discovery, theme colours and root
   parameters — see `Skills/state-trees/`.
-- **Editor safety** -- `TransactionService` exposes the undo/redo *stepping* (undo / redo /
-  multiple / can-undo / reset) that neither Python nor the engine toolsets expose; history reading is
-  Epic's `UndoHistoryToolset` and scoping is `unreal.ScopedEditorTransaction`.
 - **Build manifest** — `WorkflowService.get_environment` reports engine version, build config and
   toolchain in one authoritative call.
 - **Performance & profiling** — the parts Epic's 5.9 profiling toolsets still don't cover: see below.

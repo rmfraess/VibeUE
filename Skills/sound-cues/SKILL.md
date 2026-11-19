@@ -2,8 +2,6 @@
 name: sound-cues
 display_name: Sound Cue Editor
 description: Create and modify SoundCue assets — add/connect nodes (mixer, random, delay, attenuation, modulator, etc.) and set audio properties. Use when the user asks to create a Sound Cue, build a SoundCue node graph, or wire audio playback logic.
-vibeue_classes:
-  - SoundCueService
 unreal_classes:
   - SoundCue
   - SoundNodeWavePlayer
