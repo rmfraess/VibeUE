@@ -440,7 +440,7 @@ material skill through `GetSkills` (AgentSkillToolset):
 
   ```python
   ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
-  T = unreal.LandscapeEditLayerSplines
+  T = unreal.LandscapeEditLayerSplines.static_class()  # get_edit_layer_type returns a UClass
   ex = [n for n in ls.get_edit_layer_names(L) if ls.get_edit_layer_type(L, n) == T]
   name = ex[0] if ex else ls.create_edit_layer(L, 'Splines', T)
   idx = ls.get_edit_layer_index(L, name)

@@ -114,7 +114,8 @@ standalone capture, background throttling), **PIEActor**
 **Deleted services — do not call them, and do not expect a VibeUE equivalent:** `MaterialService`
 (→ Epic `MaterialToolset` / `MaterialInstanceToolset` / `ObjectToolset` / `AssetToolset`),
 `ProjectSettingsService` and `EngineSettingsService` (→ Epic `ConfigSettingsToolset`), `TransactionService`
-(→ `UndoHistoryToolset`, `unreal.ToolsetLibrary.undo_transaction`, console `TRANSACTION REDO`), `SoundCueService`
+(→ `UndoHistoryToolset` to read; undo/redo with console `TRANSACTION UNDO` / `TRANSACTION REDO` as their own
+calls, not inside `execute_python`, whose open transaction blocks undo), `SoundCueService`
 (→ `unreal.SoundCueEditorSubsystem` + `ObjectToolset`), `FabService`, `NiagaraService`
 (→ Epic `NiagaraToolsets`), `MetaSoundService` (→ Epic `MetaSoundToolset`) and `EnumStructService`
 (→ Epic `UserDefinedEnumToolset` / `UserDefinedStructToolset`).

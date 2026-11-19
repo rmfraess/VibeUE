@@ -267,7 +267,7 @@ print(s.get_editor_property("play_net_mode"), s.get_editor_property("play_number
       s.get_editor_property("run_under_one_process"))
 
 # Set dedicated-server PIE: 1 client, all windows in one process
-vibeue.exec_tool("ConfigSettingsToolset", "SetSectionProperties", {
+vibeue.exec_tool("ConfigSettingsToolset.ConfigSettingsToolset", "SetSectionProperties", {
     "containerName": "Editor", "categoryName": "LevelEditor", "sectionName": "PlayIn",
     "propertiesJson": '{"PlayNetMode":"PIE_Client","PlayNumberOfClients":1,"RunUnderOneProcess":true}'})
 # Verify by readback, never by return value alone

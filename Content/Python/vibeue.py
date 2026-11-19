@@ -1260,7 +1260,7 @@ class _PlaySettings(object):
 
     def set_pie_settings(self, net_mode, num_clients, run_under_one_process):
         # Written through ConfigSettingsToolset so it lands in EditorPerProjectUserSettings.ini.
-        exec_tool("ConfigSettingsToolset", "SetSectionProperties", {
+        exec_tool("ConfigSettingsToolset.ConfigSettingsToolset", "SetSectionProperties", {
             "containerName": "Editor", "categoryName": "LevelEditor", "sectionName": "PlayIn",
             "propertiesJson": json.dumps({"PlayNetMode": _PIE_NET_MODES[_net_mode_key(net_mode)],
                                           "PlayNumberOfClients": int(num_clients),

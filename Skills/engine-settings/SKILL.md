@@ -128,7 +128,7 @@ s = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).get_play_settings()
 net_mode = s.get_editor_property("play_net_mode")
 clients = s.get_editor_property("play_number_of_clients")
 one_proc = s.get_editor_property("run_under_one_process")
-vibeue.exec_tool("ConfigSettingsToolset", "SetSectionProperties", {
+vibeue.exec_tool("ConfigSettingsToolset.ConfigSettingsToolset", "SetSectionProperties", {
     "containerName": "Editor", "categoryName": "LevelEditor", "sectionName": "PlayIn",
     "propertiesJson": '{"PlayNetMode":"PIE_ListenServer","PlayNumberOfClients":2,"RunUnderOneProcess":true}'})
 ```
