@@ -266,76 +266,7 @@ void USkeletonService::ClearSkeletonModifier(const FString& SkeletalMeshPath)
 
 
 
-bool USkeletonService::GetSkeletonInfo(const FString& SkeletonPath, FSkeletonAssetInfo& OutInfo)
-{
-	USkeleton* Skeleton = LoadSkeleton(SkeletonPath);
-	if (!Skeleton)
-	{
-		return false;
-	}
 
-	OutInfo.SkeletonPath = SkeletonPath;
-	OutInfo.SkeletonName = Skeleton->GetName();
-	OutInfo.BoneCount = Skeleton->GetReferenceSkeleton().GetNum();
-	OutInfo.CompatibleSkeletonCount = Skeleton->GetCompatibleSkeletons().Num();
-
-	// Get curve metadata count
-	TArray<FName> CurveNames;
-	Skeleton->GetCurveMetaDataNames(CurveNames);
-	OutInfo.CurveMetaDataCount = CurveNames.Num();
-
-	// Get blend profiles
-	OutInfo.BlendProfileCount = Skeleton->BlendProfiles.Num();
-	for (UBlendProfile* Profile : Skeleton->BlendProfiles)
-	{
-		if (Profile)
-		{
-			OutInfo.BlendProfileNames.Add(Profile->GetName());
-		}
-	}
-
-	// Forward axis is not directly accessible in UE 5.7 - would need preview mesh settings
-	OutInfo.PreviewForwardAxis = TEXT("X"); // Default
-
-	return true;
-}
-
-
-
-// ============================================================================
-// BONE HIERARCHY
-// ============================================================================
-
-FTransform USkeletonService::GetBoneTransform(const FString& AssetPath, const FString& BoneName, bool bComponentSpace)
-{
-	const FReferenceSkeleton* RefSkel = GetReferenceSkeleton(AssetPath);
-	if (!RefSkel)
-	{
-		return FTransform::Identity;
-	}
-
-	int32 BoneIndex = RefSkel->FindBoneIndex(FName(*BoneName));
-	if (BoneIndex == INDEX_NONE)
-	{
-		return FTransform::Identity;
-	}
-
-	if (!bComponentSpace)
-	{
-		return RefSkel->GetRefBonePose()[BoneIndex];
-	}
-
-	// Calculate global transform
-	FTransform GlobalTransform = RefSkel->GetRefBonePose()[BoneIndex];
-	int32 ParentIdx = RefSkel->GetParentIndex(BoneIndex);
-	while (ParentIdx >= 0)
-	{
-		GlobalTransform = GlobalTransform * RefSkel->GetRefBonePose()[ParentIdx];
-		ParentIdx = RefSkel->GetParentIndex(ParentIdx);
-	}
-
-	return GlobalTransform;
-}
 
 // ============================================================================
 // BONE MODIFICATION

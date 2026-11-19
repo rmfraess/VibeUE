@@ -9,14 +9,14 @@
 /**
  * Information about a single node inside a SoundCue graph.
  * NodeIndex is stable within a single call session but should be refreshed via
- * list_nodes() after any structural mutation.
+ * SoundCueEditorSubsystem.describe_sound_cue() after any structural mutation.
  */
 USTRUCT(BlueprintType)
 struct FSoundCueNodeInfo
 {
 	GENERATED_BODY()
 
-	/** 0-based index into the non-root node list returned by list_nodes() */
+	/** 0-based index into the non-root node list returned by describe_sound_cue() */
 	UPROPERTY(BlueprintReadOnly, Category = "VibeUE|Audio")
 	int32 NodeIndex = -1;
 
@@ -84,8 +84,8 @@ struct FSoundWaveInfo
  * Provides creation, inspection, and editing of SoundCue assets including
  * their node graphs, attenuation settings, and SoundWave references.
  *
- * Node indexing: list_nodes() returns nodes in graph order (0-based). Indices
- * are valid until the next structural mutation, so always re-call list_nodes()
+ * Node indexing: SoundCueEditorSubsystem.describe_sound_cue() returns nodes in graph order (0-based).
+ * Indices are valid until the next structural mutation, so always re-read them
  * after add/connect/remove operations before referencing indices again.
  *
  * Audio flow in SoundCue graphs: audio travels FROM leaf nodes TOWARD the root.
@@ -98,9 +98,9 @@ struct FSoundWaveInfo
  *
  *   # Create cues and add/connect nodes natively: unreal.SoundCueEditorSubsystem.
  *   # Inspect nodes (indices for the index-based calls)
- *   nodes = unreal.SoundCueService.list_nodes("/Game/Audio/SC_Footstep")
- *   for n in nodes:
- *       print(f"[{n.node_index}] {n.node_class} — children: {n.child_indices}")
+ *   d = unreal.get_editor_subsystem(unreal.SoundCueEditorSubsystem).describe_sound_cue(unreal.load_asset("/Game/Audio/SC_Footstep"))
+ *   for i, n in enumerate(d.nodes):
+ *       print(f"[{i}] {n.title} — children: {n.children}")
  *
  * @note All methods are static
  * @note Edits only dirty the package: save with Epic's EditorToolset.AssetToolset.SaveAsset
@@ -125,128 +125,7 @@ class VIBEUE_API USoundCueService : public UToolsetDefinition
 
 public:
 
-	// ============================================================================
-	// NODE INSPECTION
-	// ============================================================================
-
-	/**
-	 * List all sound nodes in a SoundCue graph.
-	 *
-	 * Returns all USoundNode-derived nodes (excluding the invisible output node).
-	 * Node indices in the returned array are the indices used by connect_nodes,
-	 * set_root_node, set_wave_player_asset, etc.
-	 *
-	 * Call this after any structural change to get fresh indices.
-	 *
-	 * @param AssetPath - Full path to the SoundCue asset
-	 * @return Array of node information, empty on failure
-	 *
-	 * Example:
-	 *   nodes = unreal.SoundCueService.list_nodes("/Game/Audio/SC_Footstep")
-	 *   for n in nodes:
-	 *       root_flag = " [ROOT]" if n.is_root_node else ""
-	 *       print(f"[{n.node_index}] {n.node_class}{root_flag} children={n.child_indices}")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Audio|Inspection")
-	static TArray<FSoundCueNodeInfo> ListNodes(const FString& AssetPath);
-
-	/** Reposition a node in the graph editor (purely visual).
-	 *  Call list_nodes() first to get the correct index. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Audio|Nodes")
-	static bool MoveNode(
-		const FString& AssetPath,
-		int32 NodeIndex,
-		float PosX,
-		float PosY);
-
 	
-	// ============================================================================
-	// NODE PROPERTIES
-	// ============================================================================
-
-	/**
-	 * Get a property value from a sound node as a string.
-	 *
-	 * Uses UE property reflection — works for scalar types (float, bool, int32, FString).
-	 * For WavePlayer: "bLooping", "bIsRetriggerable"
-	 * For Modulator:  "PitchMin", "PitchMax", "VolumeMin", "VolumeMax"
-	 * For Delay:      "DelayMin", "DelayMax"
-	 *
-	 * @param AssetPath    - Full path to the SoundCue asset
-	 * @param NodeIndex    - Index of the node (from list_nodes)
-	 * @param PropertyName - Exact C++ property name (case-sensitive)
-	 * @return Property value as string, or empty string on failure
-	 *
-	 * Example:
-	 *   val = unreal.SoundCueService.get_node_property("/Game/Audio/SC_Footstep", 0, "PitchMin")
-	 *   print(val)  # "0.95"
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Audio|NodeProperties")
-	static FString GetNodeProperty(
-		const FString& AssetPath,
-		int32 NodeIndex,
-		const FString& PropertyName);
-
-	/**
-	 * Set a property value on a sound node from a string.
-	 *
-	 * Uses UE property reflection — works for scalar types (float, bool, int32, FString).
-	 * For WavePlayer: "bLooping" = "true"/"false"
-	 * For Modulator:  "PitchMin" = "0.9", "VolumeMax" = "1.1"
-	 * For Delay:      "DelayMin" = "0.1", "DelayMax" = "0.5"
-	 *
-	 * @param AssetPath    - Full path to the SoundCue asset
-	 * @param NodeIndex    - Index of the node (from list_nodes)
-	 * @param PropertyName - Exact C++ property name (case-sensitive)
-	 * @param Value        - New value as string (e.g. "0.9", "true", "42")
-	 * @return True if property was set successfully
-	 *
-	 * Example:
-	 *   unreal.SoundCueService.set_node_property("/Game/Audio/SC_Footstep", 0, "PitchMin", "0.85")
-	 *   unreal.SoundCueService.set_node_property("/Game/Audio/SC_Footstep", 0, "bLooping", "true")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Audio|NodeProperties")
-	static bool SetNodeProperty(
-		const FString& AssetPath,
-		int32 NodeIndex,
-		const FString& PropertyName,
-		const FString& Value);
-
-	/**
-	 * Assign a SoundWave to an existing Wave Player node.
-	 *
-	 * @param AssetPath     - Full path to the SoundCue asset
-	 * @param NodeIndex     - Index of the WavePlayer node (from list_nodes)
-	 * @param SoundWavePath - Full path to the SoundWave asset
-	 * @return True if successful; False if node is not a WavePlayer or not found
-	 *
-	 * Example:
-	 *   unreal.SoundCueService.set_wave_player_asset(
-	 *       "/Game/Audio/SC_Footstep", 1, "/Game/Audio/SW_Step_Gravel")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Audio|NodeProperties")
-	static bool SetWavePlayerAsset(
-		const FString& AssetPath,
-		int32 NodeIndex,
-		const FString& SoundWavePath);
-
-	// ============================================================================
-	// SOUNDWAVE UTILITIES
-	// ============================================================================
-
-	/**
-	 * Get information about a SoundWave asset.
-	 *
-	 * @param SoundWavePath - Full path to the SoundWave asset
-	 * @return FSoundWaveInfo; AssetPath will be empty on failure
-	 *
-	 * Example:
-	 *   info = unreal.SoundCueService.get_sound_wave_info("/Game/Audio/SW_Step_Stone")
-	 *   print(f"Duration: {info.duration}s, Channels: {info.num_channels}")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Audio|SoundWave")
-	static FSoundWaveInfo GetSoundWaveInfo(const FString& SoundWavePath);
-
 private:
 
 	/** Load a SoundCue from a content-browser path. Returns nullptr on failure. */

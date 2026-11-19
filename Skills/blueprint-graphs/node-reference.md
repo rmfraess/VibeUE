@@ -1,13 +1,13 @@
 ---
 name: node-reference
-description: Timeline CRUD on unreal.BlueprintService (the 16 surviving VibeUE tools - signatures, sentinels, node pins) plus the Graph DSL forms that replaced the old member_get / member_set / validated_get / custom-event-input node types
+description: Timeline CRUD on unreal.BlueprintService (the 15 surviving VibeUE tools - signatures, sentinels, node pins) plus the Graph DSL forms that replaced the old member_get / member_set / validated_get / custom-event-input node types
 ---
 
 This sub-doc continues from SKILL.md → "VibeUE's surviving graph tools" and "The DSL workflow".
 
 # Node Reference
 
-Two halves. The first is **VibeUE's** — 16 of the 19 surviving `BlueprintService` tools are
+Two halves. The first is **VibeUE's** — 15 of the 17 surviving `BlueprintService` tools are
 Timelines, and no engine tool can do any of it. The second shows the **DSL spellings** that replaced
 the old `build_graph` node types this file used to document.
 
@@ -16,9 +16,9 @@ the old `build_graph` node types this file used to document.
 ## Timelines — full CRUD (`unreal.BlueprintService.*timeline*`)
 
 A Timeline is a `UK2Node_Timeline` node **plus** a `UTimelineTemplate` on the Blueprint.
-`add_timeline` creates both. The engine's `unreal.BlueprintEditorLibrary.add_timeline(graph, name, location)`
-only declares and places one; length, play/loop flags, tracks and keys stay VibeUE-only, which is why
-this surface stayed in VibeUE. The DSL can **anchor** to a
+The engine's `unreal.BlueprintEditorLibrary.add_timeline(graph, name, location)` creates the node;
+length, play/loop flags, tracks and keys are VibeUE-only (`modify_timeline` and the track/key tools),
+which is why this surface stayed in VibeUE. The DSL can **anchor** to a
 timeline node that already exists (`` (`Timeline|Name` …) ``) but cannot create one.
 
 All of these are plain Python inside `execute_python`, and every one refuses while PIE is running.
@@ -30,10 +30,12 @@ import unreal
 bs = unreal.BlueprintService
 bp, g = "/Game/Path/BP_Thing", "EventGraph"
 
-# 1) The node + template. Length is seconds; use_last_key_frame=True auto-sizes to the last key.
-#    add_timeline(bp, graph, name, length=5.0, use_last_key_frame=False, auto_play=False,
-#                 loop=False, pos_x=0.0, pos_y=0.0, replace_existing=False)
-tnode = bs.add_timeline(bp, g, "LookAtTimeline", 0.5, False, False, False, 600.0, 200.0)
+# 1) The node (engine) + its settings. Length is seconds; use_last_key_frame=1 auto-sizes to the last key.
+bp_asset = unreal.load_asset(bp)
+graph = unreal.BlueprintEditorLibrary.find_event_graph(bp_asset)
+tnode = unreal.BlueprintEditorLibrary.add_timeline(graph, "LookAtTimeline", unreal.Vector2D(600, 200))
+assert tnode, "name taken / not an event graph / BP does not support timelines"
+bs.modify_timeline(bp, "LookAtTimeline", length=0.5, use_last_key_frame=0, auto_play=0, loop=0)
 
 # 2) Tracks. Each adds an output pin on the node, named after the track.
 bs.add_timeline_float_track(bp, "LookAtTimeline", "Alpha")    # real out
@@ -50,21 +52,16 @@ bs.add_timeline_color_key(bp, "LookAtTimeline", "Tint", 0.0, 1.0, 1.0, 1.0, 1.0)
 bs.add_timeline_event_key(bp, "LookAtTimeline", "Halfway", 0.25)   # time only
 ```
 
-### ⚠️ `add_timeline`'s three return cases
+### ⚠️ `BlueprintEditorLibrary.add_timeline` returns `None` on failure
 
-| Return | Meaning |
-|---|---|
-| a GUID string | success — the Timeline node's id |
-| `""` | the Blueprint or the graph could not be loaded (PIE? wrong path? wrong graph name?) |
-| a string starting with `"ERROR:"` | a `UTimelineTemplate` with that name already exists and `replace_existing` was `False` |
-
-A **deleted Timeline node can leave its template behind**, which is exactly how you hit the third
-case on a name you believe is free. Pass `replace_existing=True` to remove the orphan and re-add, or
-call `remove_timeline(bp, name)` first. Check the string before treating it as a node id:
+It fails when the name is taken, the graph is not an event graph, or the Blueprint does not support
+timelines. A **deleted Timeline node can leave its template behind**, which is exactly how you hit
+the name-taken case on a name you believe is free: call `bs.remove_timeline(bp, name)` first. Check
+the result before using it:
 
 ```python
-tnode = bs.add_timeline(bp, g, "LookAtTimeline", 0.5)
-assert tnode and not tnode.startswith("ERROR:"), tnode
+tnode = unreal.BlueprintEditorLibrary.add_timeline(graph, "LookAtTimeline", unreal.Vector2D(600, 200))
+assert tnode, "name taken / not an event graph / BP does not support timelines"
 ```
 
 ### Timeline node pins

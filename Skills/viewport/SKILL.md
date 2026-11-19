@@ -1,7 +1,7 @@
 ---
 name: viewport
 display_name: Viewport Control
-description: Control the Unreal Editor level viewport — viewport type, view mode, FOV, exposure, clip planes, layout, realtime and off-screen captures. VibeUE's ViewportService owns the setters for FOV/exposure/type/layout and the capture paths; camera transform, view-mode setting and viewport/FOV read-back are Epic's EditorAppToolset / SceneCaptureToolset. Use when the user asks to move the editor camera, change the view mode (Lit/Unlit/Wireframe), set FOV/exposure, switch viewport layout, or frame the level for a screenshot.
+description: Control the Unreal Editor level viewport — viewport type, view mode, FOV, exposure, clip planes, layout, realtime and off-screen captures. VibeUE's ViewportService owns the setters for exposure/type/layout and the capture paths; FOV, game view, realtime and cinematic-control setters are the editor's LevelEditorSubsystem; camera transform, view-mode setting and viewport/FOV read-back are Epic's EditorAppToolset / SceneCaptureToolset. Use when the user asks to move the editor camera, change the view mode (Lit/Unlit/Wireframe), set FOV/exposure, switch viewport layout, or frame the level for a screenshot.
 vibeue_classes:
   - ViewportService
 unreal_classes:
@@ -45,7 +45,6 @@ half the other lacks. The table in "What moved to the engine" says which is whic
 | `get_viewport_info()` | Get full viewport state (type, camera, FOV, exposure, layout) |
 | `set_viewport_type(type)` | Switch perspective/orthographic views |
 | `get_view_mode()` | Get current rendering mode (**the setter is Epic's** — see below) |
-| `set_fov(degrees)` | Set field of view (5-170, default 90). ⚠️ PERSISTS into the user's editor settings (**the getter is Epic's** — see below) |
 | `set_near_clip_plane(distance)` | Set near clipping plane (-1 = engine default) |
 | `set_far_clip_plane(distance)` | Set far clipping plane (0 = infinity) |
 | `set_exposure(fixed, ev100)` | Set fixed/auto exposure with EV100 value. ⚠️ PERSISTS into the user's editor settings — snapshot + restore (see below) |
@@ -53,9 +52,6 @@ half the other lacks. The table in "What moved to the engine" says which is whic
 | `capture_with_view(location, rotation, width, height, out_png, fov=0, fixed_exposure=False, ev100=0)` | Draw the REAL level viewport from a temporary camera/FOV/exposure into a PNG, then restore the viewport (on ordinary failures too; see the crash caveat below) |
 | `get_editor_window_state()` | JSON: is the main editor window minimized / maximized / foreground |
 | `set_editor_window_state(state)` | `"restore"` / `"front"` / `"minimize"` / `"maximize"` the main editor window (JSON reply) |
-| `set_game_view(enable)` | Toggle Game View (hides editor icons) |
-| `set_allow_cinematic_control(allow)` | Allow Sequencer to control viewport camera |
-| `set_realtime(enable)` | Toggle realtime rendering |
 | `set_camera_speed(speed)` | Set camera movement speed (1-8) |
 | `set_viewport_layout(name)` | Switch viewport layout (single, quad, etc.) |
 | `get_viewport_layout()` | Get current layout name |
@@ -63,29 +59,33 @@ half the other lacks. The table in "What moved to the engine" says which is whic
 
 ---
 
-## What moved to the engine (4 more `ViewportService` tools removed in 5.9)
+## What moved to the engine (8 more `ViewportService` tools removed in 5.9)
 
 | Was (removed) | Use instead | Style |
 |---|---|---|
 | `get_viewport_type()` | `SceneCaptureToolset.ListEditorViewports` (each entry's `DisplayName` is built from that client's viewport type) or `SceneCaptureToolset.GetActiveEditorView` → `Camera.ProjectionMode` | `call_tool` |
-| `get_fov()` | `SceneCaptureToolset.GetActiveEditorView` → `Camera.FOV`. **Asymmetric on purpose:** the *getter* is Epic's, while the *setter* `set_fov` stays VibeUE's — Epic ships no FOV writer. | `call_tool` to read, `execute_python` to write |
+| `get_fov()` | `SceneCaptureToolset.GetActiveEditorView` → `Camera.FOV`. **Asymmetric on purpose:** the *getter* is Epic's, while the *setter* is `LevelEditorSubsystem.set_level_viewport_fov` (see below). | `call_tool` to read, `execute_python` to write |
 | `set_view_mode(mode)` | `EditorAppToolset.SetViewportViewMode` — takes the full `EViewModeIndex`, so it is strictly broader than VibeUE's 9 strings. **Asymmetric the other way:** `get_view_mode()` stays VibeUE's because Epic ships the setter with no reader. | `call_tool` to write, `execute_python` to read |
+| `set_fov(degrees)` | `les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)`, then `les.set_level_viewport_fov(75.0, les.get_active_viewport_config_key())` and `les.editor_invalidate_viewports()`. ⚠️ PERSISTS into the user's editor settings | `execute_python` |
+| `set_game_view(enable)` | `les.editor_set_game_view(True, les.get_active_viewport_config_key())` — toggles Game View (hides editor icons) | `execute_python` |
+| `set_allow_cinematic_control(allow)` | `les.set_allows_cinematic_control(False, les.get_active_viewport_config_key())` — lets Sequencer control the viewport camera | `execute_python` |
+| `set_realtime(enable)` | `les.editor_set_viewport_realtime(True, les.get_active_viewport_config_key())` — `True` removes the override, `False` adds a realtime-off override | `execute_python` |
 | `set_exposure_game_settings()` | It was only an in-plugin duplicate of `set_exposure(False)`. Use that, or `EditorAppToolset.SetShowFlag("EyeAdaptation", true)` to put auto exposure back. | `execute_python` / `call_tool` |
 
 Earlier moves still in force: `ViewportService` has no `set_camera_location` /
 `set_camera_rotation`. Reading and positioning the viewport camera is Epic's **`EditorAppToolset`**
 (`GetCameraTransform` / `SetCameraTransform`, plus `FocusOnActors` to frame actors).
 
-`ViewportService` still owns: viewport type (set), view mode (get), FOV (set), clip planes,
-exposure, game view, cinematic control, realtime, camera speed, layout get/set, both capture paths,
+`ViewportService` still owns: viewport type (set), view mode (get), clip planes,
+exposure, camera speed, layout get/set, both capture paths,
 and the editor window state.
 
 ## Critical Rules
 
-### 🛑 `set_exposure` and `set_fov` PERSIST — always snapshot and restore
+### 🛑 `set_exposure` and the viewport FOV PERSIST — always snapshot and restore
 
 The editor saves the level viewport's FOV and exposure into `EditorPerProjectUserSettings.ini`.
-A script that calls `set_exposure` / `set_fov` and exits leaves the **user's** viewport that way —
+A script that calls `set_exposure` / `set_level_viewport_fov` and exits leaves the **user's** viewport that way —
 and it comes back on **every later launch**. A fixed EV100 tuned for a capture (say 12) on a dim
 map turns the Lit viewport black (only selection outlines and spline points stay visible); a
 capture FOV of 73.8 stays forever. Never change them without putting them back:
@@ -93,9 +93,10 @@ capture FOV of 73.8 stays forever. Never change them without putting them back:
 ```python
 import unreal
 info = unreal.ViewportService.get_viewport_info()   # snapshot FIRST
+les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 try:
     unreal.ViewportService.set_exposure(True, 12.0)
-    unreal.ViewportService.set_fov(60.0)
+    les.set_level_viewport_fov(60.0, les.get_active_viewport_config_key())
     # ... capture ...
 finally:
     unreal.ViewportService.restore_viewport_info(info)   # camera, FOV, exposure, base realtime, game view
@@ -245,7 +246,9 @@ Setting FOV has no effect in orthographic views. Always switch to perspective fi
 
 ```python
 unreal.ViewportService.set_viewport_type("perspective")
-unreal.ViewportService.set_fov(75.0)   # ⚠️ persists — snapshot/restore (see Critical Rules)
+les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+les.set_level_viewport_fov(75.0, les.get_active_viewport_config_key())   # ⚠️ persists — snapshot/restore (see Critical Rules)
+les.editor_invalidate_viewports()
 ```
 
 To read the FOV back, use Epic's `call_tool GetActiveEditorView {}` → `Camera.FOV` (`get_fov` was
@@ -253,10 +256,10 @@ removed), or `get_viewport_info().fov`, which still carries it.
 
 ### 🚨 Realtime Mode vs On-Demand
 
-When `set_realtime(False)`, the viewport only repaints on interaction. All ViewportService methods force a redraw after changes, so this is transparent to Python callers — but be aware users won't see continuous animation/particles until realtime is re-enabled.
+When realtime is off (`editor_set_viewport_realtime(False, key)`), the viewport only repaints on interaction. All ViewportService methods force a redraw after changes, so this is transparent to Python callers — but be aware users won't see continuous animation/particles until realtime is re-enabled.
 
 > ⚠️ **Multi-pane read-back caveat:** `get_viewport_info().is_realtime` reflects the *active* pane.
-> In a multi-pane layout (e.g. `FourPanes2x2`) where the active pane isn't the primary, `set_realtime(True)`
+> In a multi-pane layout (e.g. `FourPanes2x2`) where the active pane isn't the primary, `editor_set_viewport_realtime(True, key)`
 > can succeed yet `is_realtime` reads back `False`. Verify realtime in `OnePane` layout, or don't rely on
 > the read-back to gate logic when in a split layout. (Other fields like view type / FOV / camera read back
 > correctly across layouts.)
@@ -382,12 +385,14 @@ import unreal
 # ⚠️ FOV and exposure persist into the user's editor settings: snapshot first and call
 # unreal.ViewportService.restore_viewport_info(info) when the review is over.
 info = unreal.ViewportService.get_viewport_info()
+les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+key = les.get_active_viewport_config_key()
 # Perspective with narrow FOV for minimal distortion
 unreal.ViewportService.set_viewport_type("perspective")
-unreal.ViewportService.set_fov(60.0)
-unreal.ViewportService.set_game_view(True)
+les.set_level_viewport_fov(60.0, key)
+les.editor_set_game_view(True, key)
 unreal.ViewportService.set_exposure(True, 1.0)  # Fixed exposure
-unreal.ViewportService.set_realtime(True)
+les.editor_set_viewport_realtime(True, key)
 ```
 
 ### Wireframe Debugging

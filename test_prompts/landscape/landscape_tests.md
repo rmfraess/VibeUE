@@ -246,7 +246,7 @@ Now paint a 50×50 vertex square in the top-left corner (starting at vertex 0, 0
 
 ---
 
-Read the layer weights at world location (0, 0) using `get_layer_weights_at_location`. Rock should now dominate in that corner.
+Read the layer weights at world location (0, 0) using `get_weights_in_region` (1x1 region at vertex `round((world - landscape location) / scale)`, once per target layer). Rock should now dominate in that corner.
 
 ---
 
@@ -296,7 +296,7 @@ Now paint Rock at strength 1.0 across the entire landscape using `paint_layer_in
 
 ---
 
-Import the original Grass weight map back from `C:/Temp/TestTerrain_Grass.png` using `import_weight_map`. Report how many vertices were modified.
+Import the original Grass weight map back from `C:/Temp/TestTerrain_Grass.png` using `LandscapeEditorSubsystem.import_weightmap_from_file`. Report how many vertices were modified.
 
 ---
 
@@ -636,7 +636,7 @@ Assign M_TestTerrain to TestTerrain with the Grass and Rock layer info objects.
 
 ---
 
-Confirm TestTerrain has Grass and Rock layers using `list_layers`.
+Confirm TestTerrain has Grass and Rock layers using `get_landscape_info(...).layers`.
 
 ---
 
@@ -1104,8 +1104,8 @@ Report total properties set across all batch operations.
 ### 4.13 Verify Properties — LandscapeLayerBlend
 
 The LandscapeLayerBlend node has layer configuration that might not be captured by generic property export. Check:
-- Were layers created correctly? (use `get_layer_blend_info`)
-- If no layers exist, use `add_layer_to_blend_node` for each layer from the export
+- Were layers created correctly? (read the node's `Layers` with `ObjectToolset.GetProperties`)
+- If no layers exist, append each layer from the export to the node's `Layers` with `ObjectToolset.SetProperties`
 - Set the correct blend type for each layer (WeightBlend, HeightBlend, AlphaBlend)
 
 Report the final layer blend configuration.
@@ -1152,9 +1152,9 @@ List all connections in M_Landscape2. Compare count to M_Landscape's connection 
 
 ### 5.4 Connect Layer Inputs on LandscapeLayerBlend
 
-If the layer blend node's layer inputs were not connected via the generic batch_connect (because layer inputs use a special format), use `connect_to_layer_input` for each layer:
-- Connect the correct source expression to each layer's "Layer" input
-- Connect height sources to "Height" inputs if using height blend
+If the layer blend node's layer inputs were not connected via the generic batch_connect (because layer inputs use a special format), use `MaterialToolset.ConnectExpressions` for each layer:
+- Connect the correct source expression to each layer's "Layer <Name>" input
+- Connect height sources to "Height <Name>" inputs if using height blend
 
 Report each layer connection made.
 

@@ -34,11 +34,6 @@ UPerformanceTriageSkill::UPerformanceTriageSkill()
 		TEXT("# 3. Capture a trace for detail\n")
 		TEXT("ConsoleToolset.ConsoleToolset.RunConsoleCommand('Trace.Start frame,cpu,gpu') -> reproduce the workload -> RunConsoleCommand('Trace.Stop') -> VibeUE.PerformanceService.Analyse('both'). For a representative reading prefer StartStandalone (a separate game process) over the bare editor.\n")
 		TEXT("\n")
-		TEXT("# 4. Validate the verdict (ForceHitch)\n")
-		TEXT("VibeUE.PerformanceService.ForceHitch deliberately stalls a KNOWN thread. The CPU paths (game/render/both) self-measure and return observed_peak_*_ms + verdict_matched_expect in the SAME response: validate from that, do NOT follow up with GetFrameTimings (that read races the stall and misses it). The gpu path is async: read GetFrameTimings on a following frame and compare against `expect`:\n")
-		TEXT("- ForceHitch('game', 250)   -> expect GameThread\n")
-		TEXT("- ForceHitch('render', 250) -> expect RenderThread\n")
-		TEXT("- ForceHitch('both', 250)   -> expect game and render contested\n")
-		TEXT("- ForceHitch('gpu')         -> expect GPU (scene-dependent; supersamples via r.ScreenPercentage, auto-restored)\n")
-		TEXT("Use frames>1 to sustain the hitch and reproduce jitter rather than a single spike.\n"));
+		TEXT("# 4. Validate the verdict (stall the game thread)\n")
+		TEXT("To test your verdict logic against a known ground truth, stall the game thread on purpose: time.sleep(0.25) inside execute_python, then read GetFrameTimings and expect GameThread.\n"));
 }

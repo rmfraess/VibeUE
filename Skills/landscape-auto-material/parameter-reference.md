@@ -1,6 +1,6 @@
 ---
 name: parameter-reference
-description: Full landscape master-material parameter catalog — layer textures, auto-blend, distance/LOD, color, feature toggles, displacement, RVT, and FindLandscapeTextures suffix matching.
+description: Full landscape master-material parameter catalog — layer textures, auto-blend, distance/LOD, color, feature toggles, displacement, RVT, and texture naming suffixes.
 ---
 
 ## Parameter Reference
@@ -79,9 +79,9 @@ description: Full landscape master-material parameter catalog — layer textures
 | `RVT_VirtualTexture` | Texture | Runtime Virtual Texture asset reference | None |
 | `RVT_WorldHeight` | Scalar | Reference world height for RVT | 0.0 |
 
-### FindLandscapeTextures Suffix Matching
+### Texture Naming Suffixes
 
-The `FindLandscapeTextures` tool recognizes these suffixes when scanning directories:
+When picking textures out of a directory (`AssetToolset.FindAssets`), classify them by these suffixes:
 
 **Albedo/BaseColor:** `_Albedo`, `_Diffuse`, `_BaseColor`, `_D`, `_Color`, `_BC`, `_Base`
 

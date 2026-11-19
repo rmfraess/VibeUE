@@ -34,6 +34,13 @@ def run(name):
         result = vibeue.exec_tool(tool, "GetModuleTopology", {"moduleRef": ref})
         return [entry["name"] for entry in result["inputs"]]
 
+    def compile_state():
+        return vibeue.exec_tool(tool, "GetSystemCompileState", {"system": ref["system"]})
+
+    def assert_no_compile_errors():
+        state = compile_state()
+        assert not state.get("bHasErrors"), state
+
     assert input_names() == []  # Populate the original module's stack view before editing.
     second = service.create_scratch_module(path, emitter, "ParticleUpdate", "SecondRegression")
     assert second.success, second.message
@@ -71,8 +78,8 @@ def run(name):
     second_nodes = {n.node_type: n.node_id for n in service.list_nodes(path, emitter, second.module_name)}
     assert service.connect_pins(path, emitter, second.module_name, second_nodes["MapGet"], "Module.SecondValue", second_node.node_id, "InputValue")
     assert service.connect_pins(path, emitter, second.module_name, second_node.node_id, "OutputValue", second_nodes["MapSet"], "Particles.SecondValue")
-    assert service.apply_changes(path), list(service.get_compile_messages(path))
-    assert not list(service.get_compile_messages(path))
+    assert service.apply_changes(path), compile_state()
+    assert_no_compile_errors()
     names = input_names()
     assert names.count("Scale") == 1 and names.count("Bias") == 1, names
     second_names = [entry["name"] for entry in vibeue.exec_tool(tool, "GetModuleTopology", {"moduleRef": second_ref})["inputs"]]
@@ -103,7 +110,7 @@ def run(name):
     result = service.add_module_output(path, emitter, second.module_name, "Particles.SecondExtra", "float")
     assert result.success, result.message
     assert service.connect_pins(path, emitter, second.module_name, second_nodes["MapGet"], "Module.SecondExtra", second_nodes["MapSet"], "Particles.SecondExtra")
-    assert service.apply_changes(path), list(service.get_compile_messages(path))
+    assert service.apply_changes(path), compile_state()
     names = input_names()
     assert all(names.count(name) == 1 for name in ("Scale", "Bias", "Extra")), names
     second_names = [entry["name"] for entry in vibeue.exec_tool(tool, "GetModuleTopology", {"moduleRef": second_ref})["inputs"]]
@@ -112,5 +119,5 @@ def run(name):
     assert actual["value"]["value"] == 2.5, actual
     second_actual = vibeue.exec_tool(tool, "GetStackInputData", {"stackInputRef": second_ref})
     assert second_actual["value"]["value"] == 3.5, second_actual
-    assert not list(service.get_compile_messages(path))
+    assert_no_compile_errors()
     print("PASS", path, "inputs", names, second_names, "preserved", 2.5, 3.5)

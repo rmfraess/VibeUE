@@ -259,10 +259,11 @@ struct FBranchingPointInfo
  * Python Usage:
  *   import unreal
  *
- *   # List all montages for a skeleton
- *   montages = unreal.AnimMontageService.find_montages_for_skeleton("/Game/SK_Mannequin")
- *   for m in montages:
- *       print(f"{m.montage_name}: {m.duration}s, {m.section_count} sections")
+ *   # List all montages for a skeleton (engine toolsets, via await call_tool in execute_python)
+ *   refs = await call_tool("EditorToolset.AssetToolset.GetReferencers", assetPath="/Game/SK_Mannequin")
+ *   mon = await call_tool("EditorToolset.AssetToolset.FindAssets", filter={"folderPath": "/Game", "name": "",
+ *       "assetType": {"refPath": "/Script/Engine.AnimMontage"}, "bRecursive": True, "tags": [], "maxResults": 0})
+ *   montages = sorted(set(refs) & set(mon))
  *
  *   # Create the montage natively (AnimMontageFactory via unreal.AssetTools.create_asset), then:
  *   path = "/Game/Montages/AM_Attack"
@@ -294,51 +295,6 @@ class VIBEUE_API UAnimMontageService : public UToolsetDefinition
 	GENERATED_BODY()
 
 public:
-	// ============================================================================
-	// MONTAGE DISCOVERY
-	// ============================================================================
-
-	/**
-	 * List all Animation Montage assets in a path.
-	 *
-	 * @param SearchPath - Path to search for montages (default: "/Game")
-	 * @param SkeletonFilter - Optional skeleton path to filter by
-	 * @return Array of montage info structs
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Montage")
-	static TArray<FMontageInfo> ListMontages(
-		const FString& SearchPath = TEXT("/Game"),
-		const FString& SkeletonFilter = TEXT(""));
-
-	/**
-	 * Get detailed information about a montage.
-	 *
-	 * @param MontagePath - Full path to the montage asset
-	 * @param OutInfo - Output montage info
-	 * @return True if montage was found
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Montage")
-	static bool GetMontageInfo(
-		const FString& MontagePath,
-		FMontageInfo& OutInfo);
-
-	/**
-	 * Find all montages compatible with a specific skeleton.
-	 *
-	 * @param SkeletonPath - Path to the skeleton asset
-	 * @return Array of montage info structs
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Montage")
-	static TArray<FMontageInfo> FindMontagesForSkeleton(const FString& SkeletonPath);
-
-	/**
-	 * Find all montages that use a specific animation sequence.
-	 *
-	 * @param AnimSequencePath - Path to the animation sequence
-	 * @return Array of montage info structs containing that animation
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Montage")
-	static TArray<FMontageInfo> FindMontagesUsingAnimation(const FString& AnimSequencePath);
 
 	// ============================================================================
 	// SECTION MANAGEMENT (Requires C++ - Python cannot modify TArrays)
@@ -511,33 +467,6 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Montage|Sections")
 	static bool ClearSectionLink(const FString& MontagePath, const FString& SectionName);
 
-	// ============================================================================
-	// SLOT TRACK MANAGEMENT (Requires C++ - Python cannot modify TArrays)
-	// ============================================================================
-
-	/**
-	 * List all slot tracks in a montage.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @return Array of slot track info structs
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Montage|Slots")
-	static TArray<FSlotTrackInfo> ListSlotTracks(const FString& MontagePath);
-
-	/**
-	 * Get info for a specific slot track.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @param TrackIndex - Index of the track
-	 * @param OutInfo - Output track info
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Montage|Slots")
-	static bool GetSlotTrackInfo(
-		const FString& MontagePath,
-		int32 TrackIndex,
-		FSlotTrackInfo& OutInfo);
-
 	/**
 	 * Add a new slot track to the montage.
 	 *
@@ -572,36 +501,6 @@ public:
 		const FString& MontagePath,
 		int32 TrackIndex,
 		const FString& NewSlotName);
-
-	// ============================================================================
-	// ANIMATION SEGMENTS (Multiple Animations per Montage)
-	// ============================================================================
-
-	/**
-	 * List all animation segments in a slot track.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @param TrackIndex - Index of the slot track
-	 * @return Array of segment info structs
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Montage|Segments")
-	static TArray<FAnimSegmentInfo> ListAnimSegments(const FString& MontagePath, int32 TrackIndex);
-
-	/**
-	 * Get info for a specific animation segment.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @param TrackIndex - Index of the slot track
-	 * @param SegmentIndex - Index of the segment
-	 * @param OutInfo - Output segment info
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Montage|Segments")
-	static bool GetAnimSegmentInfo(
-		const FString& MontagePath,
-		int32 TrackIndex,
-		int32 SegmentIndex,
-		FAnimSegmentInfo& OutInfo);
 
 	/**
 	 * Add an animation segment to a slot track.
@@ -753,19 +652,6 @@ public:
 		int32 NotifyIndex,
 		const FString& SectionName);
 
-	// ============================================================================
-	// BRANCHING POINTS (Frame-accurate gameplay events)
-	// ============================================================================
-
-	/**
-	 * List all branching points in a montage.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @return Array of branching point info structs
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Montage|BranchingPoints")
-	static TArray<FBranchingPointInfo> ListBranchingPoints(const FString& MontagePath);
-
 	/**
 	 * Add a branching point to the montage.
 	 * Branching points are frame-accurate notifies used for gameplay decisions.
@@ -780,26 +666,6 @@ public:
 		const FString& MontagePath,
 		const FString& NotifyName,
 		float TriggerTime);
-
-	/**
-	 * Remove a branching point from the montage.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @param Index - Index of the branching point to remove
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Montage|BranchingPoints")
-	static bool RemoveBranchingPoint(const FString& MontagePath, int32 Index);
-
-	/**
-	 * Check if a branching point exists at a specific time.
-	 *
-	 * @param MontagePath - Path to montage
-	 * @param Time - Time to check
-	 * @return True if a branching point fires at this time
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Montage|BranchingPoints")
-	static bool IsBranchingPointAtTime(const FString& MontagePath, float Time);
 
 	// ============================================================================
 	// ROOT MOTION

@@ -1,7 +1,7 @@
 ---
 name: behavior-trees
 display_name: Behavior Trees, Blackboards & EQS
-description: Author Behavior Trees, Blackboards and Environment Queries with Unreal 5.9's own AIModuleToolset (composites, tasks, decorators, services, blackboard keys, EQS options and tests), plus the five capabilities the engine lacks that VibeUE still provides (BT graph repair, blackboard key rename and reference sweep, EQS run and EQS graph repair). Use when the user asks to build a Behavior Tree, add BT nodes or decorators, bind blackboard keys, author a blackboard, rename a blackboard key, or repair a BT whose graph shows up empty.
+description: Author Behavior Trees, Blackboards and Environment Queries with Unreal 5.9's own AIModuleToolset (composites, tasks, decorators, services, blackboard keys, EQS options and tests), plus the capabilities the engine lacks that VibeUE still provides (BT graph repair, blackboard key reference sweep, EQS run). Use when the user asks to build a Behavior Tree, add BT nodes or decorators, bind blackboard keys, author a blackboard, rename a blackboard key, or repair a BT whose graph shows up empty.
 vibeue_classes:
   - BehaviorTreeService
   - BlackboardService
@@ -69,7 +69,7 @@ Enable the **AIModuleToolset** plugin if `list_toolsets` does not show it.
 > `AssetToolset.SaveAsset` — that is what turns the editor graph into the runtime tree. VibeUE's old
 > `compile_and_save` was a convenience over exactly this and is gone.
 
-## What VibeUE still provides (three tools)
+## What VibeUE still provides (two tools)
 
 Everything else on `BehaviorTreeService` and `BlackboardService` was cut on the 5-9 branch because
 the engine covers it.
@@ -92,14 +92,6 @@ asset's graph as a side effect of an unrelated edit is the kind of unrequested w
 prevent. It refuses when there is nothing to repair (no runtime tree, or a graph that already has
 nodes under its root) and logs the before/after node counts.
 
-### `BlackboardService.rename_blackboard_key(asset_path, old, new)`
-
-Epic has eight rename tools but none for a blackboard key, and a rename has to fix up every BT node
-selector bound to the old name. Returns a plain empty array on an unreferenced success; a refusal is
-a **single entry prefixed `"ERROR: "`** — a shape a real reference can never take, since a real one
-is always `"<btPath>:<node>.<property>"`. It refuses an inherited key, a missing key, and a
-collision with an existing name.
-
 ### `BlackboardService.find_blackboard_key_references(asset_path, key_name)`
 
 Read-only: every BT node key selector bound to that key, across every Behavior Tree whose blackboard
@@ -113,6 +105,16 @@ for r in refs:
     print(r)   # /Game/AI/BT_Zombie:Chase.BlackboardKey
 ```
 
+To **rename a key**, find its index in the board's `Keys` array, rename the entry, then rebind every
+reference with `SetNodeBlackboardKey` and save:
+
+```python
+bb = {"refPath": "/Game/AI/BB_Zombie.BB_Zombie"}
+keys = await call_tool("EditorToolset.ObjectToolset.GetProperties", instance=bb, properties=["Keys"])   # find i where EntryName == old
+await call_tool("EditorToolset.ObjectToolset.SetProperties", instance=bb, values=json.dumps({"Keys[%d].EntryName" % i: "NewKey"}))
+await call_tool("EditorToolset.AssetToolset.SaveAsset", assetPath="/Game/AI/BB_Zombie")
+```
+
 ## Typical flow
 
 1. `CreateBehaviorTree` + `CreateBlackboardData`, then `SetBlackboard` (engine).
@@ -122,8 +124,8 @@ for r in refs:
    key selectors (engine).
 5. `AssetToolset.SaveAsset` — this compiles the tree (engine).
 6. If the asset ever opens blank, `repair_graph_from_runtime_tree` (VibeUE).
-7. Before renaming or deleting a key, `find_blackboard_key_references`, then
-   `rename_blackboard_key` (VibeUE).
+7. Before renaming or deleting a key, `find_blackboard_key_references` (VibeUE), then rename the
+   key with `ObjectToolset.SetProperties` and rebind each reference with `SetNodeBlackboardKey`.
 
 
 ## Environment Queries (EQS) — same split
@@ -143,7 +145,7 @@ UE 5.9's `AIModuleToolset.EnvironmentQueryToolset` (14 tools) owns EQS authoring
 | Available generator / test / context classes | `ObjectToolset.SearchSubclasses` or `search_symbols` |
 | Find, save, validate | `EditorToolset.AssetToolset` |
 
-VibeUE keeps the two things that surface has no tool for:
+VibeUE keeps the one thing that surface has no tool for:
 
 ### `EnvQueryService.run_query(asset_path, querier_actor, run_mode)`
 
@@ -164,17 +166,24 @@ Run modes are `SingleBestItem`, `SingleRandomItemFromBestFive`, `AllMatching` �
 is **refused and names the valid set**, never defaulted. It requires a **running PIE session** (it
 needs an AI system and a real querier); headless it refuses saying so.
 
-### `EnvQueryService.repair_graph_from_options(asset_path)`
+### Repairing a sparse EQS graph
 
-The EQS counterpart of the BT graph repair: rebuilds option and test nodes from `UEnvQuery::Options`
-for a sparse graph, lays out, commits and saves. Empty string on success, else the reason.
+Opening the query in its editor rebuilds missing option and test nodes from `UEnvQuery::Options`.
+Check the root graph node exists first — if it does not, do **not** open the editor (it would drop
+the options):
+
+```python
+root = await call_tool("AIModuleToolset.EnvironmentQueryToolset.GetRootGraphNode", environmentQuery={"refPath": Q})
+await call_tool("EditorToolset.EditorAppToolset.OpenEditorForAsset", assetPath=Q)
+await call_tool("EditorToolset.AssetToolset.SaveAsset", assetPath=Q)
+```
 
 ## Gotchas
 
 - A BT edited only through tool calls is not compiled until it is **saved**. Save before testing.
-- `rename_blackboard_key` and `find_blackboard_key_references` return `["ERROR: ..."]` rather than
+- `find_blackboard_key_references` returns `["ERROR: ..."]` rather than
   raising. Check the first entry before treating the array as references.
-- A key that lives on a **parent** blackboard cannot be renamed through the child — the rename is
-  refused. Edit the parent asset.
+- A key that lives on a **parent** blackboard belongs to the parent asset. Rename it there, not
+  through the child.
 - Running a Behavior Tree is gameplay: start PIE with `EditorAppToolset.StartPIE` and inspect the
   live actor from `execute_python`.

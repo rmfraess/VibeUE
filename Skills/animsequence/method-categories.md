@@ -1,6 +1,6 @@
 ---
 name: animsequence-method-categories
-description: Categorised table of every AnimSequenceService method by domain (Discovery, Creation, Helpers, Properties, Bone Tracks, Poses, Curves, Notifies, Notify Tracks, Sync Markers, Compression, Export, Editor), plus the plain asset properties that belong to Epic's ObjectToolset.
+description: Categorised table of every AnimSequenceService method by domain (Creation, Helpers, Poses, Curves, Notifies, Sync Markers, Compression, Editor), plus the plain asset properties that belong to Epic's ObjectToolset.
 ---
 
 # AnimSequenceService Method Categories
@@ -9,19 +9,14 @@ description: Categorised table of every AnimSequenceService method by domain (Di
 
 | Category | Methods |
 |----------|---------|
-| Discovery | `list_anim_sequences`, `get_anim_sequence_info` |
-| **Creation** | `create_from_pose`, `create_anim_sequence` |
-| Properties | `get_animation_frame_rate` |
-| Bone Tracks | `get_animated_bones` |
+| **Creation** | `create_anim_sequence` |
 | Poses | `get_root_motion_at_time`, `get_total_root_motion` |
-| Curves | `list_curves`, `get_curve_info`, `get_curve_keyframes` |
+| Curves | `get_curve_keyframes` |
 | Notifies | `list_notifies`, `get_notify_info`, `add_notify`, `remove_notify`, `set_notify_trigger_time`, `set_notify_duration`, `set_notify_track`, `set_notify_name`, `set_notify_color`, `set_notify_trigger_chance`, `set_notify_trigger_on_server`, `set_notify_trigger_on_follower`, `set_notify_trigger_weight_threshold`, `set_notify_lod_filter` |
-| Notify Tracks | `remove_notify_track` |
-| Sync Markers | `remove_sync_marker`, `set_sync_marker_time` |
-| Compression | `get_compression_info`, `compress_animation` |
-| Export | `export_animation_to_json` |
+| Sync Markers | `remove_sync_marker`, `set_sync_marker_time_by_name` |
+| Compression | `get_compression_info` |
 
-Native replacements: frame count: `unreal.AnimationLibrary.get_num_frames(anim)` (keys = frames + 1); frame rate: `anim.get_editor_property('controller').set_frame_rate(unreal.FrameRate(fps, 1))`; curve keys: build a float identifier with `unreal.AnimationCurveIdentifierExtensions.get_curve_identifier(skeleton, name, unreal.RawCurveTrackTypes.RCT_FLOAT)` and pass it and a list of `unreal.RichCurveKey` to the controller's curve-key setter; source files: `anim.get_editor_property('asset_import_data').extract_filenames()`.
+Native replacements: frame count: `unreal.AnimationLibrary.get_num_frames(anim)` (keys = frames + 1); frame rate: `anim.get_editor_property('controller').set_frame_rate(unreal.FrameRate(fps, 1))`; curve keys: build a float identifier with `unreal.AnimationCurveIdentifierExtensions.get_curve_identifier(skeleton, name, unreal.RawCurveTrackTypes.RCT_FLOAT)` and pass it and a list of `unreal.RichCurveKey` to the controller's curve-key setter; source files: `anim.get_editor_property('asset_import_data').extract_filenames()`; frame rate: `fr = anim.data_model_interface.get_frame_rate()`; bone tracks: `AnimationLibrary.get_animation_track_names(anim)`; curve names/keys: `AnimationLibrary.get_animation_curve_names(anim, unreal.RawCurveTrackTypes.RCT_FLOAT)` / `get_float_keys(anim, name)`; recompress: re-assign `bone_compression_settings` with `anim.set_editor_property`; remove a notify track: `AnimationLibrary.remove_animation_notify_track(anim, name)` (deletes its notifies and sync markers); metadata/export: read the same `AnimationLibrary` getters and build the dict in Python.
 
 `AnimPoseExtensions` for poses, `AnimationLibrary` for curves/properties/root motion/additive settings, `AssetToolset.FindAssets` for discovery, and `EditorAppToolset.OpenEditorForAsset` for opening.
 

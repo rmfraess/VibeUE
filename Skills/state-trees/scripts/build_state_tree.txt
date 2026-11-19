@@ -34,12 +34,11 @@
 
 
 # ---------------------------------------------------------------------------------------------
-# STEP 1 — create the asset: VibeUE, via execute_python
+# STEP 1 — create the asset: native, via execute_python
 # ---------------------------------------------------------------------------------------------
-# Epic deliberately has NO asset creation (no K2 path for creating a StateTree with a schema in
-# head), so this one is VibeUE's.
+# Epic deliberately has NO asset creation tool, so this uses the native StateTreeFactory.
 #
-# If create_state_tree returns False the SCHEMA is almost always the problem, not the path:
+# If create_asset returns None the SCHEMA is almost always the problem, not the path:
 # "StateTreeComponentSchema" comes from the GameplayStateTree plugin. List what this project really
 # has with ObjectToolset.SearchSubclasses on UStateTreeSchema and pass one of those instead.
 
@@ -50,7 +49,11 @@ ASSET = "/Game/AI/ST_Guard"
 if unreal.EditorAssetLibrary.does_asset_exist(ASSET):
     unreal.EditorAssetLibrary.delete_asset(ASSET)
 
-print("create:", sts.create_state_tree(ASSET, "StateTreeComponentSchema"))
+f = unreal.StateTreeFactory()
+f.set_editor_property("state_tree_schema_class",
+                      unreal.load_class(None, "/Script/GameplayStateTreeModule.StateTreeComponentSchema"))
+folder, name = ASSET.rsplit("/", 1)
+print("create:", unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, folder, unreal.StateTree, f))
 
 
 # ---------------------------------------------------------------------------------------------

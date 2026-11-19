@@ -1,7 +1,7 @@
 ---
 name: blueprints
 display_name: Blueprint System
-description: Blueprint asset, variable, function, component, dispatcher and interface authoring is Epic's in UE 5.9 — `BlueprintToolsets.BlueprintToolset` owns Create/CompileBlueprint/variables/function graphs/events/dispatchers/interfaces, `BlueprintToolsets.BlueprintDslToolset` owns graph bodies, `EditorToolset.ActorToolset` owns components on a Blueprint and `EditorToolset.ObjectToolset` owns every CDO property. VibeUE keeps only Timelines, macro-graph creation (CreateMacroGraph), layout measurement (AnalyzeGraphLayout) and RefreshBlueprintEditor. Use when the user asks to create a Blueprint/BP, add a variable or component, make an event dispatcher/delegate, implement a Blueprint interface, add a Timeline, or inspect a Blueprint's class and components. For node-level graph wiring, also load blueprint-graphs.
+description: Blueprint asset, variable, function, component, dispatcher and interface authoring is Epic's in UE 5.9 — `BlueprintToolsets.BlueprintToolset` owns Create/CompileBlueprint/variables/function graphs/events/dispatchers/interfaces, `BlueprintToolsets.BlueprintDslToolset` owns graph bodies, `EditorToolset.ActorToolset` owns components on a Blueprint and `EditorToolset.ObjectToolset` owns every CDO property. VibeUE keeps only Timelines, macro-graph creation (CreateMacroGraph), layout measurement (AnalyzeGraphLayout). Use when the user asks to create a Blueprint/BP, add a variable or component, make an event dispatcher/delegate, implement a Blueprint interface, add a Timeline, or inspect a Blueprint's class and components. For node-level graph wiring, also load blueprint-graphs.
 vibeue_classes:
   - BlueprintService
   - AssetDiscoveryService
@@ -38,7 +38,7 @@ related_skills:
 
 ## Who owns what in 5.9
 
-`BlueprintService` went from 96 AI tools to **19**, and none of the 19 is about the class itself.
+`BlueprintService` went from 96 AI tools to **17**, and none of the 17 is about the class itself.
 
 | Job | Tool |
 |---|---|
@@ -55,7 +55,7 @@ related_skills:
 | **Timelines** | `unreal.BlueprintService.*timeline*` (VibeUE — no engine tool touches a `UTimelineTemplate`) |
 | **Macro graph on a Macro Library** | `unreal.BlueprintService.create_macro_graph` (VibeUE — the DSL refuses macro libraries) |
 | **Measure a graph's layout** | `unreal.BlueprintService.analyze_graph_layout` (VibeUE — Epic's layout tools only write) |
-| **Redraw an open Blueprint editor** | `unreal.BlueprintService.refresh_blueprint_editor` (VibeUE) |
+| **Redraw an open Blueprint editor** | `unreal.BlueprintEditorLibrary.refresh_open_editors_for_blueprint(bp)` (compile first with `BlueprintToolset.CompileBlueprint` if nodes changed) |
 
 ## Critical Rules
 
@@ -69,7 +69,7 @@ toolsets.
 
 ### ⚠️ Call styles
 
-**1. VibeUE's 19 survivors are Python**, inside `execute_python`:
+**1. VibeUE's 17 survivors are Python**, inside `execute_python`:
 
 ```python
 import unreal
@@ -449,10 +449,10 @@ vibeue.exec_tool(BT, "CompileBlueprint", {"blueprint": bp})
 
 Bind the transition to the dispatcher with native `unreal.StateTreeEditorData.resolve_binding_path` and `set_binding`, using the transition and task owner GUIDs.
 
-## VibeUE's 19 survivors
+## VibeUE's 17 survivors
 
-All `unreal.BlueprintService.<snake_name>()` from inside `execute_python`. Sixteen are Timelines;
-`create_macro_graph`, `analyze_graph_layout` and `refresh_blueprint_editor` are the other three.
+All `unreal.BlueprintService.<snake_name>()` from inside `execute_python`. Fifteen are Timelines;
+`create_macro_graph` and `analyze_graph_layout` are the other two.
 **Nothing in Epic's toolsets replaces any of them.** Full coverage lives in the `blueprint-graphs`
 pack (`node-reference.md` for Timelines, `node-layout.md` for the layout audit), but the short
 version:
@@ -461,8 +461,10 @@ version:
 import unreal
 bs = unreal.BlueprintService
 
-# Timelines: the node + its UTimelineTemplate + tracks + keys. No engine tool touches a template.
-node = bs.add_timeline("/Game/Blueprints/BP_Door", "EventGraph", "SwingTimeline", 1.0)
+# Timelines: the node (engine) + its UTimelineTemplate settings + tracks + keys. No engine tool touches a template.
+bp = unreal.load_asset("/Game/Blueprints/BP_Door")
+node = unreal.BlueprintEditorLibrary.add_timeline(unreal.BlueprintEditorLibrary.find_event_graph(bp), "SwingTimeline", unreal.Vector2D(0, 0))
+bs.modify_timeline("/Game/Blueprints/BP_Door", "SwingTimeline", length=1.0)
 bs.add_timeline_float_track("/Game/Blueprints/BP_Door", "SwingTimeline", "Alpha")
 bs.add_timeline_float_key("/Game/Blueprints/BP_Door", "SwingTimeline", "Alpha", 0.0, 0.0)
 bs.add_timeline_float_key("/Game/Blueprints/BP_Door", "SwingTimeline", "Alpha", 1.0, 1.0)
@@ -477,9 +479,8 @@ bs.create_macro_graph("/Game/Macros/ML_Doors", "SwingOpen")
 # Measure a layout (Epic's ArrangeGraphLayered / ArrangeNodes only write one).
 report, err = bs.analyze_graph_layout("/Game/Blueprints/BP_Door", "EventGraph")
 
-# Make an open editor re-run its construction script and redraw. False = no editor open,
-# which is not an error: the on-disk asset is already current.
-bs.refresh_blueprint_editor("/Game/Blueprints/BP_Door")
+# Make an open editor redraw (compile first with BlueprintToolset.CompileBlueprint if nodes changed).
+unreal.BlueprintEditorLibrary.refresh_open_editors_for_blueprint(bp)
 ```
 
 A Macro Library **asset** is still a factory call (`unreal.BlueprintMacroFactory`, not

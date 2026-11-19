@@ -8,7 +8,7 @@
 
 /**
  * Information about discovered input types.
- * Python access: types = unreal.InputService.discover_types()
+ * Types come from EditorToolset.ObjectToolset.SearchSubclasses (InputModifier / InputTrigger).
  * 
  * Properties:
  * - action_value_types (Array[str]): Available value types: "Boolean", "Axis1D", "Axis2D", "Axis3D"
@@ -35,9 +35,10 @@ struct FInputTypeDiscoveryResult
 /**
  * Input Service - Enhanced Input ASSET authoring, plus action injection into PIE.
  *
- * Kept: adding modifiers and triggers to a mapping by INDEX (add_modifier / add_trigger /
- * add_action_trigger) and the type/key discovery calls (discover_types, get_available_keys) that
- * return the strings they accept. Native Python covers the rest: unreal.AssetTools.create_asset
+ * Kept: adding modifiers and triggers to a mapping by INDEX (add_modifier / add_trigger) and the
+ * key discovery call (get_available_keys) that returns the strings it accepts. Modifier / trigger
+ * types: ObjectToolset.SearchSubclasses; an action-level trigger is a native trigger object appended
+ * to the Input Action's `triggers`. Native Python covers the rest: unreal.AssetTools.create_asset
  * for actions and contexts, InputMappingContext.map_key / unmap_key for key mappings, and
  * EditorToolset.ObjectToolset Get/SetProperties to read or edit mappings. map_key returns a COPY:
  * changes to it do not persist until the mappings array is written back.
@@ -59,7 +60,7 @@ struct FInputTypeDiscoveryResult
  * Python Usage:
  *   import unreal
  *
- *   types  = unreal.InputService.discover_types()
+ *   keys   = unreal.InputService.get_available_keys()
  *   # Create assets with unreal.AssetTools.create_asset, map keys with
  *   # unreal.InputMappingContext.map_key, and inject with InputToolset.ApplyInput.
  */
@@ -69,18 +70,6 @@ class VIBEUE_API UInputService : public UToolsetDefinition
 	GENERATED_BODY()
 
 public:
-	// =================================================================
-	// Reflection (reflection_discover_types)
-	// =================================================================
-
-	/**
-	 * Discover available Enhanced Input types.
-	 * Maps to action="reflection_discover_types"
-	 *
-	 * @return Discovery result with action value types, modifiers, and triggers
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Input")
-	static FInputTypeDiscoveryResult DiscoverTypes();
 
 	/**
 	 * Get list of available input keys.
@@ -135,25 +124,6 @@ public:
 	static bool AddTrigger(
 		const FString& ContextPath,
 		int32 MappingIndex,
-		const FString& TriggerType,
-		const FString& PropertiesJson = TEXT(""));
-
-	/**
-	 * Add a trigger to an Input Action's own trigger list (applies to every mapping of the action).
-	 *
-	 * @param ActionPath - Full path to the Input Action
-	 * @param TriggerType - Type of trigger (e.g., "Pressed", "Hold", "Tap")
-	 * @param PropertiesJson - Optional trigger settings as a JSON object, as for add_trigger
-	 * @return JSON: {success, action, trigger, trigger_index, note} or {success:false, error_code, error_message}
-	 *         error_code: PIE_ACTIVE (stop PIE first: assets cannot be loaded for editing during a play session),
-	 *         ACTION_NOT_FOUND, TRIGGER_TYPE_NOT_FOUND, BAD_PROPERTIES
-	 *
-	 * Example:
-	 *   unreal.InputService.add_action_trigger("/Game/Input/IA_Block", "Hold", '{"hold_time_threshold": 0.4}')
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Input")
-	static FString AddActionTrigger(
-		const FString& ActionPath,
 		const FString& TriggerType,
 		const FString& PropertiesJson = TEXT(""));
 

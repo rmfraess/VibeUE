@@ -365,7 +365,7 @@ timeline enters `Play` unless ``:!via `Pin` `` names another exec input, and oth
 (goto _fade :!via `Reverse`)
 ```
 
-Create the timeline itself with `unreal.BlueprintService.add_timeline` + the track/key tools first
+Create the timeline itself with `unreal.BlueprintEditorLibrary.add_timeline` + the track/key tools first
 (see `node-reference.md`) — the DSL anchors to it, it does not create it. Query `Schema` for the
 node's available pins.
 

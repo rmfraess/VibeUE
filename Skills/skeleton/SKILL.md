@@ -117,7 +117,7 @@ attaches to the skeletal mesh; set its offset with `SetSocketTransform`. There i
 
 ```python
 # Skeleton operations (VibeUE) - use SK_ path
-unreal.SkeletonService.get_skeleton_info("/Game/Characters/SK_Mannequin")
+unreal.SkeletonService.list_blend_profiles("/Game/Characters/SK_Mannequin")
 unreal.SkeletonService.set_bone_retargeting_mode("/Game/Characters/SK_Mannequin", "pelvis", "Skeleton")
 
 # Sockets / bone listing (engine) - use SKM_ path via call_tool, e.g.:
@@ -344,14 +344,20 @@ import unreal
 
 skeleton_path = "/Game/Characters/SK_Mannequin"
 
-info = unreal.SkeletonService.get_skeleton_info(skeleton_path)
-print(f"Skeleton: {info.skeleton_name}")
-print(f"  Bones: {info.bone_count}")
-print(f"  Compatible Skeletons: {info.compatible_skeleton_count}")
-print(f"  Curve Metadata: {info.curve_meta_data_count}")
-print(f"  Blend Profiles: {info.blend_profile_count}")
-if info.blend_profile_names:
-    print(f"    Profiles: {', '.join(info.blend_profile_names)}")
+AL = unreal.AnimationLibrary
+skel = unreal.load_asset(skeleton_path)
+profiles = unreal.SkeletonService.list_blend_profiles(skeleton_path)
+print(f"Skeleton: {skel.get_name()}")
+print(f"  Compatible Skeletons: {len(skel.get_editor_property('compatible_skeletons'))}")
+print(f"  Curve Metadata: {len(AL.get_curve_meta_data_names(skel))}")
+print(f"  Blend Profiles: {len(profiles)}")
+if profiles:
+    print(f"    Profiles: {', '.join(str(p) for p in profiles)}")
+
+# Bone names/count: engine toolset on any SkeletalMesh that uses this skeleton
+mesh = AL.get_skeleton_preview_mesh(skel, True)
+names = await call_tool("EditorToolset.SkeletalMeshToolset.GetBoneNames", mesh={"refPath": mesh.get_path_name()})
+print(f"  Bones: {len(names)}")
 ```
 
 ## Data Structures

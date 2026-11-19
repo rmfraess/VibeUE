@@ -406,27 +406,6 @@ FString UViewportService::GetViewMode()
 	}
 }
 
-// =================================================================
-// Field of View
-// =================================================================
-
-bool UViewportService::SetFOV(float FOVDegrees)
-{
-	FLevelEditorViewportClient* Client = GetActiveViewportClient();
-	if (!Client)
-	{
-		UE_LOG(LogViewportService, Warning, TEXT("SetFOV: No active viewport client"));
-		return false;
-	}
-
-	FOVDegrees = FMath::Clamp(FOVDegrees, 5.0f, 170.0f);
-	Client->ViewFOV = FOVDegrees;
-	Client->FOVAngle = FOVDegrees;
-	ForceViewportRedraw();
-	UE_LOG(LogViewportService, Log, TEXT("SetFOV: Set to %.1f degrees"), FOVDegrees);
-	return true;
-}
-
 
 // =================================================================
 // Clipping Planes
@@ -483,62 +462,6 @@ bool UViewportService::SetExposure(bool bFixed, float EV100)
 	return true;
 }
 
-
-// =================================================================
-// Game View & Cinematic
-// =================================================================
-
-bool UViewportService::SetGameView(bool bEnable)
-{
-	FLevelEditorViewportClient* Client = GetActiveViewportClient();
-	if (!Client)
-	{
-		UE_LOG(LogViewportService, Warning, TEXT("SetGameView: No active viewport client"));
-		return false;
-	}
-
-	if (Client->IsInGameView() != bEnable)
-	{
-		Client->SetGameView(bEnable);
-		ForceViewportRedraw();
-	}
-	UE_LOG(LogViewportService, Log, TEXT("SetGameView: %s"), bEnable ? TEXT("enabled") : TEXT("disabled"));
-	return true;
-}
-
-bool UViewportService::SetAllowCinematicControl(bool bAllow)
-{
-	FLevelEditorViewportClient* Client = GetActiveViewportClient();
-	if (!Client)
-	{
-		UE_LOG(LogViewportService, Warning, TEXT("SetAllowCinematicControl: No active viewport client"));
-		return false;
-	}
-
-	Client->SetAllowCinematicControl(bAllow);
-	ForceViewportRedraw();
-	UE_LOG(LogViewportService, Log, TEXT("SetAllowCinematicControl: %s"), bAllow ? TEXT("true") : TEXT("false"));
-	return true;
-}
-
-// =================================================================
-// Realtime Rendering
-// =================================================================
-
-bool UViewportService::SetRealtime(bool bRealtime)
-{
-	FLevelEditorViewportClient* Client = GetActiveViewportClient();
-	if (!Client)
-	{
-		UE_LOG(LogViewportService, Warning, TEXT("SetRealtime: No active viewport client"));
-		return false;
-	}
-
-	Client->SetRealtime(bRealtime);
-	ForceViewportRedraw();
-	UE_LOG(LogViewportService, Log, TEXT("SetRealtime: %s"), bRealtime ? TEXT("true") : TEXT("false"));
-	return true;
-}
 
 // =================================================================
 // Camera Speed
@@ -872,7 +795,7 @@ bool UViewportService::RunWithTemporaryView(
 	// Logged before anything is applied: SEH unwinding (the Python runner catches access violations) runs no
 	// destructors, so if the body crashes these are the values to put back by hand.
 	UE_LOG(LogViewportService, Display,
-		TEXT("CaptureWithView: snapshot before the temporary view: location=(%s) rotation=(%s) fov=%.3f fov_angle=%.3f exposure_fixed=%s ev100=%.3f (restore with restore_viewport_info / set_fov / set_exposure)"),
+		TEXT("CaptureWithView: snapshot before the temporary view: location=(%s) rotation=(%s) fov=%.3f fov_angle=%.3f exposure_fixed=%s ev100=%.3f (restore with restore_viewport_info / LevelEditorSubsystem.set_level_viewport_fov / set_exposure)"),
 		*Snapshot.Location.ToString(), *Snapshot.Rotation.ToString(), Snapshot.FOV, Client->FOVAngle,
 		Snapshot.bExposureFixed ? TEXT("true") : TEXT("false"), Snapshot.ExposureEV100);
 

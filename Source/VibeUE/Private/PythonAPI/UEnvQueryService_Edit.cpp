@@ -322,117 +322,6 @@ using namespace VibeEQSEdit;
 
 DEFINE_LOG_CATEGORY_STATIC(LogVibeEQSRepair, Log, All);
 
-FString UEnvQueryService::RepairGraphFromOptions(const FString& AssetPath)
-{
-	if (AssetPath.IsEmpty())
-	{
-		return TEXT("AssetPath is empty");
-	}
-
-	// Read first, and deliberately NOT through OpenWriteGuard: the guard's EnsureGraph runs
-	// UEnvironmentQueryGraph::Initialize(), which performs the very reconstruction this call is
-	// about. Both refusals below have to be decided against the state as found, or "the graph
-	// already has option nodes" would be true by the time it was asked and this call could never
-	// do anything.
-	UEnvQuery* Query =
-		LoadObject<UEnvQuery>(nullptr, *AssetPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
-	if (!Query)
-	{
-		return FString::Printf(TEXT("Environment Query not found: %s"), *AssetPath);
-	}
-
-	const int32 OptionCount = Query->GetOptions().Num();
-	if (OptionCount == 0)
-	{
-		return FString::Printf(
-			TEXT("Nothing to repair in %s: it has no options, so there is nothing to rebuild the "
-				 "graph from. A repair here would produce the same empty graph it started with, and "
-				 "reporting success for that would suggest options had been recovered."),
-			*AssetPath);
-	}
-
-	UEnvironmentQueryGraph* ExistingGraph = Cast<UEnvironmentQueryGraph>(Query->EdGraph);
-	const int32 OptionNodesBefore =
-		ExistingGraph ? VibeEQS::GetOptionNodes(ExistingGraph).Num() : 0;
-	if (OptionNodesBefore > 0)
-	{
-		return FString::Printf(
-			TEXT("Nothing to repair in %s: its graph's root already feeds %d option node(s). "
-				 "Rebuilding is refused rather than repeated — SpawnMissingNodes skips options that "
-				 "already have a node, so a second run is a no-op that would still report success "
-				 "and still save. Save a healthy query with EditorToolset.AssetToolset SaveAsset."),
-			*AssetPath, OptionNodesBefore);
-	}
-
-	// A graph with no root. AIModuleToolset.EnvironmentQueryToolset GetRootGraphNode is the engine's
-	// first-class check for this shape: it returns nothing when the graph has no root.
-	// Without this the repair DAMAGES the asset it was asked to fix: EnsureGraph only creates a root
-	// when EdGraph is null, so an existing rootless graph keeps none; SpawnMissingNodes finds
-	// MyRootNode == nullptr and spawns option nodes with no RootOutPin to link them to
-	// (EnvironmentQueryGraph.cpp:415, 441-445); the UpdateAsset at the end of Initialize() then
-	// rebuilds the option list from a graph whose root feeds nothing — zero — and EnsureGraph
-	// refuses AND marks this copy permanently un-writable. Asking to repair would be the thing that
-	// broke it. A null ExistingGraph is a different case and is allowed through: EnsureGraph builds
-	// the graph and its root from scratch there.
-	if (ExistingGraph && !VibeEQS::FindRootNode(ExistingGraph))
-	{
-		return FString::Printf(
-			TEXT("Refusing to repair %s: its editor graph has no root node, which is the shape "
-				 "EnvironmentQueryToolset GetRootGraphNode reports by returning no node. SpawnMissingNodes has nothing to link the "
-				 "rebuilt options to, and the commit that follows would rebuild an EMPTY option list "
-				 "over this query's %d — so proceeding would destroy in memory exactly what the "
-				 "repair was asked to recover. Nothing was touched. Recreate the root in the "
-				 "Environment Query editor, or create the query again with "
-				 "AIModuleToolset.EnvironmentQueryToolset CreateEnvironmentQuery."),
-			*AssetPath, OptionCount);
-	}
-
-	const int32 GraphNodesBefore = ExistingGraph ? ExistingGraph->Nodes.Num() : 0;
-
-	// THE reconstruction. UEnvironmentQueryGraph::SpawnMissingNodes() is a non-virtual member of a
-	// module that exports nothing, so it cannot be called from here at all (LNK2019); the only
-	// reachable route is Initialize(), a UAIGraph virtual, which is what EnsureGraph — and therefore
-	// OpenWriteGuard — runs. Every refusal the guard makes (open editor, play session, locked graph,
-	// poisoned copy, a reconstruction that would DROP options) applies unchanged, which is the point:
-	// a repair is still a write.
-	UEnvQuery* OpenedQuery = nullptr;
-	UEnvironmentQueryGraph* Graph = nullptr;
-	const FString OpenError = VibeEQS::OpenWriteGuard(AssetPath, OpenedQuery, Graph);
-	if (!OpenError.IsEmpty())
-	{
-		return OpenError;
-	}
-
-	const int32 GraphNodesAfter = Graph->Nodes.Num();
-	const int32 OptionNodesAfter = VibeEQS::GetOptionNodes(Graph).Num();
-	if (OptionNodesAfter == 0)
-	{
-		// Reached when the options cannot be represented at all — every one of them lacking a
-		// generator, say. Refused before the commit rather than left to the discard guard, so the
-		// message names the repair that failed instead of a commit the caller never asked for.
-		return FString::Printf(
-			TEXT("Repair of %s produced no option nodes: UEnvironmentQueryGraph::SpawnMissingNodes "
-				 "rebuilds a node only for an option carrying a generator "
-				 "(EnvironmentQueryGraph.cpp:421), and none of its %d option(s) does. Nothing was "
-				 "committed and the asset on disk is unchanged."),
-			*AssetPath, OptionCount);
-	}
-
-	const FString CommitError = VibeEQS::CommitGraph(OpenedQuery, Graph);
-	if (!CommitError.IsEmpty())
-	{
-		return CommitError;
-	}
-
-	UE_LOG(LogVibeEQSRepair, Log,
-		TEXT("RepairGraphFromOptions(%s): rebuilt from %d option(s); graph nodes %d -> %d, option "
-			 "nodes %d -> %d, options after commit %d."),
-		*AssetPath, OptionCount, GraphNodesBefore, GraphNodesAfter, OptionNodesBefore,
-		OptionNodesAfter, OpenedQuery->GetOptions().Num());
-
-	return FString();
-}
-
 #else  // WITH_VIBEUE_EQS
 
 namespace
@@ -440,11 +329,6 @@ namespace
 	const TCHAR* const GEQSEditUnavailable =
 		TEXT("EQS authoring is unavailable: the EnvironmentQueryEditor plugin is not enabled in this "
 			 "build (WITH_VIBEUE_EQS=0).");
-}
-
-FString UEnvQueryService::RepairGraphFromOptions(const FString&)
-{
-	return GEQSEditUnavailable;
 }
 
 #endif // WITH_VIBEUE_EQS

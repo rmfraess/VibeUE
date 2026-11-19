@@ -190,8 +190,8 @@ struct FAnimSequenceUsageInfo
  *   for s in states:
  *       print(f"State: {s.state_name} ({s.state_type})")
  *
- *   # Open a specific state in the editor
- *   unreal.AnimGraphService.open_anim_state("/Game/ABP_Character", "Locomotion", "IdleLoop")
+ *   # Open the AnimBP in the editor (engine toolset, via await call_tool in execute_python)
+ *   await call_tool("EditorToolset.EditorAppToolset.OpenEditorForAsset", assetPath="/Game/ABP_Character")
  *
  * @note All methods are static and thread-safe
  * @note C++ out parameters become Python return values
@@ -208,77 +208,6 @@ class VIBEUE_API UAnimGraphService : public UToolsetDefinition
 	GENERATED_BODY()
 
 public:
-	// ============================================================================
-	// GRAPH NAVIGATION
-	// ============================================================================
-
-	/**
-	 * Open an Animation Blueprint and focus on a specific graph.
-	 *
-	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
-	 * @param GraphName - Name of the graph to open (default: "AnimGraph")
-	 * @return True if the graph was opened successfully
-	 *
-	 * Example:
-	 *   unreal.AnimGraphService.open_anim_graph("/Game/ABP_Character", "AnimGraph")
-	 *   unreal.AnimGraphService.open_anim_graph("/Game/ABP_Character", "Locomotion")  # state machine
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Navigation")
-	static bool OpenAnimGraph(
-		const FString& AnimBlueprintPath,
-		const FString& GraphName = TEXT("AnimGraph"));
-
-	/**
-	 * Open a specific state within a state machine in the editor.
-	 * This navigates directly to the state's internal graph.
-	 *
-	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
-	 * @param StateMachineName - Name of the state machine containing the state
-	 * @param StateName - Name of the state to open
-	 * @return True if the state was opened successfully
-	 *
-	 * Example:
-	 *   unreal.AnimGraphService.open_anim_state("/Game/ABP_Character", "Locomotion", "IdleLoop")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Navigation")
-	static bool OpenAnimState(
-		const FString& AnimBlueprintPath,
-		const FString& StateMachineName,
-		const FString& StateName);
-
-	/**
-	 * Open a transition rule between two states in the editor.
-	 *
-	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
-	 * @param StateMachineName - Name of the state machine containing the transition
-	 * @param SourceStateName - Name of the source state
-	 * @param DestStateName - Name of the destination state
-	 * @return True if the transition was opened successfully
-	 *
-	 * Example:
-	 *   unreal.AnimGraphService.open_transition("/Game/ABP_Character", "Locomotion", "Idle", "Walk")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Navigation")
-	static bool OpenTransition(
-		const FString& AnimBlueprintPath,
-		const FString& StateMachineName,
-		const FString& SourceStateName,
-		const FString& DestStateName);
-
-	/**
-	 * Focus on a specific node by its GUID in any graph.
-	 *
-	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
-	 * @param NodeId - GUID of the node to focus on
-	 * @return True if the node was found and focused
-	 *
-	 * Example:
-	 *   unreal.AnimGraphService.focus_node("/Game/ABP_Character", "ABC123...")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Navigation")
-	static bool FocusNode(
-		const FString& AnimBlueprintPath,
-		const FString& NodeId);
 
 	/**
 	 * List all state machines in an Animation Blueprint.
@@ -331,23 +260,6 @@ public:
 		const FString& StateName = TEXT(""));
 
 	/**
-	 * Get detailed information about a specific state machine.
-	 *
-	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
-	 * @param StateMachineName - Name of the state machine
-	 * @param OutInfo - Output state machine info
-	 * @return True if the state machine was found
-	 *
-	 * Example:
-	 *   info = unreal.AnimGraphService.get_state_machine_info("/Game/ABP_Character", "Locomotion")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Introspection")
-	static bool GetStateMachineInfo(
-		const FString& AnimBlueprintPath,
-		const FString& StateMachineName,
-		FAnimStateMachineInfo& OutInfo);
-
-	/**
 	 * Get detailed information about a specific state.
 	 *
 	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
@@ -365,48 +277,6 @@ public:
 		const FString& StateMachineName,
 		const FString& StateName,
 		FAnimStateInfo& OutInfo);
-
-	// ============================================================================
-	// ANIMATION ASSET ANALYSIS
-	// ============================================================================
-
-	/**
-	 * Get all animation sequences used in an Animation Blueprint.
-	 *
-	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
-	 * @return Array of animation sequence usage information
-	 *
-	 * Example:
-	 *   sequences = unreal.AnimGraphService.get_used_anim_sequences("/Game/ABP_Character")
-	 *   for seq in sequences:
-	 *       print(f"{seq.sequence_name} used in {seq.used_in_graph}")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Assets")
-	static TArray<FAnimSequenceUsageInfo> GetUsedAnimSequences(const FString& AnimBlueprintPath);
-
-	/**
-	 * Get the skeleton used by an Animation Blueprint.
-	 *
-	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
-	 * @return Path to the skeleton asset, or empty string if not found
-	 *
-	 * Example:
-	 *   skeleton_path = unreal.AnimGraphService.get_skeleton("/Game/ABP_Character")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Assets")
-	static FString GetSkeleton(const FString& AnimBlueprintPath);
-
-	/**
-	 * Get the preview mesh used by an Animation Blueprint.
-	 *
-	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
-	 * @return Path to the preview skeletal mesh, or empty string if not found
-	 *
-	 * Example:
-	 *   mesh_path = unreal.AnimGraphService.get_preview_mesh("/Game/ABP_Character")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Assets")
-	static FString GetPreviewMesh(const FString& AnimBlueprintPath);
 
 	// ============================================================================
 	// ANIMGRAPH NODE CREATION
@@ -957,8 +827,8 @@ public:
 	 *
 	 * The connection is routed through the graph schema. Pose inputs (and other
 	 * single-link struct pins) are 1:1, so if the target input pin is already wired,
-	 * the existing link is REPLACED rather than stacked - you no longer need to call
-	 * disconnect_anim_node first. Returns False (logging the schema's reason as a
+	 * the existing link is REPLACED rather than stacked - you no longer need to break
+	 * the existing link first. Returns False (logging the schema's reason as a
 	 * Warning) if the schema refuses the connection, instead of silently creating an
 	 * illegal double link that compiles the Anim Blueprint to BS_ERROR.
 	 *
@@ -1008,22 +878,6 @@ public:
 		const FString& SourcePinName = TEXT("Pose"));
 
 	/**
-	 * Disconnect a node's output from all connections.
-	 *
-	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
-	 * @param GraphName - Name of the graph
-	 * @param NodeId - GUID of the node
-	 * @param PinName - Name of the pin to disconnect
-	 * @return True if any connections were broken
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Connections")
-	static bool DisconnectAnimNode(
-		const FString& AnimBlueprintPath,
-		const FString& GraphName,
-		const FString& NodeId,
-		const FString& PinName);
-
-	/**
 	 * Get the Output Pose (result) node ID for a graph.
 	 * Useful for connecting to the final output.
 	 *
@@ -1037,64 +891,6 @@ public:
 	static FString GetOutputPoseNodeId(
 		const FString& AnimBlueprintPath,
 		const FString& GraphName);
-
-	// ============================================================================
-	// ANIMATION ASSET ASSIGNMENT
-	// ============================================================================
-
-	/**
-	 * Set the animation sequence on a sequence player node.
-	 *
-	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
-	 * @param GraphName - Name of the graph containing the node
-	 * @param NodeId - GUID of the sequence player node
-	 * @param AnimSequencePath - Path to the animation sequence asset
-	 * @return True if successful
-	 *
-	 * Example:
-	 *   unreal.AnimGraphService.set_sequence_player_asset(
-	 *       "/Game/ABP_Character",
-	 *       "IdleState",
-	 *       node_id,
-	 *       "/Game/Animations/Idle_Loop"
-	 *   )
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Assets")
-	static bool SetSequencePlayerAsset(
-		const FString& AnimBlueprintPath,
-		const FString& GraphName,
-		const FString& NodeId,
-		const FString& AnimSequencePath);
-
-	/**
-	 * Set the blend space on a blend space player node.
-	 *
-	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
-	 * @param GraphName - Name of the graph
-	 * @param NodeId - GUID of the blend space player node
-	 * @param BlendSpacePath - Path to the blend space asset
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Assets")
-	static bool SetBlendSpaceAsset(
-		const FString& AnimBlueprintPath,
-		const FString& GraphName,
-		const FString& NodeId,
-		const FString& BlendSpacePath);
-
-	/**
-	 * Get the current animation asset path from a player node.
-	 *
-	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
-	 * @param GraphName - Name of the graph
-	 * @param NodeId - GUID of the player node
-	 * @return Asset path, or empty string if not set
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Assets")
-	static FString GetNodeAnimationAsset(
-		const FString& AnimBlueprintPath,
-		const FString& GraphName,
-		const FString& NodeId);
 
 	// ============================================================================
 	// ADVANCED ANIMATION NODES

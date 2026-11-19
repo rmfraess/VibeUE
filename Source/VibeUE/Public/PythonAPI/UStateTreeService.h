@@ -429,19 +429,6 @@ public:
 	// ---- Asset Creation ----
 
 
-	/**
-	 * Create a new StateTree asset at the given content path.
-	 * The path must include the asset name, e.g. "/Game/AI/MyStateTree"
-	 * @param AssetPath       Content path including asset name
-	 * @param SchemaClassName Schema class name (default: "StateTreeComponentSchema").
-	 *                        Accepts full names or shorthand like "Component", "AIComponent".
-	 *                        If creation returns False, the schema likely doesn't exist in this
-	 *                        project -- run ObjectToolset.SearchSubclasses on UStateTreeSchema for
-	 *                        the valid names.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|StateTree")
-	static bool CreateStateTree(const FString& AssetPath, const FString& SchemaClassName = TEXT("StateTreeComponentSchema"));
-
 	// ---- State Management ----
 
 
@@ -597,12 +584,6 @@ public:
 
 
 
-	/** Get all editable properties on a transition condition node. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|StateTree")
-	static TArray<FStateTreePropertyInfo> GetTransitionConditionPropertyNames(const FString& AssetPath, const FString& StatePath,
-	                                                                           int32 TransitionIndex, const FString& ConditionStructName,
-	                                                                           int32 ConditionMatchIndex = -1);
-
 	/**
 	 * Get the bindable properties exposed by a transition's required event payload struct.
 	 * Kept pending a live check of whether the engine's GetBindingOptions covers this; unverified
@@ -611,13 +592,6 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|StateTree")
 	static TArray<FStateTreePropertyInfo> GetTransitionEventPayloadPropertyNames(const FString& AssetPath, const FString& StatePath,
 	                                                                            int32 TransitionIndex);
-
-	/** Set a property on a transition condition node. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|StateTree")
-	static bool SetTransitionConditionPropertyValue(const FString& AssetPath, const FString& StatePath,
-	                                                int32 TransitionIndex, const FString& ConditionStructName,
-	                                                const FString& PropertyPath, const FString& Value,
-	                                                int32 ConditionMatchIndex = -1);
 
 
 

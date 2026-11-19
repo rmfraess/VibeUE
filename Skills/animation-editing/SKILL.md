@@ -55,7 +55,7 @@ bone-space handling and constraint validation.
 
 > **🛡️ Safe discovery — never `unreal.load_asset()` in loops (memory crash 0xC0000005).**
 > Use the Asset Registry Skeleton-tag query in api-reference.md or
-> `AnimSequenceService.list_anim_sequences(path, skeleton_filter)` — they query metadata without
+> Epic's `EditorToolset.AssetToolset.FindAssets` — they query metadata without
 > loading. VibeUE's own skeleton list call is gone: find skeletons with Epic's
 > `EditorToolset.AssetToolset.FindAssets` filtered to class `Skeleton` (see api-reference.md).
 

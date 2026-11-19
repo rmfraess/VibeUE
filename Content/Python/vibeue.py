@@ -1156,13 +1156,13 @@ def set_array_prop(obj, name: str, values, *, force_dirty: bool = True) -> dict:
 def viewport_state():
     """Snapshot the level viewport's camera, FOV and exposure, and put them back on exit.
 
-    ViewportService.set_exposure / set_fov PERSIST into the user's
+    ViewportService.set_exposure and the viewport FOV PERSIST into the user's
     Saved/Config/.../EditorPerProjectUserSettings.ini, so a capture script that leaves a fixed
     exposure behind leaves the user a black Lit viewport on every later launch (2026-10-19: a
     script stepped exposure and quit at fixed EV100 12 with FOV 73.8). Wrap every capture that
     changes the camera, FOV or exposure. Restores with ViewportService.restore_viewport_info(info)
     when the plugin has it, else with the engine's EditorAppToolset.SetCameraTransform plus
-    ViewportService.set_fov + set_exposure(fixed, ev100), which puts both exposure fields back. Yields the snapshot (a ViewportInfo, or None when
+    LevelEditorSubsystem.set_level_viewport_fov + ViewportService.set_exposure(fixed, ev100), which puts both exposure fields back. Yields the snapshot (a ViewportInfo, or None when
     there is no level viewport, in which case nothing is restored).
 
     Example:
@@ -1208,7 +1208,9 @@ def _restore_viewport(info) -> None:
     except Exception as exc:
         unreal.log_warning("vibeue.viewport_state: camera restore failed: {}".format(exc))
     try:
-        unreal.ViewportService.set_fov(info.fov)
+        les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
+        les.set_level_viewport_fov(info.fov, les.get_active_viewport_config_key())
+        les.editor_invalidate_viewports()
     except Exception as exc:
         unreal.log_warning("vibeue.viewport_state: FOV restore failed: {}".format(exc))
     try:
@@ -1227,6 +1229,45 @@ def _decode_json_reply(raw) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+_PIE_NET_MODES = {"standalone": "PIE_Standalone", "listenserver": "PIE_ListenServer", "client": "PIE_Client"}
+
+
+def _net_mode_key(mode) -> str:
+    key = str(getattr(mode, "name", mode)).replace("_", "").lower()
+    return key[3:] if key.startswith("pie") else key
+
+
+class _PieReading(object):
+    def __init__(self, **kw):
+        self.__dict__.update(kw)
+
+    def get_editor_property(self, name):
+        return self.__dict__[name]
+
+
+class _PlaySettings(object):
+    """get_pie_settings / set_pie_settings over the engine's PlayIn settings (net mode names like "ListenServer")."""
+
+    def get_pie_settings(self):
+        try:
+            s = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).get_play_settings()
+            return _PieReading(success=True,
+                               net_mode=_PIE_NET_MODES[_net_mode_key(s.get_editor_property("play_net_mode"))][4:],
+                               num_clients=int(s.get_editor_property("play_number_of_clients")),
+                               run_under_one_process=bool(s.get_editor_property("run_under_one_process")))
+        except Exception as exc:
+            return _PieReading(success=False, error_message=str(exc))
+
+    def set_pie_settings(self, net_mode, num_clients, run_under_one_process):
+        # Written through ConfigSettingsToolset so it lands in EditorPerProjectUserSettings.ini.
+        exec_tool("ConfigSettingsToolset", "SetSectionProperties", {
+            "containerName": "Editor", "categoryName": "LevelEditor", "sectionName": "PlayIn",
+            "propertiesJson": json.dumps({"PlayNetMode": _PIE_NET_MODES[_net_mode_key(net_mode)],
+                                          "PlayNumberOfClients": int(num_clients),
+                                          "RunUnderOneProcess": bool(run_under_one_process)})})
+        return True
+
+
 class GateSession(object):
     """Editor settings for a gate run, applied by enter() and put back by exit().
 
@@ -1238,7 +1279,7 @@ class GateSession(object):
     one by one. If an apply step raises, every change already made is put back in reverse order and
     the exception propagates; the session stays un-entered, so exit() is then a no-op.
 
-    perf / settings default to unreal.PerformanceService / unreal.EngineSettingsService; tests pass
+    perf / settings default to unreal.PerformanceService / the engine play settings (_PlaySettings); tests pass
     fakes with the same methods.
     """
 
@@ -1258,7 +1299,7 @@ class GateSession(object):
 
     def _services(self):
         perf = self._perf if self._perf is not None else unreal.PerformanceService
-        settings = self._settings if self._settings is not None else unreal.EngineSettingsService
+        settings = self._settings if self._settings is not None else _PlaySettings()
         return perf, settings
 
     def _reset_state(self):
@@ -1375,13 +1416,13 @@ def gate_session(*, clients: Optional[int] = None, net_mode: Optional[str] = Non
     """Set up the editor for a gate run and restore it afterwards.
 
     On enter: records PerformanceService.get_background_throttling() and
-    EngineSettingsService.get_pie_settings(), then calls set_background_throttling(throttle)
+    the engine play settings (LevelEditorSubsystem.get_play_settings()), then calls set_background_throttling(throttle)
     (False = full frame rate while the editor is unfocused; an unfocused editor otherwise drops to
     ~3 FPS and stalls PIE), and, when clients or net_mode is given,
-    set_pie_settings(net_mode or current, clients or current, True). A setting whose current value
+    ConfigSettingsToolset.SetSectionProperties on LevelEditor/PlayIn (net mode or current, clients or current, one process). A setting whose current value
     could not be read is left unchanged (noted in "notes"), since nothing could restore it. On exit:
-    puts back what it changed. set_pie_settings saves to EditorPerProjectUserSettings.ini (it
-    survives a restart), so the restore matters. The state dict is {"throttle_before",
+    puts back what it changed. The PlayIn settings are saved to EditorPerProjectUserSettings.ini (they
+    survive a restart), so the restore matters. The state dict is {"throttle_before",
     "throttle_applied", "pie_before", "pie_applied", "notes"}.
 
     Start PIE inside the block, in a later call than the one that entered it if you need the new

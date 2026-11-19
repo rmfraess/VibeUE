@@ -39,7 +39,7 @@
 #include "K2Node_CreateDelegate.h"       // For create event nodes (add_create_delegate_node)
 #include "K2Node_CallDelegate.h"         // For dispatcher broadcast nodes (add_call_delegate_node)
 #include "K2Node_MakeStruct.h"           // For STRUCT key: creating typed struct Make nodes
-#include "K2Node_Timeline.h"             // For UK2Node_Timeline (add_timeline)
+#include "K2Node_Timeline.h"             // For UK2Node_Timeline (timeline tracks and keys)
 #include "Engine/TimelineTemplate.h"     // For UTimelineTemplate / FTTFloatTrack
 #include "Curves/CurveFloat.h"           // For UCurveFloat / FRichCurve (timeline float tracks)
 #include "Curves/CurveVector.h"          // For UCurveVector (timeline vector tracks)
@@ -1645,107 +1645,6 @@ static int32 VibeUE_FindDisplayIndex(UTimelineTemplate* Template, FTTTrackBase::
 	return INDEX_NONE;
 }
 
-FString UBlueprintService::AddTimeline(
-	const FString& BlueprintPath,
-	const FString& GraphName,
-	const FString& TimelineName,
-	float Length,
-	bool bUseLastKeyFrame,
-	bool bAutoPlay,
-	bool bLoop,
-	float PosX,
-	float PosY,
-	bool bReplaceExisting)
-{
-	UBlueprint* Blueprint = LoadBlueprint(BlueprintPath);
-	if (!Blueprint)
-	{
-		UE_LOG(LogTemp, Error, TEXT("AddTimeline: Failed to load blueprint: %s"), *BlueprintPath);
-		return FString();
-	}
-
-	if (!FBlueprintEditorUtils::DoesSupportTimelines(Blueprint))
-	{
-		UE_LOG(LogTemp, Error, TEXT("AddTimeline: Blueprint %s does not support timelines"), *BlueprintPath);
-		return FString();
-	}
-
-	UEdGraph* Graph = ResolveBlueprintGraph(Blueprint, GraphName);
-	if (!Graph)
-	{
-		UE_LOG(LogTemp, Error, TEXT("AddTimeline: Graph '%s' not found in %s"), *GraphName, *BlueprintPath);
-		return FString();
-	}
-
-	const FName DesiredName = TimelineName.IsEmpty() ? FBlueprintEditorUtils::FindUniqueTimelineName(Blueprint) : FName(*TimelineName);
-	if (Blueprint->FindTimelineTemplateByVariableName(DesiredName))
-	{
-		// A leftover UTimelineTemplate (e.g. its Timeline node was deleted but the template stayed)
-		// blocks re-adding the same name. Previously this returned an empty string and logged only
-		// to UE_LOG, invisible from Python. Now: replace on request, otherwise return a visible
-		// "ERROR:" sentinel that says how to proceed.
-		if (bReplaceExisting)
-		{
-			if (!RemoveTimeline(BlueprintPath, DesiredName.ToString()))
-			{
-				const FString Sentinel = FString::Printf(TEXT("ERROR: Timeline '%s' already exists on %s and could not be removed for replacement"), *DesiredName.ToString(), *BlueprintPath);
-				UE_LOG(LogTemp, Error, TEXT("AddTimeline: %s"), *Sentinel);
-				return Sentinel;
-			}
-			// Re-resolve the graph: RemoveTimeline recompiles, which can invalidate the pointer.
-			Graph = ResolveBlueprintGraph(Blueprint, GraphName);
-			if (!Graph)
-			{
-				const FString Sentinel = FString::Printf(TEXT("ERROR: Graph '%s' not found in %s after removing timeline '%s'"), *GraphName, *BlueprintPath, *DesiredName.ToString());
-				UE_LOG(LogTemp, Error, TEXT("AddTimeline: %s"), *Sentinel);
-				return Sentinel;
-			}
-		}
-		else
-		{
-			const FString Sentinel = FString::Printf(TEXT("ERROR: Timeline '%s' already exists on %s (a deleted Timeline node can leave its template behind). Call remove_timeline first, or pass replace_existing=true."), *DesiredName.ToString(), *BlueprintPath);
-			UE_LOG(LogTemp, Error, TEXT("AddTimeline: %s"), *Sentinel);
-			return Sentinel;
-		}
-	}
-
-	// Create the Timeline node.
-	UK2Node_Timeline* TimelineNode = NewObject<UK2Node_Timeline>(Graph);
-	Graph->AddNode(TimelineNode, false, false);
-	TimelineNode->CreateNewGuid();
-	TimelineNode->PostPlacedNewNode();
-	TimelineNode->NodePosX = PosX;
-	TimelineNode->NodePosY = PosY;
-	TimelineNode->TimelineName = DesiredName;
-	TimelineNode->bAutoPlay = bAutoPlay;
-	TimelineNode->bLoop = bLoop;
-
-	// Create the backing template (links to the node by name).
-	UTimelineTemplate* Template = FBlueprintEditorUtils::AddNewTimeline(Blueprint, DesiredName);
-	if (!Template)
-	{
-		FBlueprintEditorUtils::RemoveNode(Blueprint, TimelineNode, /*bDontRecompile*/true);
-		UE_LOG(LogTemp, Error, TEXT("AddTimeline: AddNewTimeline failed for '%s'"), *DesiredName.ToString());
-		return FString();
-	}
-	Template->bAutoPlay = bAutoPlay;
-	Template->bLoop = bLoop;
-	if (bUseLastKeyFrame)
-	{
-		Template->LengthMode = ETimelineLengthMode::TL_LastKeyFrame;
-	}
-	else
-	{
-		Template->LengthMode = ETimelineLengthMode::TL_TimelineLength;
-		Template->TimelineLength = Length;
-	}
-
-	TimelineNode->AllocateDefaultPins();
-	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(Blueprint);
-	UE_LOG(LogTemp, Log, TEXT("AddTimeline: Added timeline '%s' in %s"), *DesiredName.ToString(), *GraphName);
-	return TimelineNode->NodeGuid.ToString();
-}
-
 bool UBlueprintService::AddTimelineFloatTrack(
 	const FString& BlueprintPath,
 	const FString& TimelineName,
@@ -2385,45 +2284,6 @@ namespace
 
 
 
-
-bool UBlueprintService::RefreshBlueprintEditor(const FString& BlueprintPath)
-{
-	UBlueprint* Blueprint = LoadBlueprint(BlueprintPath);
-	if (!Blueprint)
-	{
-		UE_LOG(LogTemp, Error, TEXT("RefreshBlueprintEditor: Failed to load blueprint: %s"), *BlueprintPath);
-		return false;
-	}
-
-	UAssetEditorSubsystem* AssetEditorSubsystem = GEditor ? GEditor->GetEditorSubsystem<UAssetEditorSubsystem>() : nullptr;
-	if (!AssetEditorSubsystem)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("RefreshBlueprintEditor: AssetEditorSubsystem not available"));
-		return false;
-	}
-
-	IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Blueprint, /*bFocusIfOpen=*/false);
-	if (!EditorInstance)
-	{
-		UE_LOG(LogTemp, Log, TEXT("RefreshBlueprintEditor: Blueprint '%s' has no editor open — nothing to refresh"), *BlueprintPath);
-		return false;
-	}
-
-	// Rebuild node state on the Blueprint itself, then ask the open editor to redraw so the SCS
-	// viewport re-runs the construction script.
-	FBlueprintEditorUtils::RefreshAllNodes(Blueprint);
-
-	if (EditorInstance->GetEditorName() == FName(TEXT("BlueprintEditor"))
-		|| EditorInstance->GetEditorName() == FName(TEXT("WidgetBlueprintEditor"))
-		|| EditorInstance->GetEditorName() == FName(TEXT("AnimationBlueprintEditor")))
-	{
-		FBlueprintEditor* BlueprintEditor = static_cast<FBlueprintEditor*>(EditorInstance);
-		BlueprintEditor->RefreshEditors();
-	}
-
-	UE_LOG(LogTemp, Log, TEXT("RefreshBlueprintEditor: refreshed open editor for '%s'"), *BlueprintPath);
-	return true;
-}
 
 namespace
 {

@@ -65,9 +65,9 @@ takes the asset path; `anim` is a loaded `unreal.AnimSequence`.
 | You want | Fails | Use |
 |---|---|---|
 | The notifies on a clip | `anim.notifies` / `get_editor_property("notifies")` (protected) | `unreal.AnimSequenceService.list_notifies(path)` (index, name, class, `trigger_time`, `duration`, `is_state`, `track_index`); one notify: `get_notify_info(path, index)`. Read-only alternative: `unreal.AnimationLibrary.get_animation_notify_events(anim)` |
-| A sound's length | `SoundWave.get_duration()` (no such method) | `unreal.SoundCueService.get_sound_wave_info(path).duration` (seconds; also `sample_rate`, `num_channels`), or `wave.get_editor_property("duration")` |
+| A sound's length | `SoundWave.get_duration()` (no such method) | `await call_tool('EditorToolset.ObjectToolset.GetProperties', instance={'refPath': wave_path}, properties=['Duration','NumChannels','SampleRate','bLooping','bStreaming'])`, or `wave.get_editor_property("duration")` |
 | Skeletal mesh LOD count / vertices / sections | `mesh.lod_info`, `mesh.get_lod_num()` | Epic `EditorToolset.SkeletalMeshToolset` tools `GetLodCount`, `GetVertexCount(mesh, lodIndex)`, `GetSectionCount(mesh, lodIndex)`, `GetBounds` (via `call_tool`), or in Python `unreal.SkeletalMeshEditorSubsystem.get_lod_count(mesh)` |
-| A clip's frame rate | `unreal.AnimationLibrary.get_frame_rate(anim)` (no such function) | `unreal.AnimSequenceService.get_animation_frame_rate(path)` (float, -1 if not found); frame count `unreal.AnimationLibrary.get_num_frames(anim)`; rate plus duration in `get_anim_sequence_info(path)` |
+| A clip's frame rate | `unreal.AnimationLibrary.get_frame_rate(anim)` (no such function) | `fr = anim.data_model_interface.get_frame_rate(); fps = fr.numerator / fr.denominator`; frame count `unreal.AnimationLibrary.get_num_frames(anim)`; duration `unreal.AnimationLibrary.get_sequence_length(anim)` |
 | Frames, keys, length, track names | guessing properties | `unreal.AnimationLibrary.get_num_frames(anim)`, `get_num_keys(anim)`, `get_animation_track_names(anim)`, `anim.get_play_length()` |
 | The data model / controller | `AnimationDataController.get_model()`, `anim.get_controller()` | The controller is a property: `c = anim.controller`. Its model: `c.get_model_interface()` |
 | Write every key of a bone at once | one key per call in a loop | `c.set_bone_track_keys(bone, positions, rotations, scales)` (equal-length lists of `unreal.Vector` / `unreal.Quat` / `unreal.Vector`, one per key; the track must exist: `c.add_bone_curve(bone)`). Wrap several in `c.open_bracket(unreal.Text("label"))` ... `c.close_bracket()`; change length with `c.set_number_of_frames(unreal.FrameNumber(n))`. Then `unreal.EditorAssetLibrary.save_asset(path, only_if_is_dirty=False)` |
@@ -107,7 +107,6 @@ render in a private preview scene, never the open level, and work during PIE. De
 >   `vibeue.exec_tool_async(...)` then `vibeue.collect_tool_result(...)` next call. It returns full
 >   object paths, so strip the trailing `.AssetName` before passing one to a VibeUE service.
 > - Query Asset Registry Skeleton tags for animations (see Safe Discovery below)
-> - `unreal.AnimSequenceService.list_anim_sequences(search_path, skeleton_filter)` - List all animations
 >
 > These all query the asset registry WITHOUT loading assets into memory.
 > - **animation-blueprint** - For state machines and AnimGraph navigation
@@ -306,12 +305,10 @@ ar = unreal.AssetRegistryHelpers.get_asset_registry()
 anims = [a for a in ar.get_assets_by_class(unreal.TopLevelAssetPath('/Script/Engine', 'AnimSequence'))
          if skeleton_path in str(a.get_tag_value('Skeleton'))]
 for a in anims[:10]:
-    print(a.asset_name, a.package_name)  # AssetData, not AnimSequenceInfo
+    print(a.asset_name, a.package_name)  # AssetData
 ```
 
-**Other safe VibeUE methods:**
-- `list_anim_sequences(search_path, skeleton_filter)` - List all in path
-- `get_anim_sequence_info(anim_path)` - Get single anim info
+**Other safe methods:** Epic's `EditorToolset.AssetToolset.FindAssets` (class/name/folder filtering, no loading).
 
 ---
 
@@ -319,24 +316,26 @@ for a in anims[:10]:
 
 **All `anim_path` parameters require the FULL asset path, NOT the folder path.**
 
-Search animations with `AnimSequenceService.list_anim_sequences` — its results carry `anim_path`,
-already in the form every other method wants. For class/name/folder filtering use the native
-`EditorToolset.AssetToolset.FindAssets`; it returns object paths rather than `AnimSequenceInfo`.
+Search animations with the Asset Registry — `package_name` is already in the form every other
+method wants. For class/name/folder filtering you can also use the native
+`EditorToolset.AssetToolset.FindAssets`; it returns object paths.
 
 ```python
 import unreal
 
 # List animations within a folder
-results = unreal.AnimSequenceService.list_anim_sequences("/Game/Animations", "")
+ar = unreal.AssetRegistryHelpers.get_asset_registry()
+results = ar.get_assets(unreal.ARFilter(class_paths=[unreal.TopLevelAssetPath('/Script/Engine', 'AnimSequence')],
+                                        package_paths=["/Game/Animations"], recursive_paths=True))
 if results:
-    # CORRECT: anim_path is the full asset path
-    anim_path = results[0].anim_path  # e.g., "/Game/Animations/Run/AS_Run_Forward"
+    # CORRECT: package_name is the full asset path
+    anim_path = str(results[0].package_name)  # e.g., "/Game/Animations/Run/AS_Run_Forward"
 
     # WRONG: Do NOT pass the containing folder
     # anim_path = "/Game/Animations/Run"  # - This will FAIL!
 
     # Now you can use the anim_path with AnimSequenceService
-    info = unreal.AnimSequenceService.get_anim_sequence_info(anim_path)
+    notifies = unreal.AnimSequenceService.list_notifies(anim_path)
 ```
 
 > Epic's `AssetToolset.FindAssets` returns full **object** paths — strip the trailing `.AssetName` with

@@ -11,7 +11,7 @@ End-to-end recipes for taking a landscape from "heightmap painted" to "fully blo
 
 You must already have:
 
-- A landscape actor in the level (created via `LandscapeService.create_landscape` or imported from a real-world heightmap with `terrain_data`).
+- A landscape actor in the level (created via `LandscapeEditorSubsystem.create_landscape` or imported from a real-world heightmap with `terrain_data`).
 - **Weight layers painted** on the landscape: at minimum a crop-like layer (drives fields) and a forest-like layer (drives woods). A water layer is optional — water can be synthesized from the low end of the heightmap if not painted.
 - The names of those layers (they're whatever you called them — `Crop` / `Grass` / `Farmland` etc.).
 

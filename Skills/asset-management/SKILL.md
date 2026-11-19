@@ -35,7 +35,6 @@ and remapping through the existing engine Python API; no native service rebuild.
 >
 > **Python-only helpers** (still callable as `unreal.AssetDiscoveryService.*` from `execute_python`,
 > but no longer MCP tools, so don't look for them in `list_toolsets`):
-> `import_asset(src, dest_folder, name)` → `(path, err)` and
 > `delete_asset_unattended(path, force)` → result struct.
 >
 > **Everything else now belongs to the engine. Use these:**
@@ -176,7 +175,7 @@ level. Non-Blueprint assets you never loaded (textures, meshes written by a fact
 | Existence check | `unreal.EditorAssetLibrary.does_asset_exist(path)` |
 | Referencers / dependencies | `unreal.AssetRegistryHelpers.get_asset_registry().get_referencers(...)` |
 | Open an asset / list ALL open editors | Epic `EditorAppToolset` via `call_tool` (see below) |
-| Import a file from disk (image, mesh, …) | `unreal.AssetDiscoveryService.import_asset` / `TextureToolset.import_file` (**see below**) |
+| Import a file from disk (image, mesh, …) | `unreal.AssetImportTask` + `import_asset_tasks` / `TextureToolset.import_file` (**see below**) |
 | Export a texture to disk | `unreal.AssetToolsHelpers.get_asset_tools().export_assets` |
 | Primary Content Browser selection | `EditorAppToolset.GetSelectedAssets` |
 | Is an asset open in an editor | `EditorAppToolset.GetOpenAssets` (check the path in the result) |
@@ -243,29 +242,30 @@ via `unreal.AssetRegistryHelpers.get_asset_registry().get_assets(...)`.
 `AssetData` has **no** `object_path` attribute (`AttributeError`). Build it from `package_name` +
 `asset_name`, or just use `str(asset.package_name)`.
 
-### ⚠️ Importing Files From Disk — Use `AssetDiscoveryService.import_asset`
+### ⚠️ Importing Files From Disk — Use `AssetImportTask`
 
-To bring a file from disk into the Content Browser, use **`AssetDiscoveryService.import_asset`**
-(or `TextureToolset.import_file` (the engine's texture importer)). It takes any
-format the editor imports, and saves what it imports:
-
-- **Images** (png, jpg, jpeg, bmp, tga, dds, exr, hdr, tiff, tif, psd, pcx) go through the
-  texture factory's direct binary path and become a `Texture2D`.
-- **Everything else** (FBX, OBJ, glTF/GLB, audio, …) goes through an automated, synchronous
-  `AssetImportTask` — no option dialogs.
+To bring a file from disk into the Content Browser, use an automated, synchronous
+**`unreal.AssetImportTask`** (or `TextureToolset.import_file` (the engine's texture importer) for
+images). It takes any format the editor imports (images, FBX, OBJ, glTF/GLB, audio, …); with
+`automated=True` there are no option dialogs, and `save=True` saves what it imports.
 
 ```python
 import unreal
 
-# Disk → Content Browser. Returns (asset_path, error); path is "" on failure.
-path, err = unreal.AssetDiscoveryService.import_asset(
-    "C:/Images/rocks.jpg", "/Game/UI/Textures", "T_Rocks")
-print(path or err)
+# Disk → Content Browser. imported_object_paths is empty on failure.
+t = unreal.AssetImportTask()
+t.set_editor_properties(filename="C:/Images/rocks.jpg", destination_path="/Game/UI/Textures", destination_name="T_Rocks",
+                        automated=True, replace_existing=True, save=True)
+unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([t])
+paths = list(t.get_editor_property("imported_object_paths"))
+print(paths or "import failed")
 
 # A mesh takes the same call. Give a file that brings materials/textures a folder of its own.
-path, err = unreal.AssetDiscoveryService.import_asset(
-    "C:/Art/crate.fbx", "/Game/Props/Crate", "SM_Crate")
-print(path or err)
+t = unreal.AssetImportTask()
+t.set_editor_properties(filename="C:/Art/crate.fbx", destination_path="/Game/Props/Crate",
+                        destination_name="SM_Crate", automated=True, replace_existing=True, save=True)
+unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([t])
+print(list(t.get_editor_property("imported_object_paths")))
 ```
 
 What to expect:
@@ -275,16 +275,13 @@ What to expect:
   and PhysicsAsset) overwrite any asset of the same name already in the destination folder. Their
   names are only known once the importer has run, so there is no pre-check — import such files
   into an empty or dedicated folder.
-- **The returned path is the main asset.** For a file that brings several assets it is the mesh,
-  not a material or texture; when the importer did not use the name you passed, the path carries
-  the importer's name. List the folder (Asset Registry) to find the side assets.
-- **The one context where an import would crash, and is refused instead.** A synchronous AssetTools
-  import waits by pumping the game thread's task queue. If the caller is itself running *inside* a
-  game-thread task (the queue is already being processed), TaskGraph's `RecursionGuard` asserts and
-  the editor goes down. `import_asset` checks for exactly that and returns an error naming
-  `RecursionGuard` instead. `execute_python` and MCP tool calls do not run inside such a task,
-  so imports from them go ahead. Calling `unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks(...)`
-  yourself skips that check (and the save, and the main-asset pick) — prefer `import_asset`.
+- **`imported_object_paths` lists every imported asset.** For a file that brings several assets it
+  includes the mesh and its materials/textures; when the importer did not use the name you passed,
+  the paths carry the importer's name. List the folder (Asset Registry) to find the side assets.
+- **Don't import from inside a game-thread task.** A synchronous AssetTools import waits by pumping
+  the game thread's task queue; called from within a game-thread task, TaskGraph's `RecursionGuard`
+  asserts and the editor goes down. `execute_python` and MCP tool calls do not run inside such a
+  task, so imports from them go ahead.
 
 Need a source image to import? Editor screenshots live under the **project's**
 `Saved/Screenshots` (and `Saved/VibeUE/Screenshots`):
@@ -447,11 +444,13 @@ else:
 ```python
 import unreal
 
-# Import (disk → Content Browser). Returns (asset_path, error); asset_path is "" on failure.
-# Pass a destination FOLDER + optional asset name.
-path, err = unreal.AssetDiscoveryService.import_asset(
-    "C:/Textures/logo.png", "/Game/Textures", "T_Logo")
-print(path or err)
+# Import (disk → Content Browser). Pass a destination FOLDER + optional asset name.
+t = unreal.AssetImportTask()
+t.set_editor_properties(filename="C:/Textures/logo.png", destination_path="/Game/Textures", destination_name="T_Logo",
+                        automated=True, replace_existing=True, save=True)
+unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([t])
+paths = list(t.get_editor_property("imported_object_paths"))
+print(paths or "import failed")
 
 # Textures: the engine importer (args per its schema -- check with get_symbol on the toolset):
 vibeue.exec_tool("EditorToolset.TextureToolset", "import_file", {"file": "C:/Textures/logo.png", "destination": "/Game/Textures"})

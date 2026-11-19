@@ -49,13 +49,18 @@ Reference poses: `unreal.AnimPoseExtensions.get_reference_pose` / `get_ref_bone_
 ## Safe discovery (no asset loading)
 
 ```python
-# Skeleton-tag query returns AssetData, not AnimSequenceInfo; no assets are loaded.
+# Skeleton-tag query returns AssetData; no assets are loaded.
 ar = unreal.AssetRegistryHelpers.get_asset_registry()
 anims = [a for a in ar.get_assets_by_class(unreal.TopLevelAssetPath('/Script/Engine', 'AnimSequence'))
          if skeleton_path in str(a.get_tag_value('Skeleton'))]
 # Use a.package_name and a.asset_name for each result.
-AnimSequenceService.list_anim_sequences(search_path, skeleton_filter) -> Array[AnimSequenceInfo]
-AnimSequenceService.get_anim_sequence_info(anim_path) -> AnimSequenceInfo
+# Per-clip metadata (skeleton, duration, fps, key/track/curve/notify counts) without a service call:
+AL = unreal.AnimationLibrary; a = unreal.load_asset(anim_path); fr = a.data_model_interface.get_frame_rate()
+info = dict(skeleton=a.get_editor_property('skeleton').get_path_name(), duration=AL.get_sequence_length(a),
+            fps=fr.numerator / fr.denominator, keys=AL.get_num_keys(a),
+            bone_tracks=a.data_model_interface.get_num_bone_tracks(),
+            curves=len(AL.get_animation_curve_names(a, unreal.RawCurveTrackTypes.RCT_FLOAT)),
+            notifies=len(AL.get_animation_notify_events(a)), root_motion=AL.is_root_motion_enabled(a))
 
 # For name/folder searches use Epic's EditorToolset.AssetToolset.FindAssets.
 # Skeletons: Epic's EditorToolset.AssetToolset, not VibeUE (whose list call is gone).
@@ -65,7 +70,6 @@ AssetToolset.FindAssets({"filter": {"assetType": {"refPath": "/Script/Engine.Ske
                                     "folderPath": search_path}})
     -> Array[str]   # raw skeleton object paths, e.g. "/Game/.../SK_X.SK_X"
 ```
-`AnimSequenceInfo`: `anim_name`, `anim_path`, `duration`, `frame_count`.
 
 ## Data structures
 

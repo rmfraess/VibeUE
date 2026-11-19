@@ -13,7 +13,7 @@ the gotchas — read those first. For native binding workflows, see `api-binding
 | Epic `StateTreeToolset` (a Python toolset) | `state_tree_toolset.state_tree.StateTreeToolset` | `call_tool` only | snake_case — `add_child_state`, `compile` |
 | Epic `ObjectToolset` | `EditorToolset.ObjectToolset` | `call_tool` only | PascalCase — `GetProperties`, `SetProperties` |
 | Epic `AssetToolset` | `EditorToolset.AssetToolset` | `call_tool` only | PascalCase — `FindAssets`, `SaveAsset` |
-| VibeUE survivors | — | `unreal.StateTreeService.<snake_case>()` in `execute_python` | `create_state_tree` |
+| VibeUE survivors | — | `unreal.StateTreeService.<snake_case>()` in `execute_python` | `move_transition` |
 
 There is no `unreal.StateTreeToolset`. The tool names here are verified; **parameter names come from
 `describe_toolset`**, never from guesswork. `SKILL.md` has the rule for deriving any other toolset's
@@ -24,18 +24,18 @@ registered name (C++ `<Module>.<ClassName>`, Python `<package>.<module>.<ClassNa
 Every signature below is the real one. Defaults are shown; a `match_index` of `-1` means "the last
 matching node".
 
-## Asset creation (1)
+## Asset creation (native)
 
-Epic deliberately ships no asset creation — its own source says there is no K2 path for creating a
-StateTree with a schema in head (`UStateTreeFactory::SetSchemaClass` is not a `UFUNCTION`), so
-clients are expected to use the Content Browser. VibeUE's tool is the scriptable path.
+Epic ships no asset-creation tool; use the native factory:
 
-```text
-unreal.StateTreeService.create_state_tree(asset_path, schema_class_name="StateTreeComponentSchema") -> bool
+```python
+f = unreal.StateTreeFactory()
+f.set_editor_property("state_tree_schema_class", unreal.load_class(None, "/Script/GameplayStateTreeModule.StateTreeComponentSchema"))
+st = unreal.AssetToolsHelpers.get_asset_tools().create_asset("ST_Guard", "/Game/AI", unreal.StateTree, f)
 ```
 
-If it returns `False` the schema is usually the problem, not the path. List what this project really
-has with `ObjectToolset.SearchSubclasses` on `UStateTreeSchema` and pass one of those.
+If it returns `None` the schema is usually the problem, not the path. List what this project really
+has with `ObjectToolset.SearchSubclasses` on `UStateTreeSchema` and set one of those.
 
 ## Node-type discovery (4)
 
@@ -106,7 +106,7 @@ refuses it for read *and* write, and it is invisible even to `ListProperties`.
 
 Use `unreal.StateTreeEditingSubsystem.set_task_enabled` and `set_task_considered_for_completion` with the StateTree and task GUID.
 
-## Transitions and transition conditions (5)
+## Transitions and transition conditions (3)
 
 `move_transition` survives because no toolset anywhere emits `EPropertyChangeType::ArrayMove` — see
 Rule 2 in `SKILL.md`. `add_transition_condition` needs `InitializeAs` to allocate
@@ -117,17 +117,13 @@ unreal.StateTreeService.move_transition(asset_path, state_path, from_index, to_i
 
 unreal.StateTreeService.add_transition_condition(asset_path, state_path, transition_index, condition_struct_name)
 
-unreal.StateTreeService.get_transition_condition_property_names(
-    asset_path, state_path, transition_index, condition_struct_name,
-    condition_match_index=-1) -> [FStateTreePropertyInfo]
-
-unreal.StateTreeService.set_transition_condition_property_value(
-    asset_path, state_path, transition_index, condition_struct_name,
-    property_path, value, condition_match_index=-1)
-
 unreal.StateTreeService.get_transition_event_payload_property_names(
     asset_path, state_path, transition_index) -> [FStateTreePropertyInfo]
 ```
+
+To read or set a transition condition's properties, get its id from Epic's `get_transitions`
+(`conditions[k].id`), then use `get_node_instance_data` / `set_node_instance_data` (and
+`get_node_template_data` for the template struct) on that id.
 
 Delegate transitions use the native binding API below.
 

@@ -7,7 +7,7 @@ description: Common Customizable Object node classes (UE 5.8) with their pin nam
 
 Class names are what `add_node` takes. Pin names are the internal `pin_name`; the display name
 the editor shows (in brackets when different) also works. Categories decide what connects.
-`discover_node_types()` lists every class; `get_node_type_properties(cls)` lists properties.
+`discover_node_types()` lists every class; `ObjectToolset.ListProperties` / `GetProperties` on a class's `Default__` object (e.g. `/Script/CustomizableObjectEditor.Default__CustomizableObjectNodeMaterial`) lists its properties.
 
 ## Object structure
 

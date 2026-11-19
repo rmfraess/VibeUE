@@ -23,5 +23,6 @@ print("montage:", montage_path)
 print("add Start:", ms.add_section(montage_path, "Start", 0.0))
 print("add Combo:", ms.add_section(montage_path, "Combo", unreal.AnimationLibrary.get_sequence_length(montage) * 0.5))
 
-print("info:", ms.get_montage_info(montage_path))
+print("info:", dict(length=unreal.AnimationLibrary.get_sequence_length(montage), sections=montage.get_num_sections(),
+                   slots=[str(s) for s in unreal.AnimationLibrary.get_montage_slot_names(montage)]))
 unreal.EditorAssetLibrary.save_asset(montage_path)

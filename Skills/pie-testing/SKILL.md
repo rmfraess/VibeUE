@@ -228,7 +228,7 @@ are `call_tool`; VibeUE services are `unreal.<Service>.<method>()` inside `execu
 | `wait` | a later tool call, or a top-level `await asyncio.sleep(...)` in one `execute_python` script |
 | `assert_log` | `call_tool` → `ConsoleToolset.LogsToolset.GetLogEntries` (it requires a `pattern`). Read the log before the run and compare, since nothing scopes it to your run now |
 | `capture_game` | `call_tool` → `SceneCaptureToolset.SceneCaptureToolset.CaptureGameViewport`, or `await vibeue.capture_game(path)` in a script |
-| `console_command` | `call_tool` → `ConsoleToolset.RunConsoleCommand`, or `unreal.PIEActorService.console_command(selector, cmd)` when it must run in one specific PIE world |
+| `console_command` | `call_tool` → `ConsoleToolset.ConsoleToolset.RunConsoleCommand`, or `unreal.SystemLibrary.execute_console_command(world, cmd)` when it must run in one specific PIE world (e.g. `unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()`) |
 | `python_assert` / `python_assert_number` | your own comparison inside Epic's `execute_python`: read the live value, compare it, and print expected *and* actual as the evidence |
 | `preflight: {save_dirty_assets, compile_blueprints}` | `unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)`, and `BlueprintToolsets.BlueprintToolset.CompileBlueprint` via `call_tool`, **before** you start PIE |
 | `dependencies` freshness hashing | nothing — no tool hashes inputs or reports `stale`. Save, compile, re-run after changes |
@@ -251,32 +251,32 @@ call_tool(toolset_name="EditorToolset.EditorAppToolset", tool_name="StartPIE",
 call_tool(toolset_name="EditorToolset.EditorAppToolset", tool_name="StopPIE")
 ```
 
-## Net mode from Python — the surviving PIE-settings helpers
+## Net mode from Python
 
 `StartPIE` uses the editor's saved PIE settings, so set the net mode BEFORE starting the session.
-`EngineSettingsService.get_pie_settings` / `set_pie_settings` survive as Python-only helpers (not MCP tools) and read/write `ULevelEditorPlaySettings` directly and persists the
-change, so a dedicated-server PIE gate no longer means quitting the editor to hand-edit
-`EditorPerProjectUserSettings.ini` and relaunching:
+Read `ULevelEditorPlaySettings` with the editor subsystem and write it through
+`ConfigSettingsToolset` (`SetSectionProperties`, which persists it), so a dedicated-server PIE gate
+no longer means quitting the editor to hand-edit `EditorPerProjectUserSettings.ini` and relaunching:
 
 ```python
-import unreal
+import unreal, vibeue
 
 # Read the current PIE multiplayer settings
-info = unreal.EngineSettingsService.get_pie_settings()
-print(info.net_mode, info.num_clients, info.run_under_one_process)
+s = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).get_play_settings()
+print(s.get_editor_property("play_net_mode"), s.get_editor_property("play_number_of_clients"),
+      s.get_editor_property("run_under_one_process"))
 
 # Set dedicated-server PIE: 1 client, all windows in one process
-ok = unreal.EngineSettingsService.set_pie_settings("Client", 1, True)   # returns True only on verified write
+vibeue.exec_tool("ConfigSettingsToolset", "SetSectionProperties", {
+    "containerName": "Editor", "categoryName": "LevelEditor", "sectionName": "PlayIn",
+    "propertiesJson": '{"PlayNetMode":"PIE_Client","PlayNumberOfClients":1,"RunUnderOneProcess":true}'})
 # Verify by readback, never by return value alone
-assert unreal.EngineSettingsService.get_pie_settings().net_mode == "Client"
+assert s.get_editor_property("play_net_mode") == unreal.PlayNetMode.PIE_CLIENT
 ```
 
-- `net_mode` maps `EPlayNetMode`: `"Standalone"` | `"ListenServer"` | `"Client"`. **`"Client"` is
-  dedicated-server PIE** — the editor's "Play As Client", where a windowless dedicated server is
-  spawned behind the scenes and PIE instance 0 is that server (`"DedicatedServer"` is accepted as an
-  alias for `"Client"`).
-- `set_pie_settings` refuses an unknown net mode or a `num_clients` outside 1-10 (returns `False`,
-  logs a Warning), and returns `False` if any written value fails to read back.
+- `PlayNetMode` maps `EPlayNetMode`: `"PIE_Standalone"` | `"PIE_ListenServer"` | `"PIE_Client"`.
+  **`"PIE_Client"` is dedicated-server PIE** — the editor's "Play As Client", where a windowless
+  dedicated server is spawned behind the scenes and PIE instance 0 is that server.
 - **These are per-USER config, not project config** — they live in
   `Saved/Config/<Platform>/EditorPerProjectUserSettings.ini` and follow the machine, not the repo.
   Do not expect a teammate or CI to inherit them; set them from the gate itself.
@@ -351,8 +351,9 @@ print(res["actor_path"], res["net_mode"], res["is_authority"])
 print(unreal.PIEActorService.destroy_all())     # {"success": true, "destroyed": 1, "already_gone": 0}
 ```
 
-`resolve_world("server")` returns `{success, world_path, net_mode, pie_instance, is_authority,
-actor_count}` and is the cheap way to confirm a session's role before spawning. `destroy_actor(handle)`
+`await call_tool("SceneCaptureToolset.SceneCaptureToolset.ListWorlds")` (PIEInstance, WorldType) is the
+cheap way to confirm which PIE worlds exist before spawning; `unreal.SystemLibrary.is_server(world)`
+gives the net role. `destroy_actor(handle)`
 is idempotent per handle: it destroys the actor and **keeps the record**, so calling it again returns
 `success: true, already_gone: true` (never `UNKNOWN_HANDLE`). A consumed handle stays in
 `list_spawned()` as `alive: false` until PIE ends — `list_spawned()` is the full spawn ledger for the
@@ -377,7 +378,7 @@ check runs after the selector and PIE-world checks, so with no PIE you still get
 > the editor asserts on PIE teardown ("Object from PIE level still referenced"). The returned JSON is
 > a string, so keeping `res`/`handle` is safe — only a live actor reference is the hazard.
 
-## Calling functions with real RPC routing — `PIEActorService.call_function`
+## Calling functions in PIE — `call_method`
 
 **Why Python-called RPCs misroute:** the Python plugin runs every call under
 `FEditorScriptExecutionGuard`, which sets `GAllowActorScriptExecutionInEditor = true`, and while that
@@ -385,83 +386,23 @@ global is true `AActor::GetFunctionCallspace` answers **Local** for every functi
 called from Python on a PIE client runs on the client and sends no packet, and a `Client_` RPC the
 server sends inside a flow Python started runs on the server instead of the owning client.
 
-`call_function` lowers that global for the one call (restored on return), computes the real callspace,
-and calls `ProcessEvent`, so every RPC inside the call routes exactly as in a real game.
-`console_command` does the same around `GEngine->Exec` for the chosen PIE world (console variables and
-engine/world commands; PlayerController exec functions and cheats are not routed there, so call those
-with `call_function` on the controller).
-
 **When to use which:**
 - **Input injection** (`InputToolset`, below) when you are testing the player-facing path: the key or
   action, the input binding, and the code that decides to send the RPC.
-- **`call_function`** when you need one specific function or RPC with chosen arguments: a server RPC from
-  a client, a server-side flow that sends client RPCs (respawn, possession, travel), or a gate fixture.
-  It also covers plain non-RPC UFUNCTIONs with typed return values.
-
-**The `callspace` field** says what the routing decided: `"local"` (ran here), `"remote"` (the RPC
-was handed to the net driver and nothing ran here, so `return`/`out_params` are empty),
-`"local+remote"` (a multicast on the server: ran here and was handed to the driver), or `"absorbed"`
-(dropped before the driver: an authority-only call on a client, or, on the SERVER side, an RPC on an
-actor with no owning connection). `executed_locally` is the same thing as a bool.
-
-**`"remote"` means handed to the net driver, not delivered.** On a client, an actor without authority
-skips the ownership check entirely and gets `"remote"` whenever it replicates. So a `Server_` call on
-another player's pawn, or on a placed lever the client does not own, also reports `"remote"`, and the
-net driver then DROPS it with a LogNet "No owning connection" warning. With the guard lowered, a
-client-side `Server_` call never reports `"local"`. To confirm delivery, run `log LogNetTraffic Log`
-first and look for `Sent RPC: ...::Server_X` in the client frame (and the handler's effect on the
-server), and watch for "No owning connection".
+- **`call_method`** on the live actor when you need one specific function with chosen arguments: a
+  server-side flow, a plain non-RPC UFUNCTION with a typed return value, or a gate fixture. It runs
+  under the guard above, so do not use it to prove RPC delivery.
 
 ```python
-import unreal, json
+import unreal
 
-# Server RPC from client 1's own pawn: "remote" = handed to the net driver (confirm with LogNetTraffic).
-res = json.loads(unreal.PIEActorService.call_function(
-    "client:1", "BP_Test_C_0", "Server_BeginInteract", '{"Target": "Lever_0"}'))
-assert res["success"] and res["callspace"] == "remote", res
+w = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()
+a = next(x for x in unreal.GameplayStatics.get_all_actors_of_class(w, unreal.Actor) if x.get_name() == "BP_Test_C_0")
+a.call_method("Server_Foo", (1,))
 
-# A normal UFUNCTION with a return value, on a component ("<actor>.<component>").
-hp = json.loads(unreal.PIEActorService.call_function("server", "BP_Test_C_0.HealthComp", "GetHealth", "{}"))
-print(hp["return"])
-
-# A console variable on the server world.
-print(unreal.PIEActorService.console_command("server", "r.VSync 0"))
+# A console variable in the PIE world.
+unreal.SystemLibrary.execute_console_command(w, "r.VSync 0")
 ```
-
-The object is resolved **inside the selected PIE world only**: a full object path (it must belong to
-that world), a `spawn_actor` handle, an actor name or editor label, `"<actor>.<component>"`, or
-`"<actor>:<subobject>"`. Arguments are a JSON object keyed by parameter name (case-insensitive).
-Numbers and bools fill numeric and bool params; strings fill string, name and text params and enums
-(by name); object and class params take a PIE-world name or label, or a full object or asset path
-(`""`/`"None"` is null; an object from another PIE world or the editor world is refused); anything else
-(structs, arrays, soft references) takes its ImportText form, e.g. `"(X=1,Y=2,Z=3)"`. **Object
-references nested inside a struct, array or map argument are resolved by the engine's global object
-lookup, not confined to the PIE world**, so pass full PIE-world paths there. An object or class path
-that points into a map package the editor has not loaded is refused with `MAP_PATH_REFUSED` and is
-never loaded (a map loaded as an asset stays resident and makes the next `load_level` fatal); other
-assets outside the PIE world are found first and loaded only when they are not maps. Integers are
-range-checked against the parameter's size (`int8`, `uint16`, `int32`, ...; `uint64` caps at 2^63-1),
-numbers given as strings must be whole numbers (`"12abc"` is refused), and enum integers or names must
-name a real enumerator (never `_MAX`). JSON arrays and objects and delegate params are rejected. A missing input uses the UFUNCTION's C++ default when one is
-declared (BlueprintCallable functions carry it), else `MISSING_ARG`; out-only params need no input and
-come back in `out_params`.
-
-Reply: `{success, function, object_path, world_path, net_mode, pie_instance, callspace,
-executed_locally, return, out_params}`. **Error codes:** the selector and world codes above, plus
-`OBJECT_NOT_FOUND`, `AMBIGUOUS_OBJECT` (two actors share the label), `OBJECT_NOT_IN_WORLD`,
-`FUNCTION_NOT_FOUND`, `INVALID_ARGS_JSON`, `UNKNOWN_ARG` (a key that names no parameter),
-`MISSING_ARG`, `INVALID_ARG_VALUE`, `UNSUPPORTED_ARG_TYPE`, `MAP_PATH_REFUSED`. `console_command` replies `{success,
-command, handled, output, world_path, net_mode, pie_instance}` and fails with `EMPTY_COMMAND` or
-`COMMAND_NOT_HANDLED`; `output` is only what the handler wrote to the command's output device, not the
-log.
-
-> **Why this exists (ZombieGame, 2026-10-22/23):** a gate respawned a dead client's player through a
-> C++ fixture called from Python. The server ran `Possess`, but under the raised guard `ClientRestart`
-> and `ClientSetRotation` executed **on the server**, so the owning client never acknowledged its new
-> pawn: its movement component stayed `MOVE_None`, it sent no moves, and its copy froze while the
-> train rode on. It looked like a product regression for a whole day; the log tell was
-> `ClientRestart_Implementation` printed in the server's frame. Scoping the guard to false around the
-> flow fixed it, and `call_function` does exactly that for you.
 
 ## Driving gameplay input in PIE — `InputToolset` (issue #550)
 
@@ -555,7 +496,7 @@ unreal.PerformanceService.set_background_throttling(True)    # after
 - `StopPIE` then `StartPIE` back to back fails with "A play session is already running" unless the editor ticks between them. Await the `StopPIE` call, then wait (`await asyncio.sleep(0.1)` in a loop) until `get_game_world()` is None before starting again.
 - `EditorAssetLibrary.load_asset` returns None while PIE runs, and downstream calls then return 0/None instead of raising (a fake negative). Load assets before `StartPIE`, or find live objects with `ObjectIterator`.
 - Match PIE worlds by their `/Game/<path>/UEDPIE_0_<Map>` (server/host) and `UEDPIE_1_` (client) object paths, not by name — roughly 100 stale `/Memory/UEDPIE_*` shells match by name. `vibeue.pie_worlds()` returns them keyed by role, and `UnrealEditorSubsystem.get_game_world()` gives the local one.
-- A two-client run is Standalone by default: both worlds read `ROLE_AUTHORITY`, so confirm `get_editor_property("role")` (or `vibeue.role(actor)`) before claiming a host/client result. Read and set the PIE net mode with `get_pie_settings`/`set_pie_settings` (dedicated server = PlayNetMode 2).
+- A two-client run is Standalone by default: both worlds read `ROLE_AUTHORITY`, so confirm `get_editor_property("role")` (or `vibeue.role(actor)`) before claiming a host/client result. Read and set the PIE net mode through the play settings (see "Net mode from Python"; dedicated server = PlayNetMode 2).
 - A Server RPC invoked from Python runs LOCALLY and is silently dropped; never Start/StopFire a client world's weapon from Python (it crashes the editor). Move a client pawn through its server copy; control rotation is client-owned.
 - `slomo 0.1` stretches a 2 s timer to 20 s of wall time so a transient state survives between calls; restore `slomo 1` after. PIE time restarts each run.
 - Never leave an automation test run queued before starting PIE — it wakes on PIE activity and tears the session down. That includes a run started with `AutomationTestToolset.RunTests`: `StopTests` it (and confirm with `GetTestStatus`) before you drive your own PIE session.

@@ -85,8 +85,9 @@ Saved/Screenshots folder. (If none exist, take an editor screenshot to disk firs
 
 ---
 
-Import that image file into /Game/ImportTest as a texture called T_ImportSmoke. Use the asset
-manager's import (AssetDiscoveryService.import_asset), not Python import_asset_tasks.
+Import that image file into /Game/ImportTest as a texture called T_ImportSmoke. Use an automated
+`unreal.AssetImportTask` (`AssetToolsHelpers.get_asset_tools().import_asset_tasks`) or
+`TextureToolset.import_file`.
 
 ---
 
@@ -107,7 +108,7 @@ nothing was imported.
 ## Importing a Mesh From Disk
 
 Write a small OBJ mesh (one quad is enough) to a file in the project's Saved folder, then import
-it into /Game/ImportTest as SM_ImportSmoke with the asset manager's import. It should come back as a
+it into /Game/ImportTest as SM_ImportSmoke with an automated `unreal.AssetImportTask`. It should come back as a
 saved Static Mesh at /Game/ImportTest/SM_ImportSmoke.
 
 ---

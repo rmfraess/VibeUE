@@ -504,54 +504,6 @@ class VIBEUE_API UAnimSequenceService : public UToolsetDefinition
 	GENERATED_BODY()
 
 public:
-	// ============================================================================
-	// ANIMATION DISCOVERY
-	// ============================================================================
-
-	/**
-	 * List all Animation Sequence assets in a path.
-	 *
-	 * @param SearchPath - Path to search for animations (default: "/Game")
-	 * @param SkeletonFilter - Optional skeleton path to filter by
-	 * @return Array of animation sequence info structs
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Discovery")
-	static TArray<FAnimSequenceInfo> ListAnimSequences(
-		const FString& SearchPath = TEXT("/Game"),
-		const FString& SkeletonFilter = TEXT(""));
-
-	/**
-	 * Get detailed information about an Animation Sequence asset.
-	 *
-	 * @param AnimPath - Full path to the animation asset
-	 * @param OutInfo - Output animation info
-	 * @return True if animation was found
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Discovery")
-	static bool GetAnimSequenceInfo(
-		const FString& AnimPath,
-		FAnimSequenceInfo& OutInfo);
-
-	// ============================================================================
-	// ANIMATION CREATION
-	// ============================================================================
-
-	/**
-	 * Create an animation sequence from a skeletal mesh's current pose.
-	 * Captures the pose at the current time and creates a static animation.
-	 *
-	 * @param SkeletonPath - Path to the skeleton asset
-	 * @param AnimName - Name for the new animation
-	 * @param SavePath - Directory path to save the animation (default: "/Game")
-	 * @param Duration - Duration of the animation in seconds (default: 1.0)
-	 * @return Path to the created animation, or empty string on failure
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Creation")
-	static FString CreateFromPose(
-		const FString& SkeletonPath,
-		const FString& AnimName,
-		const FString& SavePath = TEXT("/Game"),
-		float Duration = 1.0f);
 
 	/**
 	 * Create an animation sequence with bone track data.
@@ -573,28 +525,6 @@ public:
 		float Duration,
 		float FrameRate,
 		const TArray<FBoneTrackData>& BoneTracks);
-
-	/**
-	 * Get animation frame rate.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return Frame rate, or -1 if not found
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Properties")
-	static float GetAnimationFrameRate(const FString& AnimPath);
-
-	// ============================================================================
-	// BONE TRACK DATA
-	// ============================================================================
-
-	/**
-	 * Get list of all bones that have animation data.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return Array of bone names
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|BoneTracks")
-	static TArray<FString> GetAnimatedBones(const FString& AnimPath);
 
 	/**
 	 * Get the root motion accumulated from the start of the sequence to Time.
@@ -621,33 +551,6 @@ public:
 	static bool GetTotalRootMotion(
 		const FString& AnimPath,
 		FTransform& OutTransform);
-
-	// ============================================================================
-	// CURVE DATA
-	// ============================================================================
-
-	/**
-	 * List all curves in an animation.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return Array of curve info structs
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Curves")
-	static TArray<FAnimCurveInfo> ListCurves(const FString& AnimPath);
-
-	/**
-	 * Get information about a specific curve.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param CurveName - Name of the curve
-	 * @param OutInfo - Output curve info
-	 * @return True if curve was found
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Curves")
-	static bool GetCurveInfo(
-		const FString& AnimPath,
-		const FString& CurveName,
-		FAnimCurveInfo& OutInfo);
 
 	/**
 	 * Get all keyframes for a curve.
@@ -860,20 +763,6 @@ public:
 		int32 FilterLOD);
 
 	/**
-	 * Remove a notify track from an animation.
-	 * Moves all notifies on this track to track 0, then decrements
-	 * track indices for notifies on higher tracks.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param TrackIndex - Index of the track to remove
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|NotifyTracks")
-	static bool RemoveNotifyTrack(
-		const FString& AnimPath,
-		int32 TrackIndex);
-
-	/**
 	 * Remove a sync marker from the animation.
 	 *
 	 * @param AnimPath - Path to the animation asset
@@ -886,20 +775,6 @@ public:
 		const FString& AnimPath,
 		const FString& MarkerName,
 		float Time);
-
-	/**
-	 * Set the time for a sync marker by index.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @param MarkerIndex - Index of the marker
-	 * @param NewTime - New time in seconds
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|SyncMarkers")
-	static bool SetSyncMarkerTime(
-		const FString& AnimPath,
-		int32 MarkerIndex,
-		float NewTime);
 
 	/**
 	 * Set the time for a sync marker by name and current time.
@@ -934,28 +809,6 @@ public:
 	static bool GetCompressionInfo(
 		const FString& AnimPath,
 		FAnimCompressionInfo& OutInfo);
-
-	/**
-	 * Compress/recompress an animation.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return True if successful
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Compression")
-	static bool CompressAnimation(const FString& AnimPath);
-
-	// ============================================================================
-	// IMPORT/EXPORT
-	// ============================================================================
-
-	/**
-	 * Export animation data to JSON string.
-	 *
-	 * @param AnimPath - Path to the animation asset
-	 * @return JSON string with animation data
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Export")
-	static FString ExportAnimationToJson(const FString& AnimPath);
 
 	// ============================================================================
 	// PREVIEW EDITING (Inspect → Preview → Validate → Bake workflow)

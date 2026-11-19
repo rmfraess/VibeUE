@@ -10,22 +10,20 @@ description: Workflows for creating landscapes, querying landscape info, importi
 ```python
 import unreal
 
-# IMPORTANT: The label kwarg is 'landscape_label', NOT 'actor_label'
-result = unreal.LandscapeService.create_landscape(
-    location=unreal.Vector(0, 0, 0),
-    rotation=unreal.Rotator(0, 0, 0),
-    scale=unreal.Vector(100, 100, 100),
-    sections_per_component=1,
-    quads_per_section=63,
-    component_count_x=8,
-    component_count_y=8,
-    landscape_label="MyTerrain"  # NOT actor_label
-)
-# LandscapeCreateResult has ONLY: success, actor_label, error_message
-if result.success:
-    print(f"Created: {result.actor_label}")
-else:
-    print(f"Failed: {result.error_message}")
+ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+# location is the landscape CENTRE: corner = centre - (ncx*sections*quads/2, ncy*sections*quads/2) * scale_xy
+# (25200 = 8*63*100/2, so the min corner lands on (0, 0))
+L = ls.create_landscape(
+    unreal.Vector(25200, 25200, 0),
+    unreal.Rotator(0, 0, 0),
+    unreal.Vector(100, 100, 100),
+    unreal.IntPoint(8, 8),   # component count x, y
+    1,                       # sections per component
+    63,                      # quads per section
+    None,                    # material (assign later)
+    0)                       # wp_grid_size (components per proxy grid cell in a World Partition level)
+L.set_actor_label("MyTerrain")
+print(f"Created: {L.get_actor_label()}")
 ```
 
 ### Get Landscape Info
@@ -58,31 +56,31 @@ quads = 63
 sections = 2
 
 # 2. Calculate required resolution
-res_info = unreal.LandscapeService.calculate_landscape_resolution(comp_x, comp_y, quads, sections)
-print(f"Need {res_info.resolution_x}x{res_info.resolution_y} heightmap")
+res_x = comp_x * quads * sections + 1
+res_y = comp_y * quads * sections + 1
+print(f"Need {res_x}x{res_y} heightmap")
 # → 1009×1009
 
 # 3. Use terrain_data MCP tool with resolution=1009 to download the heightmap
 # (The AI calls terrain_data generate_heightmap with resolution=1009)
 
 # 4. Create landscape
-result = unreal.LandscapeService.create_landscape(
-    location=unreal.Vector(0, 0, 0),
-    rotation=unreal.Rotator(0, 0, 0),
-    scale=unreal.Vector(100, 100, 200),  # Z=200 for mountainous terrain
-    sections_per_component=sections,
-    quads_per_section=quads,
-    component_count_x=comp_x,
-    component_count_y=comp_y,
-    landscape_label="MtFuji"
-)
+ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+sx = sy = 100
+centre = unreal.Vector((res_x - 1) * sx / 2, (res_y - 1) * sy / 2, 0)   # min corner at (0, 0)
+L = ls.create_landscape(
+    centre,
+    unreal.Rotator(0, 0, 0),
+    unreal.Vector(sx, sy, 200),  # Z=200 for mountainous terrain
+    unreal.IntPoint(comp_x, comp_y),
+    sections,
+    quads,
+    None,   # material
+    0)      # wp_grid_size
+L.set_actor_label("MtFuji")
 
 # 5. Import — sizes match perfectly
-import_result = unreal.LandscapeService.import_heightmap("MtFuji", "C:/Heightmaps/mt_fuji_1009x1009.png")
-if import_result.success:
-    print(f"Imported at {import_result.resolution}")
-else:
-    print(f"Import failed: {import_result.error_message}")
+ls.import_heightmap_from_file(L, ls.get_active_edit_layer(L), "C:/Heightmaps/mt_fuji_1009x1009.png", False, False)
 ```
 
 **Fallback: Resize existing heightmap to match landscape**
@@ -90,8 +88,10 @@ else:
 import unreal
 
 # If you already have a heightmap at the wrong resolution
-dims = unreal.LandscapeService.get_heightmap_dimensions("C:/Heightmaps/terrain_1081x1081.png")
-print(f"Source: {dims.width}x{dims.height}")  # 1081×1081
+import struct
+d = open("C:/Heightmaps/terrain_1081x1081.png", "rb").read(26)
+w, h = struct.unpack(">II", d[16:24])   # PNG header
+print(f"Source: {w}x{h}")  # 1081×1081
 
 # Get the landscape's actual resolution
 info = unreal.LandscapeService.get_landscape_info("MyTerrain")
@@ -108,7 +108,9 @@ if resize_result.success:
     print(f"Resized to {resize_result.new_dimensions}")
     print(f"Output: {resize_result.output_file}")
     # Now import the resized file
-    unreal.LandscapeService.import_heightmap("MyTerrain", resize_result.output_file)
+    ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+    L = next(l for l in ls.get_landscapes() if l.get_actor_label() == "MyTerrain")
+    ls.import_heightmap_from_file(L, ls.get_active_edit_layer(L), resize_result.output_file, False, False)
 ```
 
 **Alternative: Find a landscape config that matches your heightmap**
@@ -116,11 +118,16 @@ if resize_result.success:
 import unreal
 
 # If you want to create a landscape that matches an existing heightmap
-dims = unreal.LandscapeService.get_heightmap_dimensions("C:/Heightmaps/terrain_505x505.png")
-config = unreal.LandscapeService.find_landscape_config_for_resolution(dims.width, dims.height)
-if config.total_components > 0:
-    print(f"Config: {config.description}")
-    # e.g. "8x8 components, 63 quads/section, 1 section/component → 505x505"
+import struct
+d = open("C:/Heightmaps/terrain_505x505.png", "rb").read(26)
+W, H = struct.unpack(">II", d[16:24])   # PNG header
+# (total_components, ncx, ncy, quads, sections) for every config whose resolution matches
+cfg = [((W - 1) // (q * s) * ((H - 1) // (q * s)), (W - 1) // (q * s), (H - 1) // (q * s), q, s)
+       for s in (1, 2) for q in (7, 15, 31, 63, 127, 255)
+       if (W - 1) % (q * s) == 0 and (H - 1) % (q * s) == 0]
+best = min(cfg) if cfg else None   # fewest components
+if best:
+    print(f"Config: {best[1]}x{best[2]} components, {best[3]} quads/section, {best[4]} section/component → {W}x{H}")
     # Create landscape using this config, then import directly
 ```
 
@@ -225,7 +232,9 @@ if len(heights) > 0:
 import os
 temp_path = os.path.join(unreal.Paths.project_saved_dir(), "temp_heightmap.raw")
 unreal.LandscapeService.export_heightmap("SourceLandscape", temp_path)
-unreal.LandscapeService.import_heightmap("DestLandscape", temp_path)
+ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+dest = next(l for l in ls.get_landscapes() if l.get_actor_label() == "DestLandscape")
+ls.import_heightmap_from_file(dest, ls.get_active_edit_layer(dest), temp_path, False, False)
 os.remove(temp_path)  # Clean up
 os.remove(os.path.splitext(temp_path)[0] + ".json")  # .raw export writes a width/height/bpp sidecar
 ```
@@ -238,20 +247,24 @@ import unreal
 src = "SourceLandscape"
 dst = "DestLandscape"
 info = unreal.LandscapeService.get_landscape_info(src)
-layers = unreal.LandscapeService.list_layers(src)
+ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+src_l = next(l for l in ls.get_landscapes() if l.get_actor_label() == src)
+dst_l = next(l for l in ls.get_landscapes() if l.get_actor_label() == dst)
+layers = [(str(n), ls.get_target_layer_info(src_l, n)) for n in ls.get_target_layer_names(src_l)]
 
-# 1. Add all layers to destination (uses layer_info_path, NOT asset_path)
-for layer in layers:
-    unreal.LandscapeService.add_layer(dst, layer.layer_info_path)
+# 1. Add all layers to destination
+for name, li in layers:
+    if li:
+        ls.add_target_layer(dst_l, li.get_layer_name(), li)   # fallback name: li.get_editor_property('layer_name')
 
 # 2. Copy weights for each layer
-for layer in layers:
+for name, li in layers:
     weights = unreal.LandscapeService.get_weights_in_region(
-        src, layer.layer_name, 0, 0, info.resolution_x, info.resolution_y)
+        src, name, 0, 0, info.resolution_x, info.resolution_y)
     if weights and sum(weights) > 0:
         unreal.LandscapeService.set_weights_in_region(
-            dst, layer.layer_name, 0, 0, info.resolution_x, info.resolution_y, weights)
-        print(f"Copied weights for {layer.layer_name}")
+            dst, name, 0, 0, info.resolution_x, info.resolution_y, weights)
+        print(f"Copied weights for {name}")
 ```
 
 ### Calculate Landscape Offset for Side-by-Side

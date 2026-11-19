@@ -20,9 +20,9 @@ The remaining `InputService` Python methods are:
 
 | Area | Methods |
 |------|---------|
-| Reflection | `discover_types()`, `get_available_keys(filter="")` |
+| Reflection | `get_available_keys(filter="")` (modifier / trigger classes: `ObjectToolset.SearchSubclasses`) |
 | Modifiers | `add_modifier(context_path, mapping_index, modifier_type)` |
-| Triggers | `add_trigger(context_path, mapping_index, trigger_type, properties_json="")`, `add_action_trigger(action_path, trigger_type, properties_json="")` → JSON |
+| Triggers | `add_trigger(context_path, mapping_index, trigger_type, properties_json="")` → JSON |
 
 Create assets with native `unreal.AssetTools.create_asset`; inspect them with `ObjectToolset.GetProperties`,
 including `DefaultKeyMappings.Mappings` for mapping indices. Use `InputMappingContext.map_key` /
@@ -102,10 +102,9 @@ settings the trigger's Details panel shows can be set: runtime state such as `He
 `LastValue` or `bShouldAlwaysTick` is refused ("not a trigger setting"), and a number outside
 the property's `ClampMin`/`ClampMax` is refused with the allowed range (`hold_time_threshold`
 must be >= 0). An unknown name, a refused setting or a bad value fails the call and adds
-nothing. `add_action_trigger` puts the trigger on the Input Action itself, so it applies to
-every mapping of the action; it returns `PIE_ACTIVE` while a play session runs (stop PIE
-first). Neither saves the asset, and a running PIE session keeps its copy of the triggers:
-restart PIE to see a change.
+nothing. It does not save the asset, and a running PIE session keeps its copy of the triggers:
+restart PIE to see a change. To put a trigger on the Input Action itself (it then applies to every
+mapping of the action), append a native trigger object to the action's `triggers`.
 
 ```python
 import unreal
@@ -115,9 +114,10 @@ unreal.InputService.add_trigger("/Game/Input/IMC_Default", 0, "Hold",
     '{"hold_time_threshold": 0.4, "is_one_shot": true}')
 
 # A quick tap on the action itself, for every key bound to it
-result = unreal.InputService.add_action_trigger("/Game/Input/IA_Dash", "Tap",
-    '{"tap_release_time_threshold": 0.25}')
-print(result)   # {"success": true, "trigger_index": 0, ...} or an error_code
+a = unreal.load_asset("/Game/Input/IA_Dash")
+t = unreal.new_object(unreal.InputTriggerTap, outer=a)
+t.set_editor_property("tap_release_time_threshold", 0.25)
+a.set_editor_property("triggers", list(a.get_editor_property("triggers")) + [t])
 unreal.EditorAssetLibrary.save_asset("/Game/Input/IA_Dash")
 ```
 
@@ -130,10 +130,10 @@ Use `ObjectToolset.GetProperties` on the context (`DefaultKeyMappings.Mappings`)
 ```python
 import unreal
 
-types = unreal.InputService.discover_types()
-print(f"Value Types: {types.action_value_types}")
-print(f"Modifiers: {types.modifier_types}")
-print(f"Triggers: {types.trigger_types}")
+# Modifier / trigger classes:
+mods = await call_tool("EditorToolset.ObjectToolset.SearchSubclasses", baseClass={"refPath": "/Script/EnhancedInput.InputModifier"})
+trigs = await call_tool("EditorToolset.ObjectToolset.SearchSubclasses", baseClass={"refPath": "/Script/EnhancedInput.InputTrigger"})
+value_types = [n for n in dir(unreal.InputActionValueType) if n.isupper()]
 
 keys = unreal.InputService.get_available_keys()
 ```

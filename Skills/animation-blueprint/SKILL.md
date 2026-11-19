@@ -40,8 +40,8 @@ keywords:
 > toolsets, so their tool names are **PascalCase** and they are reached with `call_tool`, never as
 > `unreal.BlueprintToolset.*`.
 >
-> VibeUE's `BlueprintService` is down to 19 tools: all the Timeline ones, plus `CreateMacroGraph`,
-> `AnalyzeGraphLayout` and `RefreshBlueprintEditor`. It no longer has `list_variables`,
+> VibeUE's `BlueprintService` keeps the Timeline tools, plus `CreateMacroGraph` and
+> `AnalyzeGraphLayout`. It no longer has `list_variables`,
 > `get_variable_info`, `set_variable_default_value`, `variable_exists`, components or overridable
 > functions -- those are the engine's now.
 >
@@ -86,19 +86,27 @@ After authoring, **always** run `validate_state_machine()` (see below) and compi
 
 ### Opening Animation States
 
-Use `AnimGraphService` to navigate directly to states and graphs:
+Use the engine's `EditorAppToolset` to open the editor and select states and transitions:
 
 ```python
 import unreal
+P = "/Game/ABP_Character"
 
-# Open an AnimBP's main AnimGraph
-unreal.AnimGraphService.open_anim_graph("/Game/ABP_Character", "AnimGraph")
+# Open an AnimBP's editor
+await call_tool("EditorToolset.EditorAppToolset.OpenEditorForAsset", assetPath=P)
 
-# Open a specific state inside a state machine
-unreal.AnimGraphService.open_anim_state("/Game/ABP_Character", "Locomotion", "IdleLoop")
+# Select a specific state inside a state machine
+abp = unreal.load_asset(P)
+g = next(g for g in unreal.BlueprintEditorLibrary.list_graphs(abp)
+         if g.get_class().get_name() == "AnimationStateGraph" and g.get_name() == "IdleLoop"
+         and g.get_outer().get_outer().get_name() == "Locomotion")
+await call_tool("EditorToolset.EditorAppToolset.SelectAssetEditorObjects",
+                asset={"refPath": P}, objects=[{"refPath": g.get_outer().get_path_name()}])
 
-# Open a transition rule
-unreal.AnimGraphService.open_transition("/Game/ABP_Character", "Locomotion", "Idle", "Walk")
+# Select a transition rule: same call with the transition node you hold
+# (tg = an AnimationTransitionGraph from list_graphs; its outer is the transition node)
+await call_tool("EditorToolset.EditorAppToolset.SelectAssetEditorObjects",
+                asset={"refPath": P}, objects=[{"refPath": tg.get_outer().get_path_name()}])
 ```
 
 ### ⚠️ State Machine Names
@@ -108,7 +116,7 @@ State machine names come from the node title, not the graph name. Use `list_stat
 ```python
 machines = unreal.AnimGraphService.list_state_machines("/Game/ABP_Character")
 for m in machines:
-    print(f"Machine: {m.machine_name}")  # Use THIS name for open_anim_state
+    print(f"Machine: {m.machine_name}")  # Use THIS name when matching a state's machine
 ```
 
 ### ⚠️ Case Sensitivity
@@ -117,8 +125,8 @@ All name lookups are case-insensitive, but prefer using exact names from introsp
 
 ```python
 # Both work:
-unreal.AnimGraphService.open_anim_state(path, "State Controller", "In Air Loop")
-unreal.AnimGraphService.open_anim_state(path, "state controller", "in air loop")
+unreal.AnimGraphService.list_states_in_machine(path, "State Controller")
+unreal.AnimGraphService.list_states_in_machine(path, "state controller")
 ```
 
 ---
@@ -185,7 +193,7 @@ import unreal
 abp_path = "/Game/Blueprints/SandboxCharacter_CMC_ABP"
 
 # Get skeleton; use BlueprintToolsets.BlueprintToolset.GetParent for the parent class.
-skeleton = unreal.AnimGraphService.get_skeleton(abp_path)
+skeleton = unreal.load_asset(abp_path).get_editor_property('target_skeleton').get_path_name()
 print(f"Skeleton: {skeleton}")
 
 # List graphs with BlueprintToolsets.BlueprintToolset.ListGraphs.
@@ -217,12 +225,15 @@ import unreal
 
 abp_path = "/Game/Blueprints/SandboxCharacter_CMC_ABP"
 
-# Open the AnimBP and navigate to a specific state
-unreal.AnimGraphService.open_anim_state(
-    abp_path,
-    "State Controller",  # State machine name
-    "In Air Loop"        # State name
-)
+# Open the AnimBP and select a specific state
+abp = unreal.load_asset(abp_path)
+g = next(g for g in unreal.BlueprintEditorLibrary.list_graphs(abp)
+         if g.get_class().get_name() == "AnimationStateGraph"
+         and g.get_name() == "In Air Loop"                         # State name
+         and g.get_outer().get_outer().get_name() == "State Controller")  # State machine name
+await call_tool("EditorToolset.EditorAppToolset.OpenEditorForAsset", assetPath=abp_path)
+await call_tool("EditorToolset.EditorAppToolset.SelectAssetEditorObjects",
+                asset={"refPath": abp_path}, objects=[{"refPath": g.get_outer().get_path_name()}])
 ```
 
 ### Inspect Transitions
@@ -335,11 +346,12 @@ import unreal
 
 abp_path = "/Game/ABP_Character"
 
-sequences = unreal.AnimGraphService.get_used_anim_sequences(abp_path)
-for seq in sequences:
-    print(f"{seq.sequence_name}")
-    print(f"  Path: {seq.sequence_path}")
-    print(f"  Used in: {seq.used_in_graph}")
+deps = await call_tool("EditorToolset.AssetToolset.GetDependencies", assetPath=abp_path)
+seqs = await call_tool("EditorToolset.AssetToolset.FindAssets",
+                       filter={"folderPath": "", "name": "", "assetType": {"refPath": "/Script/Engine.AnimSequence"},
+                               "bRecursive": True, "tags": [], "maxResults": 0})
+for path in sorted(set(deps) & set(seqs)):
+    print(path)
 ```
 
 ### Focus on Node by ID
@@ -349,9 +361,12 @@ import unreal
 
 abp_path = "/Game/ABP_Character"
 
-# If you have a node GUID from BlueprintToolset.FindNodes / GetNodeInfos
-node_id = "ABC123-DEF456-..."
-unreal.AnimGraphService.focus_node(abp_path, node_id)
+# Find the node with BlueprintToolset.FindNodes, then select it in the open editor
+# graph_path: a graph from unreal.BlueprintEditorLibrary.list_graphs(unreal.load_asset(abp_path))
+n = await call_tool("BlueprintToolsets.BlueprintToolset.FindNodes", graph={"refPath": graph_path},
+                    nodeClass={"refPath": "/Script/AnimGraph.AnimGraphNode_SequencePlayer"})
+await call_tool("EditorToolset.EditorAppToolset.SelectAssetEditorObjects",
+                asset={"refPath": abp_path}, objects=[n[0]])
 ```
 
 ---
@@ -482,7 +497,7 @@ in / `Pose` out on Modify Bone and Component To Local.
 
 - **Reconnecting a pose input replaces the old link.** Pose inputs are 1:1, so `connect_anim_nodes`
   (and `connect_to_output_pose`) to an already-wired single-link input now breaks the existing link
-  and wires the new source in its place — no need to `disconnect_anim_node(node, "Pose")` first — and
+  and wires the new source in its place — no need to break the old link first — and
   returns `False` (logging a Warning with the schema's reason) when the schema refuses. Previously it
   stacked an illegal second link that compiled the AnimBP to `BS_ERROR` with an **empty error list**.
 

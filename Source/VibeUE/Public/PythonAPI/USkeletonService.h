@@ -325,8 +325,8 @@ struct FBoneValidationResult
  * Python Usage:
  *   import unreal
  *
- *   info = unreal.SkeletonService.get_skeleton_info("/Game/Characters/SK_Mannequin")
- *   print(f"Bones: {info.bone_count}, Blend Profiles: {info.blend_profile_count}")
+ *   profiles = unreal.SkeletonService.list_blend_profiles("/Game/Characters/SK_Mannequin")
+ *   print(f"Blend Profiles: {len(profiles)}")
  *
  *   unreal.SkeletonService.add_bone("/Game/Characters/SKM_Mannequin", "twist_arm_l", "upperarm_l",
  *                                   unreal.Transform())
@@ -344,44 +344,7 @@ public:
 
 
 
-	/**
-	 * Get detailed information about a Skeleton asset.
-	 *
-	 * @param SkeletonPath - Full path to the Skeleton asset
-	 * @param OutInfo - Output skeleton info
-	 * @return True if skeleton was found
-	 *
-	 * Example:
-	 *   info = unreal.SkeletonService.get_skeleton_info("/Game/SK_Mannequin")
-	 *   print(f"Bones: {info.bone_count}")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Skeleton|Discovery")
-	static bool GetSkeletonInfo(
-		const FString& SkeletonPath,
-		FSkeletonAssetInfo& OutInfo);
 
-
-
-	// ============================================================================
-	// BONE HIERARCHY
-	// ============================================================================
-
-	/**
-	 * Get the transform of a bone in local or component space.
-	 *
-	 * @param AssetPath - Path to Skeleton or Skeletal Mesh
-	 * @param BoneName - Name of the bone
-	 * @param bComponentSpace - If true, returns global transform; if false, local
-	 * @return Bone transform
-	 *
-	 * Example:
-	 *   transform = unreal.SkeletonService.get_bone_transform("/Game/SKM_Mannequin", "hand_r", True)
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Skeleton|Bones")
-	static FTransform GetBoneTransform(
-		const FString& AssetPath,
-		const FString& BoneName,
-		bool bComponentSpace = false);
 
 	// ============================================================================
 	// BONE MODIFICATION (via SkeletonModifier)

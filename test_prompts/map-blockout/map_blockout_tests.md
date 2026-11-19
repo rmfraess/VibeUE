@@ -201,7 +201,7 @@ Report `created_count` (total instances across the three tiers).
 
 ---
 
-Call `FoliageService.get_instance_count("/Game/Foliage/FT_Forest")` to confirm the forest tier is the densest, then `FT_Treeline`, then `FT_Scrub`.
+Count the HISM instances per type (sum `get_instance_count()` over the `InstancedStaticMeshComponent`s of the `InstancedFoliageActor`s whose static mesh is the type's mesh) for `FT_Forest`, `FT_Treeline` and `FT_Scrub` to confirm the forest tier is the densest, then treeline, then scrub.
 
 ---
 
@@ -230,7 +230,7 @@ Re-run `materialize_roads_as_splines` and confirm `created_count` matches the fi
 ## End-to-End From Scratch
 
 Starting from a fresh open-world level:
-1. Create a landscape via `LandscapeService.create_landscape(...)`
+1. Create a landscape via `LandscapeEditorSubsystem.create_landscape(...)`
 2. Add 4 paint layers: `Crop`, `Soil`, `Water`, `Forest`
 3. Paint each with reasonable coverage (use `LandscapeService.paint_layer_at_location` or `paint_layer_in_world_rect`)
 4. Run `MapBlockoutService.run_full_pipeline_for_landscape("MyLandscape", cfg)`

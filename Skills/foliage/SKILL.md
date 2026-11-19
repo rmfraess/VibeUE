@@ -66,7 +66,7 @@ Use the `seed` parameter to get reproducible scatter patterns. Same seed + same 
 
 If you get `instances_added=0` with `instances_rejected ≈ 4× requested`, every candidate failed the surface trace or the weight check. Before blaming the threshold, check geometry:
 - The scatter circle must overlap the **painted** part of the named landscape. A landscape is corner-anchored — created at (0,0) it spans (0,0)→(+50400,+50400) for 505 res @ scale 100, so a scatter "around (0,0)" is 3/4 off-landscape.
-- Verify weights at a few candidate points first: `unreal.LandscapeService.get_layer_weights_at_location(label, x, y)`.
+- Verify weights at a few candidate points first: `unreal.LandscapeService.get_weights_in_region(label, layer, vx, vy, 1, 1)` (`vx = round((x - loc.x) / scale.x)`, likewise `vy`, from the landscape's actor location/scale).
 - If another landscape/mesh overlaps the area at a higher Z, the surface trace hits *that* surface instead — instances land on the wrong surface or get rejected. Paint a larger area or center the scatter where only the target landscape exists.
 
 ### ⚠️ Common Mistakes to Avoid
@@ -81,7 +81,6 @@ If you get `instances_added=0` with `instances_rejected ≈ 4× requested`, ever
 | `clear_all_foliage()` to clear one landscape | `clear_all_foliage()` removes ALL foliage from the ENTIRE level — use `remove_foliage_in_radius()` for targeted removal |
 | Manually scattering foliage on a cloned landscape | If source uses LandscapeGrassType (procedural), just copy paint layers — foliage auto-generates. Check `list_foliage_types()`: if 0, foliage is procedural. |
 | Forgetting to check `instances_rejected` | Always check — tells you how many failed surface trace or layer filter |
-| Expecting `get_instance_count()` == -1 after removing all instances | -1 means the type was **never** in the level. Once registered, the count is 0 after removal — the foliage type entry persists |
 | Expecting `list_foliage_types()` to shrink after `clear_all_foliage()` | Clearing removes **instances**, not type registrations — 0-instance entries remain listed. Filter on `ft.instance_count > 0` |
 | Editing foliage type properties | Use the loaded type’s native `get_editor_property` / `set_editor_property`; read and modify a whole struct for its members. |
 | Scattering "around the landscape at (0,0)" centered on (0,0) | Landscapes are corner-anchored: created at (0,0) the terrain spans +X/+Y only. Center the scatter on the landscape's actual center (`location + (resolution-1)*scale/2`) or most candidates miss the surface |
@@ -261,7 +260,10 @@ for ft in types:
     print(f"{ft.foliage_type_name}: {ft.instance_count} instances ({ft.mesh_path})")
 
 # Get count for a specific type
-count = unreal.FoliageService.get_instance_count("/Game/Meshes/SM_Tree_01")
+world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+mesh = unreal.load_asset("/Game/Meshes/SM_Tree_01")  # for a foliage type asset: unreal.load_asset(p).get_editor_property('mesh')
+count = sum(c.get_instance_count() for a in unreal.GameplayStatics.get_all_actors_of_class(world, unreal.InstancedFoliageActor)
+            for c in a.get_components_by_class(unreal.InstancedStaticMeshComponent) if c.static_mesh == mesh)
 print(f"Tree count: {count}")
 
 # Query instances in a region
@@ -318,7 +320,10 @@ import unreal
 # load the asset and check its type if a foliage type is required.
 
 # Are there any instances of this type in the level?
-if unreal.FoliageService.has_foliage_instances(path):
+mesh = unreal.load_asset(path)
+world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+if any(c.get_instance_count() > 0 for a in unreal.GameplayStatics.get_all_actors_of_class(world, unreal.InstancedFoliageActor)
+       for c in a.get_components_by_class(unreal.InstancedStaticMeshComponent) if c.static_mesh == mesh):
     print("Instances exist in level")
 ```
 

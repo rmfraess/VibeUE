@@ -203,53 +203,6 @@ FRVTCreateResult URuntimeVirtualTextureService::CreateRuntimeVirtualTexture(
 }
 
 // =================================================================
-// Introspection
-// =================================================================
-
-FRVTInfo URuntimeVirtualTextureService::GetRuntimeVirtualTextureInfo(const FString& AssetPath)
-{
-	FRVTInfo Info;
-
-	URuntimeVirtualTexture* RVT = LoadRVTAsset(AssetPath);
-	if (!RVT)
-	{
-		Info.ErrorMessage = FString::Printf(TEXT("Failed to load RVT: %s"), *AssetPath);
-		return Info;
-	}
-
-	Info.AssetPath = RVT->GetPathName();
-
-	// Get material type as string
-	ERuntimeVirtualTextureMaterialType MatType = RVT->GetMaterialType();
-	switch (MatType)
-	{
-	case ERuntimeVirtualTextureMaterialType::BaseColor:
-		Info.MaterialType = TEXT("BaseColor");
-		break;
-	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness:
-		Info.MaterialType = TEXT("BaseColor_Normal_Roughness");
-		break;
-	case ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Specular:
-		Info.MaterialType = TEXT("BaseColor_Normal_Specular");
-		break;
-	case ERuntimeVirtualTextureMaterialType::WorldHeight:
-		Info.MaterialType = TEXT("WorldHeight");
-		break;
-	default:
-		Info.MaterialType = TEXT("Unknown");
-		break;
-	}
-
-	Info.TileCount = RVT->GetTileCount();
-	Info.TileSize = RVT->GetTileSize();
-	Info.TileBorderSize = RVT->GetTileBorderSize();
-	Info.bContinuousUpdate = RVT->GetContinuousUpdate();
-	Info.bSinglePhysicalSpace = RVT->GetSinglePhysicalSpace();
-
-	return Info;
-}
-
-// =================================================================
 // Level Integration
 // =================================================================
 

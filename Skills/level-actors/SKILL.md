@@ -535,8 +535,8 @@ unreal.ActorService.rerun_construction_scripts("BP_Refrigerator_2")
 ```
 
 To refresh the SCS viewport of an OPEN Blueprint editor (so it re-runs the construction script and
-redraws), use `unreal.BlueprintService.refresh_blueprint_editor("/Game/Props/BP_Refrigerator")` —
-it returns False when no editor is open for that Blueprint.
+redraws), use `unreal.BlueprintEditorLibrary.refresh_open_editors_for_blueprint(unreal.load_asset("/Game/Props/BP_Refrigerator"))`
+(compile first with `BlueprintToolset.CompileBlueprint` if nodes changed).
 
 ## Sample scripts (run via `execute_python`)
 

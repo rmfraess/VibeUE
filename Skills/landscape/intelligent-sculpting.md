@@ -162,13 +162,19 @@ print(f"Roughness: {analysis.roughness:.1f}")
 #### Get Slope / Normal at a Point
 
 ```python
-import unreal
+import math, unreal
 
-slope = unreal.LandscapeService.get_slope_at_location("MyTerrain", 1000.0, 2000.0)
-print(f"Slope: {slope:.1f}°")   # 0=flat, 90=vertical
+# Trace straight down through the point; the surface normal gives the slope
+w = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+x, y, ztop, zbot = 1000.0, 2000.0, 100000.0, -100000.0
+h = unreal.SystemLibrary.line_trace_single(w, unreal.Vector(x, y, ztop), unreal.Vector(x, y, zbot),
+    unreal.TraceTypeQuery.TRACE_TYPE_QUERY1, True, [], unreal.DrawDebugTrace.NONE, True)
 
-normal = unreal.LandscapeService.get_normal_at_location("MyTerrain", 1000.0, 2000.0)
+normal = h.get_editor_property('impact_normal') if h else None
 print(f"Normal: {normal}")
+
+slope = math.degrees(math.acos(normal.z)) if normal else -1.0
+print(f"Slope: {slope:.1f}°")   # 0=flat, 90=vertical
 ```
 
 #### Get a Slope Map

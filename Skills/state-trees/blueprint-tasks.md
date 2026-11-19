@@ -148,7 +148,7 @@ Read the same facts from the engine instead:
 | `root_parameters` | `ObjectToolset.GetProperties` on the editor data, key `RootParameters` |
 | The context actor class | `ObjectToolset.GetProperties` on the editor data for `Schema`, then on that schema object |
 | A transition's event payload fields | VibeUE `get_transition_event_payload_property_names` (still a VibeUE tool) |
-| A transition condition's properties | VibeUE `get_transition_condition_property_names` (still a VibeUE tool) |
+| A transition condition's properties | Epic `get_transitions` (`conditions[k].id`), then `get_node_instance_data` |
 
 `b_expanded` has no read path at all any more: `bExpanded` is invisible to the toolset, and VibeUE's
 `set_state_expanded` is write-only.

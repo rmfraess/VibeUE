@@ -31,8 +31,6 @@ Use `AnimMontageService` for section, slot, segment and blend operations; use na
 ## Quick Reference - Python API
 
 ### Discovery Methods
-> ⚠️ **`list_montages` filters are strings, not `None`** (issue #461) — pass `""` for "no
-> filter", never `None` (an FString arg can't be null and raises a TypeError).
 > **Plain properties are Epic's, not this service's.** Skeleton, playback rate (`RateScale`), blend
 > in/out and blend-out trigger time are ordinary `UAnimMontage` UPROPERTYs: read and write them with
 > `EditorToolset.ObjectToolset.GetProperties` / `SetProperties` (see *Blend Settings* below), which run
@@ -40,17 +38,22 @@ Use `AnimMontageService` for section, slot, segment and blend operations; use na
 > opening the editor is `EditorToolset.EditorAppToolset.OpenEditorForAsset`.
 
 ```python
-# List all montages in a path (use "" for no skeleton filter, NOT None)
-montages = AnimMontageService.list_montages(search_path, skeleton_filter) -> Array[MontageInfo]
+# List all montages (await call_tool inside execute_python)
+mon = await call_tool("EditorToolset.AssetToolset.FindAssets", filter={"folderPath": "/Game", "name": "",
+        "assetType": {"refPath": "/Script/Engine.AnimMontage"}, "bRecursive": True, "tags": [], "maxResults": 0})
 
-# Get detailed montage info
-info = AnimMontageService.get_montage_info(montage_path) -> MontageInfo
+# Montages for a skeleton / using an animation: intersect with the asset's referencers
+refs = await call_tool("EditorToolset.AssetToolset.GetReferencers", assetPath=SKELETON_OR_ANIM_PKG)
+montages = sorted(set(refs) & set(mon))
 
-# Find montages for a skeleton
-montages = AnimMontageService.find_montages_for_skeleton(skeleton_path) -> Array[MontageInfo]
-
-# Find montages using a specific animation
-montages = AnimMontageService.find_montages_using_animation(anim_path) -> Array[MontageInfo]
+# Detailed montage info
+m = unreal.load_asset(montage_path); AL = unreal.AnimationLibrary; ev = AL.get_animation_notify_events(m)
+info = dict(length=AL.get_sequence_length(m), slots=[str(s) for s in AL.get_montage_slot_names(m)],
+            sections=m.get_num_sections(), slot_tracks=len(m.get_editor_property('slot_anim_tracks')),
+            notifies=len(ev), blend_in=m.get_default_blend_in_time(), blend_out=m.get_default_blend_out_time(),
+            blend_out_trigger=m.get_editor_property('blend_out_trigger_time'),
+            skeleton=m.get_editor_property('skeleton').get_path_name())
+# Root motion flags: AnimMontageService.get_enable_root_motion_translation / _rotation(montage_path)
 ```
 
 ### Creation Methods
@@ -95,8 +98,10 @@ links = AnimMontageService.get_all_section_links(montage_path) -> Array[SectionL
 
 ### Animation Segments (Multiple Animations in One Montage)
 ```python
-# List segments in a slot track
-segments = AnimMontageService.list_anim_segments(montage_path, track_index) -> Array[AnimSegmentInfo]
+# List segments in a slot track (native properties; fields: anim_reference, start_pos,
+# anim_start_time, anim_end_time, anim_play_rate, looping_count)
+segments = unreal.load_asset(montage_path).get_editor_property('slot_anim_tracks')[track_index] \
+    .get_editor_property('anim_track').get_editor_property('anim_segments')
 
 # Add animation at specific time
 index = AnimMontageService.add_anim_segment(montage_path, track_index, anim_path, start_time, play_rate) -> int
@@ -112,8 +117,10 @@ AnimMontageService.set_segment_loop_count(montage_path, track_index, segment_ind
 
 ### Slot Tracks
 ```python
-# List slot tracks
-tracks = AnimMontageService.list_slot_tracks(montage_path) -> Array[SlotTrackInfo]
+# List slot tracks (native properties)
+for i, t in enumerate(unreal.load_asset(montage_path).get_editor_property('slot_anim_tracks')):
+    print(i, t.get_editor_property('slot_name'),
+          len(t.get_editor_property('anim_track').get_editor_property('anim_segments')))
 
 # Add new slot track
 index = AnimMontageService.add_slot_track(montage_path, slot_name) -> int
@@ -145,14 +152,16 @@ Read blend settings and set the blend-out trigger time with `EditorToolset.Objec
 
 ### Branching Points (Frame-Accurate Gameplay Events)
 ```python
-# List all branching points
-points = AnimMontageService.list_branching_points(montage_path) -> Array[BranchingPointInfo]
+# List all branching points: notify events whose montage_tick_type is Branching Point
+AL = unreal.AnimationLibrary
+bps = [(i, e) for i, e in enumerate(AL.get_animation_notify_events(unreal.load_asset(montage_path)))
+       if 'BRANCHING_POINT' in str(e.montage_tick_type).upper()]
 
 # Add branching point for combo input window
 index = AnimMontageService.add_branching_point(montage_path, name, trigger_time) -> int
 
-# Remove branching point
-AnimMontageService.remove_branching_point(montage_path, index) -> bool
+# Remove branching point: remove its notify by raw notify index (i from the list above)
+AnimMontageService.remove_notify(montage_path, bps[bp_index][0])
 ```
 
 ### Root Motion
@@ -198,32 +207,16 @@ montage_path = "/Game/Montages"  # This is a folder, not an asset!
 ## IMPORTANT: Return Struct Field Names (read before printing results)
 
 These methods return UStruct objects. Access fields with the **exact snake_case names below** —
-guessing (`skeleton_display_name`, segment `end_time`, `name`, `path`) raises `AttributeError`.
+guessing (`name`, `path`) raises `AttributeError`.
 Each struct field is read-only data already populated; just read it.
-
-**`MontageInfo`** (from `get_montage_info` / `list_montages` / `find_montages_for_skeleton`):
-`montage_path`, `montage_name`, `skeleton_path`, `duration`, `section_count`, `slot_track_count`,
-`notify_count`, `branching_point_count`, `blend_in_time`, `blend_out_time`, `blend_out_trigger_time`,
-`enable_root_motion_translation`, `enable_root_motion_rotation`, `slot_names` (Array[str]).
-*(No `skeleton_display_name` — use `skeleton_path`. No `skeleton` object — it's a path string.)*
 
 **`MontageSectionInfo`** (from `list_sections`):
 `section_name`, `section_index`, `start_time`, `end_time`, `duration`, `next_section_name`,
 `loops`, `segment_count`.
 
-**`AnimSegmentInfo`** (from `list_anim_segments` / `get_anim_segment_info`):
-`segment_index`, `anim_sequence_path`, `anim_name`, `start_time`, `duration`, `play_rate`,
-`anim_start_pos`, `anim_end_pos`, `loop_count`, `loops`.
-*(Segments have NO `end_time` — that field exists only on sections. Compute segment end as
-`start_time + duration`. Source-clip range is `anim_start_pos` → `anim_end_pos`.)*
-
-**`SlotTrackInfo`** (from `list_slot_tracks`): `track_index`, `slot_name`, `segment_count`, `total_duration`.
-
 **`SectionLink`** (from `get_all_section_links`): `from_section`, `to_section`, `is_loop`.
 
-**`BranchingPointInfo`** (from `list_branching_points`): `index`, `notify_name`, `trigger_time`, `section_name`.
-
-> Tip: when unsure, call `get_symbol('unreal.MontageInfo, unreal.AnimSegmentInfo, unreal.MontageSectionInfo')`
+> Tip: when unsure, call `get_symbol('unreal.MontageSectionInfo, unreal.SectionLink')`
 > — the `Editor Properties` block lists every valid field name. Cheaper than a crash-and-retry loop.
 
 ## Key Workflows

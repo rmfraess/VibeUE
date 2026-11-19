@@ -10,7 +10,7 @@
 
 /**
  * Play-In-Editor multiplayer settings snapshot.
- * Python access: info = unreal.EngineSettingsService.get_pie_settings()
+ * Read the live values from Python with unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).get_play_settings().
  *
  * Properties:
  * - success (bool): Whether the settings could be read
@@ -53,7 +53,7 @@ struct FPIESettingsInfo
 };
 
 /**
- * Engine Settings Service - two Python-only PIE helpers. This service has NO AI tools.
+ * Engine Settings Service - no Python methods. This service has NO AI tools.
  *
  * Engine settings are engine-native on the 5-9 branch, so nothing here is a tool any more. Cvars,
  * console commands and scalability are `ConsoleToolset`; everything in Project Settings or Editor
@@ -62,14 +62,10 @@ struct FPIESettingsInfo
  * ObjectToolset: a UDeveloperSettings object is a native CDO, which SetProperties refuses. See the
  * `engine-settings` skill.
  *
- * What is left is two DEMOTED helpers, not tools. GetPIESettings / SetPIESettings are no longer
- * MCP tools and will not appear in list_toolsets, but are still callable as
- * `unreal.EngineSettingsService.get_pie_settings()` and
- * `.set_pie_settings(net_mode, num_clients, run_under_one_process)` from inside execute_python.
- * They exist for exactly one caller: Content/Python/vibeue.py's GateSession, which reads, applies
- * and restores the PIE net mode from inside execute_python, where Epic's toolsets are unreachable
- * (none of those three carry PythonCallable). For ordinary PIE configuration use
- * ConfigSettingsToolset.
+ * Nothing here is exposed to Python or MCP. Read the PIE settings with
+ * `unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).get_play_settings()` and write them with
+ * ConfigSettingsToolset.SetSectionProperties (Editor / LevelEditor / PlayIn); Content/Python/vibeue.py's
+ * GateSession does exactly that to apply and restore the PIE net mode from inside execute_python.
  */
 UCLASS(BlueprintType)
 class VIBEUE_API UEngineSettingsService : public UToolsetDefinition
@@ -107,38 +103,6 @@ public:
 
 
 
-
-	// =================================================================
-	// Play-In-Editor (PIE) net-mode settings
-	// =================================================================
-
-	/**
-	 * Read the editor's Play-In-Editor multiplayer settings (ULevelEditorPlaySettings).
-	 *
-	 * These are per-USER config (Saved/Config/.../EditorPerProjectUserSettings.ini), not project
-	 * config, so they follow the machine, not the repo. PlayNetMode is otherwise unreadable from
-	 * Python (the raw EPlayNetMode enum cannot be pythonized).
-	 *
-	 * @return Snapshot with net_mode, num_clients, run_under_one_process, launch_separate_server,
-	 *         last_play_mode. success=false with error_message if the settings object is unavailable.
-	 */
-	UFUNCTION(BlueprintCallable, Category ="VibeUE|EngineSettings")
-	static FPIESettingsInfo GetPIESettings();
-
-	/**
-	 * Write the editor's Play-In-Editor net-mode settings and persist them so they survive an
-	 * editor restart (SaveConfig to EditorPerProjectUserSettings.ini). This makes dedicated-server
-	 * PIE gates scriptable without hand-editing the ini and relaunching.
-	 *
-	 * @param NetMode - "Standalone" | "ListenServer" | "Client" (case-insensitive; "DedicatedServer"
-	 *                  is accepted as an alias for "Client"). Unknown values are refused (Warning).
-	 * @param NumClients - Number of client windows, 1-10. Out-of-range values are refused (Warning).
-	 * @param bRunUnderOneProcess - Spawn all player windows in a single UE process.
-	 * @return True only if every written value reads back as requested; false (with a Warning) on a
-	 *         mismatch or an invalid argument. Verify with get_pie_settings.
-	 */
-	UFUNCTION(BlueprintCallable, Category ="VibeUE|EngineSettings")
-	static bool SetPIESettings(const FString& NetMode, int32 NumClients, bool bRunUnderOneProcess);
 
 	// =================================================================
 	// Persistence

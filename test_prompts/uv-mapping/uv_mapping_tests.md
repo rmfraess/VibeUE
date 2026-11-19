@@ -50,7 +50,7 @@ currently has.
 
 ```
 Which mesh in /Game/Meshes has overlapping UVs on its lightmap channel?
-Run get_uv_health on each one and report any that flag overlaps.
+Run `ModelingService.get_uv_stats` on its lightmap channel for each one and report any with overlap_fraction > 0.
 ```
 
 ---
@@ -457,7 +457,7 @@ For /Game/Meshes/SM_Newly_Imported, do the full lightmap setup:
 2. Generate the lightmap UV channel from channel 0 into channel 1
    with 1% chart spacing.
 3. Set LightMapResolution to 128.
-4. Re-run health and confirm bLightmapHasOverlaps is now false.
+4. Re-run the UV stats (`ModelingService.get_uv_stats`) and confirm the lightmap channel's overlap_fraction is now 0.
 5. Save the asset.
 ```
 
@@ -510,8 +510,8 @@ The mesh /Game/Meshes/SM_RuinPiece imported with garbage UVs. Rescue:
 ### 5. Batch lightmap pass on every mesh in a folder
 
 ```
-For every StaticMesh under /Game/Meshes, run a quick health check.
-For any mesh whose bLightmapHasOverlaps is true OR whose
+For every StaticMesh under /Game/Meshes, run a quick UV stats check (`ModelingService.get_uv_stats`).
+For any mesh whose lightmap channel has overlap_fraction > 0 OR whose
 bGenerateLightmapUVs is false, fix it:
 - generate_lightmap_uvs (0 → 1, spacing 1%)
 - set_lightmap_settings (coord=1, source=0, res=128, generate=true)

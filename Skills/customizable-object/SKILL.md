@@ -35,8 +35,9 @@ It edits the Customizable Object's **editor graph** (the node graph you see in t
 compiles it. Discover exact signatures with
 `get_symbol('unreal.CustomizableObjectService')`.
 
-- **Is Mutable on?** `is_mutable_available()`. In UE 5.8 it normally is (the default-enabled
-  MutableAssetUserData plugin loads it). If it returns False, every method explains that the
+- **Is Mutable on?** `await call_tool("PluginToolset.PluginToolset.IsEnabled", pluginName="Mutable")`
+  (or `hasattr(unreal, "CustomizableObject")`). In UE 5.8 it normally is (the default-enabled
+  MutableAssetUserData plugin loads it). If it is off, every method explains that the
   project has Mutable disabled — tell the user; VibeUE never enables plugins for them.
 - **Addressing:** nodes by `node_id` (the NodeGuid, from `get_graph` / `add_node`); pins by
   `pin_name` OR the display name the editor shows (`"Mesh"` works for `Mesh_Input_Pin`).
@@ -92,7 +93,10 @@ for n in g.nodes: print(n.node_id, n.node_class, n.title)
 CO.get_node_properties(path, node_id)  # settable properties with current values (text format)
 CO.get_object_info(path)               # parent/children, graph + compiled parameters, states, components
 CO.discover_node_types("Parameter")    # node classes add_node accepts (filter is a substring)
-CO.get_node_type_properties("CONodeSwitch")   # a class's properties and defaults
+# a class's properties and defaults, via its CDO (module + class name come from discover_node_types)
+cdo = {"refPath": "/Script/CustomizableObjectEditor.Default__CustomizableObjectNodeMaterial"}
+names = await call_tool("EditorToolset.ObjectToolset.ListProperties", instance=cdo)
+vals = await call_tool("EditorToolset.ObjectToolset.GetProperties", instance=cdo, properties=names)
 ```
 
 ## Things that are not obvious and will bite you

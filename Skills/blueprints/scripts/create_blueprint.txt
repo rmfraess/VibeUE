@@ -7,8 +7,7 @@
 # UE 5.9: the Blueprint class itself is Epic's BlueprintToolsets.BlueprintToolset, and every
 # property goes through EditorToolset.ObjectToolset. BlueprintService.create_blueprint /
 # add_variable / add_member_variable / compile_blueprint / get_property / set_property were all
-# cut; what survives there is Timelines, create_macro_graph, analyze_graph_layout and
-# refresh_blueprint_editor.
+# cut; what survives there is Timelines, create_macro_graph and analyze_graph_layout.
 #
 # From an MCP client these are call_tool:
 #   call_tool(tool_name="Create", toolset_name="BlueprintToolsets.BlueprintToolset",

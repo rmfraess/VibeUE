@@ -1,22 +1,12 @@
 ---
 name: return-types
-description: Exact property names for LandscapeService return types (LandscapeCreateResult, LandscapeInfo_Custom, LandscapeLayerInfo_Custom, LandscapeSplinePointInfo, LandscapeSplineSegmentInfo, LandscapeSplineMeshEntryInfo) and the create_landscape signature
+description: Exact property names for LandscapeService return types (LandscapeInfo_Custom, LandscapeLayerInfo_Custom, LandscapeSplinePointInfo, LandscapeSplineSegmentInfo, LandscapeSplineMeshEntryInfo)
 ---
 
 # Return Types - EXACT Properties
 
 > The Common Mistakes table for these return types lives in the main `skill.md` (it is loaded
 > automatically alongside the index). This sub-doc is the deeper struct reference.
-
-### LandscapeCreateResult (from create_landscape)
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `success` | bool | Whether creation succeeded |
-| `actor_label` | str | The label assigned to the landscape |
-| `error_message` | str | Error details if failed |
-
-**No other properties exist.** No `actor_path`, no `actor_name`.
 
 ### LandscapeInfo_Custom (from get_landscape_info)
 
@@ -38,24 +28,13 @@ description: Exact property names for LandscapeService return types (LandscapeCr
 
 **No `success` field.** Check `actor_label` to verify data was returned.
 
-### LandscapeLayerInfo_Custom (from get_landscape_info or list_layers)
+### LandscapeLayerInfo_Custom (from get_landscape_info)
 
 | Property | Type | Description |
 |----------|------|-------------|
 | `layer_name` | str | Name of the paint layer (e.g. "L1", "Grass") |
 | `layer_info_path` | str | Asset path of the layer info object (**NOT** `asset_path`) |
 | `is_weight_blended` | bool | Whether the layer uses weight blending |
-
-### create_landscape Signature
-
-```
-create_landscape(location, rotation, scale,
-    sections_per_component=1, quads_per_section=63,
-    component_count_x=8, component_count_y=8,
-    landscape_label="") -> LandscapeCreateResult
-```
-
-The label parameter is `landscape_label`, NOT `actor_label`.
 
 ### LandscapeSplinePointInfo (from get_spline_info)
 

@@ -62,8 +62,6 @@ call_tool MaterialToolset.GetExpressions {"materialOrFunction": {"refPath": "<ma
 # Step 3: the layers on a LayerBlend node, and any other expression field
 call_tool ObjectToolset.GetProperties {"instance": {"refPath": "<the LayerBlend expression>"},
                                        "properties": ["Layers"]}
-#   ... or, VibeUE's landscape-aware read of the same node:
-#   unreal.LandscapeMaterialService.get_layer_blend_info(mat_path, node_id)   # execute_python
 
 # Step 4: what is wired where — per expression, and per material output
 call_tool MaterialToolset.GetExpressionInputs {"materialOrFunction": {"refPath": "<material>"},
@@ -74,15 +72,19 @@ call_tool MaterialToolset.GetPropertyInput    {"material": {"refPath": "<materia
 
 **Why:** Landscape materials often already have LayerBlend nodes, texture samplers, and connected outputs. Adding duplicate nodes without reviewing first creates orphaned expressions and broken connections. Always export → review → plan → modify.
 
-### One VibeUE Service + Epic's Material Toolsets
+### Epic's Material Toolsets (+ one VibeUE Service)
 
-- **LandscapeMaterialService** (`unreal.LandscapeMaterialService.*` via `execute_python`) —
-  landscape-specific nodes: LayerBlend, LayerWeight, LayerCoords, LayerSample, grass output,
-  LayerInfo assets, material assignment.
-- **`MaterialToolset`** (via `call_tool`) — everything generic: `CreateMaterial`, `AddExpression`,
-  `ConnectExpressions`, `ConnectToOutput`, `GetExpressions`, `GetExpressionInputs`, `Recompile`.
-  Plus `ObjectToolset.GetProperties`/`SetProperties` for any material or expression property, and
-  `AssetToolset.SaveAsset`/`Exists`.
+- **`MaterialToolset`** (via `call_tool`) — materials and every node, landscape ones included:
+  `CreateMaterial`, `AddExpression` (landscape nodes are expression classes such as
+  `/Script/Landscape.MaterialExpressionLandscapeLayerBlend`, `...LayerWeight`, `...LayerCoords`,
+  `...LayerSample`, `...GrassOutput`), `ConnectExpressions`, `ConnectToOutput`, `GetExpressions`,
+  `GetExpressionInputs`, `Recompile`.
+  Plus `ObjectToolset.GetProperties`/`SetProperties` for any material or expression property (e.g. the
+  LayerBlend's `Layers`), and `AssetToolset.SaveAsset`/`Exists`.
+- **Layer info assets and landscape assignment** — Python, via `unreal.LandscapeEditorSubsystem`
+  (`create_target_layer_info`, `add_target_layer`, `set_target_layer_info`) in `execute_python`.
+- **LandscapeMaterialService** (`execute_python`) — `create_auto_material`: the whole production
+  material in one call (see `landscape-auto-material`).
 - **MaterialNodeService** (`execute_python`) — one tool left: `create_collection_parameter`.
 - **`MaterialService` is deleted.** Every call that used to go there is now one of the two rows
   above — mind the style: VibeUE is Python, Epic is `call_tool`.
@@ -99,13 +101,12 @@ call_tool MaterialToolset.GetPropertyInput    {"material": {"refPath": "<materia
 
 Each layer name needs a matching `ULandscapeLayerInfoObject` asset:
 - Create **before** assigning material to landscape
-- Asset name convention: `LI_<LayerName>` (e.g., `LI_Grass`, `LI_Rock`)
-- **ALWAYS store and use `.asset_path`** from `create_layer_info_object()` result — never guess paths
-- **WRONG**: `"/Game/Landscape/Grass_LayerInfo"`  → **CORRECT**: `grass_info.asset_path` (which is `"/Game/Landscape/LI_Grass"`)
+- Create with `LandscapeEditorSubsystem.create_target_layer_info(layer_name, folder)` — it returns the asset
+- **ALWAYS keep the returned asset and use `li.get_path_name()`** — never guess paths
 
-### ⚠️ assign_material_to_landscape Will Silently Skip Bad Paths
+### ⚠️ A Wrong Layer Info Leaves the Layer Empty
 
-If `layer_info_paths` contains wrong paths, `assign_material_to_landscape` may return `True` (material set) but layers will be **empty**. Always verify with `get_landscape_info().layers` after assignment.
+If a layer info's name doesn't match the material's layer name (or the wrong asset is passed), the material is set but the layer will be **empty**. Always verify with `get_landscape_info().layers` after assignment.
 
 ### Compile + Save After Changes
 

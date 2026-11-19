@@ -24,13 +24,10 @@ class UWorld;
  * package, or writes config.
  *
  * Python method names (snake_case — the real bound API):
- * - resolve_world: Resolve a PIE world by selector and report its net role and actor count
  * - spawn_actor: Spawn a transient actor into a resolved PIE world; returns a handle
  * - destroy_actor: Destroy one actor this service spawned, by handle (idempotent)
  * - destroy_all: Destroy every actor this service spawned this session (idempotent)
  * - list_spawned: List the actors this service spawned this session
- * - call_function: Call a UFUNCTION on an object in a PIE world with REAL RPC routing
- * - console_command: Run a console command against a PIE world with REAL RPC routing
  *
  * Selector grammar (strict — anything else is INVALID_SELECTOR):
  *   "server"      -> PIE instance 0: the standalone world, the listen host, or the dedicated server.
@@ -52,7 +49,6 @@ class UWorld;
  *
  * Python usage:
  *   import unreal, json
- *   info = json.loads(unreal.PIEActorService.resolve_world("server"))
  *   res  = json.loads(unreal.PIEActorService.spawn_actor(
  *              "server", "/Script/Engine.StaticMeshActor", unreal.Transform()))
  *   handle = res["handle"]
@@ -65,19 +61,6 @@ class VIBEUE_API UPIEActorService : public UToolsetDefinition
 	GENERATED_BODY()
 
 public:
-	/**
-	 * Resolve a running PIE world by selector and report its net role.
-	 *
-	 * @param WorldSelector - "server", "client", "client:N" (N>=1), or "instance:N" (N>=0)
-	 * @return JSON: {success, world_path, net_mode, pie_instance, is_authority, actor_count} or
-	 *         {success:false, error_code, message}. error_code: INVALID_SELECTOR, PIE_NOT_RUNNING,
-	 *         WORLD_NOT_FOUND, AMBIGUOUS_WORLD.
-	 *
-	 * Example:
-	 *   unreal.PIEActorService.resolve_world("server")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|PIE|Actors")
-	static FString ResolveWorld(const FString& WorldSelector);
 
 	/**
 	 * Spawn a transient actor into a resolved PIE world.
@@ -87,7 +70,7 @@ public:
 	 * /Script/Engine.StaticMeshActor. A UBlueprint whose generated class is missing or dirty is
 	 * compiled first. No package is saved.
 	 *
-	 * @param WorldSelector - see resolve_world
+	 * @param WorldSelector - see the selector grammar in the class comment
 	 * @param ClassPath - actor class or Blueprint path
 	 * @param Transform - spawn transform (every component must be finite)
 	 * @param CollisionHandling - AlwaysSpawn (default), AdjustIfPossibleButAlwaysSpawn,
@@ -156,75 +139,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|PIE|Actors")
 	static FString ListSpawned();
-
-	/**
-	 * Call a UFUNCTION on an object inside a resolved PIE world, with REAL RPC routing.
-	 *
-	 * Every Python call runs under FEditorScriptExecutionGuard, which sets
-	 * GAllowActorScriptExecutionInEditor = true; AActor::GetFunctionCallspace then answers Local for
-	 * EVERY function, so a Server_ RPC called from Python on a PIE client runs on the client and sends
-	 * nothing, and a Client_ RPC the server sends inside a Python-started flow runs on the server. This
-	 * call lowers that global (scoped to the one call, restored on return) before computing the
-	 * callspace and calling ProcessEvent, so RPCs inside the call route exactly as in a real game.
-	 *
-	 * Object resolution, ONLY inside the selected PIE world (never the editor world): a full object
-	 * path (must belong to that world), a spawn_actor handle, an actor name or editor label, or
-	 * "<actor>.<component>" / "<actor>:<subobject>".
-	 * Arguments: a JSON object keyed by parameter name (case-insensitive). JSON numbers and bools fill
-	 * numeric/bool params; strings fill string/name/text params and enums (by name), resolve object
-	 * and class params (PIE-world name/label first, then a full object or asset path; "" or "None" is
-	 * null; an unloaded map path is refused with MAP_PATH_REFUSED and never loaded), and anything else
-	 * (structs, arrays, soft refs) is parsed with ImportText, e.g. "(X=1,Y=2,Z=3)". Object references
-	 * NESTED inside a struct/array/map argument are resolved by the engine's global object lookup, NOT
-	 * confined to the PIE world. Integers are range-checked against the parameter's size, numbers given
-	 * as strings must be whole numbers ("12abc" is refused), and enum values must name a real
-	 * enumerator. JSON arrays/objects and delegate params are rejected. A missing input takes the
-	 * UFUNCTION's C++ default when one is declared, otherwise MISSING_ARG; out-only params need no input.
-	 *
-	 * @param WorldSelector - "server", "client", "client:N" (N>=1), or "instance:N" (N>=0)
-	 * @param ObjectPath - object path, spawn handle, actor name/label, "<actor>.<component>" or "<actor>:<subobject>"
-	 * @param FunctionName - the UFUNCTION name (FindFunction; inherited functions included)
-	 * @param ArgsJson - JSON object of input arguments ("" or "{}" for none)
-	 * @return JSON: {success, function, object_path, world_path, net_mode, pie_instance, callspace,
-	 *         executed_locally, return, out_params:{...}} or {success:false, error_code, message}.
-	 *         callspace is "local", "remote" (the RPC was handed to the net driver and nothing ran
-	 *         here; NOT proof of delivery: a Server_ call on an actor the client does not own is
-	 *         dropped by the driver with a LogNet "No owning connection" warning), "local+remote"
-	 *         (multicast on a server), or "absorbed" (dropped; nothing ran or was sent). return is null
-	 *         for a void function; return/out_params are only meaningful when executed_locally is true.
-	 *         error_code: INVALID_SELECTOR, PIE_NOT_RUNNING, WORLD_NOT_FOUND, AMBIGUOUS_WORLD,
-	 *         OBJECT_NOT_FOUND, AMBIGUOUS_OBJECT, OBJECT_NOT_IN_WORLD, FUNCTION_NOT_FOUND,
-	 *         INVALID_ARGS_JSON, UNKNOWN_ARG, MISSING_ARG, INVALID_ARG_VALUE, UNSUPPORTED_ARG_TYPE,
-	 *         MAP_PATH_REFUSED.
-	 *
-	 * Example:
-	 *   unreal.PIEActorService.call_function("client:1", "BP_Test_C_0", "Server_BeginInteract", '{"Target":"Lever_0"}')
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Execute"), Category = "VibeUE|PIE|Actors")
-	static FString CallFunction(
-		const FString& WorldSelector,
-		const FString& ObjectPath,
-		const FString& FunctionName,
-		const FString& ArgsJson = TEXT("{}"));
-
-	/**
-	 * Run a console command against a resolved PIE world (GEngine->Exec with that world), with the same
-	 * scoped RPC-routing fix as call_function, so a command whose handler sends an RPC sends it for
-	 * real. Handles console variables and engine/world exec commands; PlayerController exec functions
-	 * and cheats are NOT routed this way (call them with call_function on the controller instead).
-	 *
-	 * @param WorldSelector - see resolve_world
-	 * @param Command - the console command line, e.g. "stat fps" or "r.SomeCVar 1"
-	 * @return JSON: {success, command, handled, output, world_path, net_mode, pie_instance} or
-	 *         {success:false, error_code, message}. output is what the handler wrote to the command's
-	 *         output device (log-only output is not captured). error_code: INVALID_SELECTOR,
-	 *         PIE_NOT_RUNNING, WORLD_NOT_FOUND, AMBIGUOUS_WORLD, EMPTY_COMMAND, COMMAND_NOT_HANDLED.
-	 *
-	 * Example:
-	 *   unreal.PIEActorService.console_command("server", "stat unit")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Execute"), Category = "VibeUE|PIE|Actors")
-	static FString ConsoleCommand(const FString& WorldSelector, const FString& Command);
 
 	/**
 	 * Marshal ArgsJson into FunctionName's parameters, call it on Object with

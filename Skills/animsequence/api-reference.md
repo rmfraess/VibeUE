@@ -200,10 +200,8 @@ Use `AnimSequenceService` for animation sequence operations.
 
 ### Creation Methods
 ```python
-# Create static animation from reference pose
-anim_path = AnimSequenceService.create_from_pose(skeleton_path, anim_name, save_path, duration) -> str
-
 # Create animation with custom keyframes ("" = failed; an empty clip is never left behind)
+# An empty bone_tracks list creates a static reference-pose clip
 anim_path = AnimSequenceService.create_anim_sequence(skeleton_path, anim_name, save_path, duration, frame_rate, bone_tracks) -> str
 ```
 
@@ -211,11 +209,15 @@ Reference keyframes: obtain the local transform with native `unreal.AnimPoseExte
 
 ### Query Methods
 ```python
-# Get animation info - RETURNS AnimSequenceInfo (not bool with out-param!)
-info = AnimSequenceService.get_anim_sequence_info(anim_path) -> AnimSequenceInfo
+# Animation info: native AnimationLibrary / data model
+AL = unreal.AnimationLibrary; a = unreal.load_asset(anim_path); fr = a.data_model_interface.get_frame_rate()
+info = dict(duration=AL.get_sequence_length(a), fps=fr.numerator / fr.denominator, keys=AL.get_num_keys(a),
+            bone_tracks=a.data_model_interface.get_num_bone_tracks(),
+            curves=len(AL.get_animation_curve_names(a, unreal.RawCurveTrackTypes.RCT_FLOAT)),
+            notifies=len(AL.get_animation_notify_events(a)), root_motion=AL.is_root_motion_enabled(a))
 
 # Get animated bone names
-bones = AnimSequenceService.get_animated_bones(anim_path) -> Array[str]
+bones = [str(n) for n in AL.get_animation_track_names(a)]
 ```
 
 Pose sampling: native `unreal.AnimPoseExtensions.get_anim_pose_at_time` / `get_bone_pose`.

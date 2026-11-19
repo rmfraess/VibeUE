@@ -118,7 +118,6 @@ struct FFoliageQueryResult
  *
  * Discovery:
  * - list_foliage_types: List all foliage types in the level with instance counts
- * - get_instance_count: Get instance count for a specific foliage type
  *
  * Foliage Type Management:
  *
@@ -137,9 +136,6 @@ struct FFoliageQueryResult
  *
  * Query:
  * - get_foliage_in_radius: Get foliage instances in a circular region
- *
- * Existence:
- * - has_foliage_instances: Check if any foliage instances exist for a type
  *
  * Python Usage:
  *   import unreal
@@ -171,15 +167,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Foliage")
 	static TArray<FVibeUEFoliageTypeInfo> ListFoliageTypes();
-
-	/**
-	 * Get instance count for a specific mesh or foliage type in the level.
-	 *
-	 * @param MeshOrFoliageTypePath - Path to UStaticMesh or UFoliageType asset
-	 * @return Number of instances, or -1 if not found
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Foliage")
-	static int32 GetInstanceCount(const FString& MeshOrFoliageTypePath);
 
 	// =================================================================
 	// Placement
@@ -363,15 +350,6 @@ public:
 		float WorldCenterY,
 		float Radius,
 		int32 MaxResults = 100);
-
-	/**
-	 * Check if any foliage instances exist in the level for a given mesh/type.
-	 *
-	 * @param MeshOrFoliageTypePath - Path to UStaticMesh or UFoliageType asset
-	 * @return True if instances exist
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Foliage|Exists")
-	static bool HasFoliageInstances(const FString& MeshOrFoliageTypePath);
 
 private:
 	static class UWorld* GetEditorWorld();

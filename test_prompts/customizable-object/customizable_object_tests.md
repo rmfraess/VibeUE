@@ -14,7 +14,7 @@ Can you work with Mutable Customizable Objects in this project? Check, and tell 
 how many node types you can create.
 ```
 
-Expect: `is_mutable_available()` is True and `discover_node_types()` reports ~90 placeable types.
+Expect: `PluginToolset.IsEnabled("Mutable")` is True and `discover_node_types()` reports ~90 placeable types.
 
 ---
 

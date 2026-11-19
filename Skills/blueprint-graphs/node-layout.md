@@ -9,7 +9,7 @@ This sub-doc continues from SKILL.md → "VibeUE's surviving graph tools".
 
 The split here is clean: **Epic writes layouts, VibeUE measures them.** Epic's layout tools only
 *apply* an arrangement — nothing in `BlueprintToolsets` or `EditorToolset` reads one back — which is
-why `analyze_graph_layout` is one of VibeUE's 19 survivors.
+why `analyze_graph_layout` is one of VibeUE's remaining BlueprintService tools.
 
 ## The loop
 

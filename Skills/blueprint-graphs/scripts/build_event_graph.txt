@@ -6,8 +6,7 @@
 #
 # UE 5.9: graph authoring is Epic's BlueprintToolsets.BlueprintDslToolset. VibeUE's batch graph
 # builder, its per-node creators and its wiring/compile tools were all cut from BlueprintService;
-# what survives there is Timelines, create_macro_graph, analyze_graph_layout and
-# refresh_blueprint_editor.
+# what survives there is Timelines, create_macro_graph and analyze_graph_layout.
 #
 # From an MCP client the same tools are call_tool:
 #   call_tool(tool_name="Write", toolset_name="BlueprintToolsets.BlueprintDslToolset",

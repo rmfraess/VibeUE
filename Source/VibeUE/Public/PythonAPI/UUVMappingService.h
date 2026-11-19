@@ -168,14 +168,8 @@ struct FUVIslandInfo
  *
  * Action groups:
  *
- * Inspect:
- * - list_uv_channels           : Per-LOD channel inventory and stats
- * - get_uv_channel_info        : Stats for one (LOD, channel) pair
- * - get_uv_health              : Aggregate health report across all LODs
- *
- * Channel lifecycle:
- * - remove_uv_channel          : Drop a channel and shift remaining channels down
- * - set_uv_channel_count       : Resize the channel array exactly
+ * Inspect / channel lifecycle: native -- ModelingService.get_uv_stats, StaticMeshEditorSubsystem
+ * get_num_uv_channels / add_uv_channel / remove_uv_channel.
  *
  * Generation:
  * - generate_lightmap_uvs      : Build a packed lightmap UV channel from a source channel
@@ -192,14 +186,8 @@ struct FUVIslandInfo
  * Visualize:
  * - export_uv_layout_image     : Render a UV layout PNG for AI / human inspection
  *
- * Existence:
- * - mesh_has_uv_channel        : Quick check before reading or writing
- *
  * Python usage:
  *   import unreal
- *
- *   # Quick health check before edits
- *   ok, health = unreal.UVMappingService.get_uv_health("/Game/Meshes/SM_Wall")
  *
  *   # Generate lightmap UVs into channel 1 from channel 0
  *   result = unreal.UVMappingService.generate_lightmap_uvs(
@@ -219,62 +207,6 @@ class VIBEUE_API UUVMappingService : public UToolsetDefinition
 	GENERATED_BODY()
 
 public:
-	// =================================================================
-	// Inspect
-	// =================================================================
-
-	/**
-	 * List every UV channel on every LOD with diagnostic stats.
-	 * Maps to action="list_uv_channels".
-	 *
-	 * @param MeshPath - Full path to a StaticMesh or SkeletalMesh asset.
-	 * @return Array of channel info, ordered by LOD then channel.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|UVMapping", meta = (AICallable, AIAccessMode = "Read", DisplayName = "List UV Channels"))
-	static TArray<FUVChannelInfo> ListUVChannels(const FString& MeshPath);
-
-	/**
-	 * Get diagnostic stats for a single (LOD, channel) pair.
-	 * Maps to action="get_uv_channel_info".
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|UVMapping", meta = (AICallable, AIAccessMode = "Read", DisplayName = "Get UV Channel Info"))
-	static bool GetUVChannelInfo(
-		const FString& MeshPath,
-		int32 LODIndex,
-		int32 ChannelIndex,
-		FUVChannelInfo& OutInfo);
-
-	/**
-	 * Build an aggregate UV health report. Single call to judge ship-readiness.
-	 * Maps to action="get_uv_health".
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|UVMapping", meta = (AICallable, AIAccessMode = "Read", DisplayName = "Get UV Health"))
-	static bool GetUVHealth(const FString& MeshPath, FUVHealthReport& OutReport);
-
-	/**
-	 * Remove a UV channel; channels above it shift down by one.
-	 * Maps to action="remove_uv_channel".
-	 *
-	 * @note Channel 0 cannot be removed. If the lightmap coordinate index points at or
-	 *       above the removed channel, it is adjusted automatically.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|UVMapping", meta = (AICallable, AIAccessMode = "Write", DisplayName = "Remove UV Channel"))
-	static FUVMappingResult RemoveUVChannel(
-		const FString& MeshPath,
-		int32 LODIndex,
-		int32 ChannelIndex);
-
-	/**
-	 * Resize the UV channel array on a LOD to exactly Count channels.
-	 * Maps to action="set_uv_channel_count".
-	 *
-	 * @param Count - 1..MAX_MESH_TEXTURE_COORDS_MD (typically 8). Must be >= 1.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|UVMapping", meta = (AICallable, AIAccessMode = "Write", DisplayName = "Set UV Channel Count"))
-	static FUVMappingResult SetUVChannelCount(
-		const FString& MeshPath,
-		int32 LODIndex,
-		int32 Count);
 
 	/**
 	 * Repack the UV islands of an existing channel into [0,1]^2 with padding.
@@ -431,16 +363,6 @@ public:
 		int32 ChannelIndex,
 		const FString& OutputPath,
 		int32 ImageSize = 1024);
-
-	// =================================================================
-	// Existence
-	// =================================================================
-
-	/**
-	 * Cheap check: does this mesh have a UV channel at (LOD, channel)?
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|UVMapping|Exists")
-	static bool MeshHasUVChannel(const FString& MeshPath, int32 LODIndex, int32 ChannelIndex);
 
 private:
 	// Asset loading helpers

@@ -571,21 +571,17 @@ struct FLineTraceHit
 /**
  * Landscape service exposed directly to Python.
  *
- * Provides 68 landscape management actions:
+ * Provides landscape management actions. Creating/deleting landscapes, importing heightmaps and
+ * weight maps, and target layers are the engine's unreal.LandscapeEditorSubsystem.
  *
  * Discovery:
- * - list_landscapes: List all landscapes in the level
  * - get_landscape_info: Get detailed landscape information
  *
  * Lifecycle:
- * - create_landscape: Create a new landscape with configurable dimensions
- * - delete_landscape: Remove a landscape from the level
  * - resize_landscape: Resize an existing landscape to new dimensions
  *
  * Heightmap:
- * - import_heightmap: Import heightmap from PNG (preferred) or RAW file
  * - export_heightmap: Export heightmap to PNG (default) or RAW file
- * - get_height_at_location: Sample height at world position
  * - get_height_in_region: Read heights in a rectangular region (bulk read)
  * - set_height_in_region: Set heights in a rectangular region
  *
@@ -597,10 +593,6 @@ struct FLineTraceHit
  * - apply_noise: Apply procedural noise for natural terrain
  *
  * Layers:
- * - list_layers: List paint layers on landscape
- * - add_layer: Add a paint layer
- * - remove_layer: Remove a paint layer
- * - get_layer_weights_at_location: Get layer weights at position
  * - paint_layer_at_location: Paint a layer with brush
  *
  * Region Painting:
@@ -609,7 +601,6 @@ struct FLineTraceHit
  *
  * Weight Maps:
  * - export_weight_map: Export layer weight map to file
- * - import_weight_map: Import layer weight map from file
  * - get_weights_in_region: Read weight values in a rectangular region
  * - set_weights_in_region: Set weight values in a rectangular region
  *
@@ -617,14 +608,6 @@ struct FLineTraceHit
  * - set_hole_at_location: Create/remove a hole at a world position
  * - set_hole_in_region: Create/remove holes in a rectangular region
  * - get_hole_at_location: Check if there is a hole at a world position
- *
- * Properties:
- * - set_landscape_material: Assign material to landscape
- *
- * Visibility:
- *
- * Existence:
- * - landscape_exists: Check if landscape exists
  *
  * Splines:
  * - create_spline_point: Create a control point (param: world_location, NOT location)
@@ -642,13 +625,10 @@ struct FLineTraceHit
  *
  * Mesh Projection (v3):
  * - project_mesh_to_landscape: Conform landscape to a mesh actor's surface
- * - project_multiple_meshes_to_landscape: Batch project multiple mesh actors
  * - sample_mesh_heights: Sample world-Z hits from a mesh actor's surface
  *
  * Terrain Analysis (v3):
  * - analyze_terrain: Get height range, slope, and roughness stats for a region
- * - get_slope_at_location: Get slope in degrees at a world position
- * - get_normal_at_location: Get surface normal vector at a world position
  * - get_slope_map: Get per-vertex slope values for a region
  * - find_flat_areas: Find world locations where slope is below a threshold
  *
@@ -669,15 +649,8 @@ struct FLineTraceHit
  * Python Usage:
  *   import unreal
  *
- *   # Create a landscape
- *   result = unreal.LandscapeService.create_landscape(
- *       unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0), unreal.Vector(100, 100, 100))
- *
- *   # List landscapes
- *   landscapes = unreal.LandscapeService.list_landscapes()
- *
- *   # Get height at location
- *   sample = unreal.LandscapeService.get_height_at_location("Landscape", 500.0, 500.0)
+ *   # Get landscape info
+ *   info = unreal.LandscapeService.get_landscape_info("Landscape")
  *
  *   # Sculpt a mountain (raise by 5000 world units)
  *   unreal.LandscapeService.sculpt_at_location("Landscape", 0.0, 0.0, 5000.0, 5000.0, "Smooth")
@@ -812,18 +785,6 @@ class VIBEUE_API ULandscapeService : public UToolsetDefinition
 	GENERATED_BODY()
 
 public:
-	// =================================================================
-	// Discovery Operations
-	// =================================================================
-
-	/**
-	 * List all landscape actors in the current level.
-	 * Maps to action="list_landscapes"
-	 *
-	 * @return Array of landscape information
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Landscape")
-	static TArray<FLandscapeInfo_Custom> ListLandscapes();
 
 	/**
 	 * Get detailed information about a landscape.
@@ -860,7 +821,6 @@ public:
 	 *        and all edit operations work across the proxies transparently.
 	 * @return Create result with actor label
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Landscape")
 	static FLandscapeCreateResult CreateLandscape(
 		FVector Location,
 		FRotator Rotation,
@@ -888,7 +848,6 @@ public:
 	 *                          GUID (safely, through ULandscapeInfo). Default true.
 	 * @return True if the landscape (and, when requested, all its proxies) were destroyed
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Landscape")
 	static bool DeleteLandscape(const FString& LandscapeNameOrLabel, bool bIncludeProxies = true);
 
 	// =================================================================
@@ -900,7 +859,7 @@ public:
 	 * Maps to action="get_last_landscape_write"
 	 *
 	 * Every height writer (flatten/sculpt/smooth/raise_lower/set_height_in_region/apply_noise/
-	 * import_heightmap/...) records, for each proxy package it touched, whether that package is
+	 * heightmap import/...) records, for each proxy package it touched, whether that package is
 	 * dirty and whether its .uasset file was actually written to disk during the call (an mtime
 	 * comparison). On a World Partition landscape the engine's dirtying mode (see LandscapeSettings)
 	 * does NOT mark Python edits dirty, so the editor's dirty list can be empty while the proxy
@@ -916,7 +875,7 @@ public:
 	 * Explicitly save a landscape and every proxy that shares its GUID to disk.
 	 * Maps to action="save_landscape"
 	 *
-	 * import_heightmap dirties proxies but does NOT save them; brush/region ops may write proxies
+	 * A heightmap import dirties proxies but does NOT save them; brush/region ops may write proxies
 	 * to disk during the resolve without ever marking them dirty. This is the deterministic way to
 	 * flush a landscape to disk: it collects the parent ALandscape package plus every
 	 * ALandscapeStreamingProxy sharing the landscape GUID and saves them all through
@@ -928,30 +887,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Landscape")
 	static FLandscapeSaveResult SaveLandscape(const FString& LandscapeNameOrLabel);
-
-	// =================================================================
-	// Heightmap Operations
-	// =================================================================
-
-	/**
-	 * Import a heightmap from a 16-bit PNG (preferred) or RAW file.
-	 * Maps to action="import_heightmap"
-	 *
-	 * If the target landscape does not exist, this function will auto-create one
-	 * at world origin with scale (100,100,100), using a valid component/quads/
-	 * sections configuration that exactly matches the heightmap resolution.
-	 *
-	 * Resolution must still match exactly. This function does NOT resample; use
-	 * ResizeHeightmap first when needed.
-	 *
-	 * @param LandscapeNameOrLabel - Name or label of the landscape
-	 * @param FilePath - Absolute path to the heightmap file
-	 * @return Result with success status, resolution, and error message if failed
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Landscape")
-	static FHeightmapImportResult ImportHeightmap(
-		const FString& LandscapeNameOrLabel,
-		const FString& FilePath);
 
 	/**
 	 * Export a heightmap to a 16-bit PNG file by default (or RAW if a non-PNG extension is provided).
@@ -975,7 +910,6 @@ public:
 	 * @param FilePath - Absolute path to the heightmap file (PNG or RAW)
 	 * @return Dimensions with width, height, bit depth
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Landscape")
 	static FHeightmapDimensions GetHeightmapDimensions(const FString& FilePath);
 
 	/**
@@ -988,7 +922,7 @@ public:
 	 * bilinear produces piecewise-planar facets that read as "blocky" terraces on
 	 * flat plains; bicubic is C1-continuous so normals stay smooth.
 	 *
-	 * Workflow: generate_heightmap → GetHeightmapDimensions → ResizeHeightmap → ImportHeightmap
+	 * Workflow: generate_heightmap → ResizeHeightmap → LandscapeEditorSubsystem.import_heightmap_from_file
 	 *
 	 * @param SourcePath - Absolute path to the source heightmap PNG file
 	 * @param TargetWidth - Desired output width in pixels (must match landscape resolution_x)
@@ -1004,57 +938,6 @@ public:
 		int32 TargetHeight,
 		const FString& OutputPath = TEXT(""),
 		const FString& Interpolation = TEXT("bicubic"));
-
-	/**
-	 * Calculate the vertex resolution a landscape will have for given configuration parameters.
-	 *
-	 * Resolution = (ComponentCount * QuadsPerSection * SectionsPerComponent) + 1
-	 *
-	 * Use this to determine what heightmap resolution you need before creating a landscape
-	 * or to find valid landscape parameters that match a known heightmap size.
-	 *
-	 * @param ComponentCountX - Number of components in X (e.g. 8)
-	 * @param ComponentCountY - Number of components in Y (e.g. 8)
-	 * @param QuadsPerSection - Quads per section: 7, 15, 31, 63, 127, or 255 (default: 63)
-	 * @param SectionsPerComponent - Sections per component: 1 or 2 (default: 1)
-	 * @return Resolution info with X, Y dimensions and total vertex count
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Landscape")
-	static FLandscapeResolutionInfo CalculateLandscapeResolution(
-		int32 ComponentCountX,
-		int32 ComponentCountY,
-		int32 QuadsPerSection = 63,
-		int32 SectionsPerComponent = 1);
-
-	/**
-	 * Find the best landscape configuration that matches a target heightmap resolution.
-	 *
-	 * Given a heightmap size (e.g. 1081x1081), returns the landscape parameters
-	 * (ComponentCount, QuadsPerSection, SectionsPerComponent) that produce the exact
-	 * same resolution. Prefers configurations with fewer components to avoid timeouts.
-	 *
-	 * @param TargetWidth - Target resolution width (e.g. 1081)
-	 * @param TargetHeight - Target resolution height (e.g. 1081)
-	 * @return Resolution info with recommended landscape parameters, or empty if no valid config exists
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Landscape")
-	static FLandscapeResolutionInfo FindLandscapeConfigForResolution(
-		int32 TargetWidth,
-		int32 TargetHeight);
-
-	/**
-	 * Get the height at a specific world XY location.
-	 * Maps to action="get_height_at_location"
-	 *
-	 * @param LandscapeNameOrLabel - Name or label of the landscape
-	 * @param WorldX - World X coordinate
-	 * @param WorldY - World Y coordinate
-	 * @return Height sample with value and validity
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Landscape")
-	static FLandscapeHeightSample GetHeightAtLocation(
-		const FString& LandscapeNameOrLabel,
-		float WorldX, float WorldY);
 
 	/**
 	 * Get height values in a rectangular region using landscape-local vertex indices.
@@ -1222,21 +1105,6 @@ public:
 		int32 Seed = 0,
 		int32 Octaves = 4);
 
-	// =================================================================
-	// Paint Layer Operations
-	// =================================================================
-
-	/**
-	 * List all paint layers on a landscape.
-	 * Maps to action="list_layers"
-	 *
-	 * @param LandscapeNameOrLabel - Name or label of the landscape
-	 * @return Array of layer information
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Landscape")
-	static TArray<FLandscapeLayerInfo_Custom> ListLayers(
-		const FString& LandscapeNameOrLabel);
-
 	/**
 	 * Add a paint layer to a landscape.
 	 * Maps to action="add_layer"
@@ -1245,7 +1113,6 @@ public:
 	 * @param LayerInfoAssetPath - Path to the ULandscapeLayerInfoObject asset
 	 * @return True if layer was added
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Landscape")
 	static bool AddLayer(
 		const FString& LandscapeNameOrLabel,
 		const FString& LayerInfoAssetPath);
@@ -1286,32 +1153,6 @@ private:
 		bool bAllowUnrepairedReferences, FString& OutMessage);
 
 public:
-	/**
-	 * Remove a paint layer from a landscape.
-	 * Maps to action="remove_layer"
-	 *
-	 * @param LandscapeNameOrLabel - Name or label of the landscape
-	 * @param LayerName - Name of the layer to remove
-	 * @return True if layer was removed
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Landscape")
-	static bool RemoveLayer(
-		const FString& LandscapeNameOrLabel,
-		const FString& LayerName);
-
-	/**
-	 * Get layer weights at a world location.
-	 * Maps to action="get_layer_weights_at_location"
-	 *
-	 * @param LandscapeNameOrLabel - Name or label of the landscape
-	 * @param WorldX - World X coordinate
-	 * @param WorldY - World Y coordinate
-	 * @return Array of layer weight samples
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Landscape")
-	static TArray<FLandscapeLayerWeightSample> GetLayerWeightsAtLocation(
-		const FString& LandscapeNameOrLabel,
-		float WorldX, float WorldY);
 
 	/**
 	 * Paint a layer at a world location using a brush.
@@ -1345,7 +1186,6 @@ public:
 	 * @param MaterialPath - Full path to the material asset
 	 * @return True if material was assigned
 	 */
-	UFUNCTION(BlueprintCallable, Category ="VibeUE|Landscape")
 	static bool SetLandscapeMaterial(
 		const FString& LandscapeNameOrLabel,
 		const FString& MaterialPath);
@@ -1362,7 +1202,6 @@ public:
 	 * @param LandscapeNameOrLabel - Name or label to search for
 	 * @return True if landscape exists
 	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Landscape|Exists")
 	static bool LandscapeExists(const FString& LandscapeNameOrLabel);
 
 	// =================================================================
@@ -1434,23 +1273,6 @@ public:
 		const FString& LandscapeNameOrLabel,
 		const FString& LayerName,
 		const FString& OutputFilePath);
-
-	/**
-	 * Import layer weights from an 8-bit grayscale PNG (R channel is used).
-	 * Maps to action="import_weight_map"
-	 *
-	 * Image dimensions must match the landscape vertex resolution exactly.
-	 *
-	 * @param LandscapeNameOrLabel - Name or label of the landscape
-	 * @param LayerName - Target paint layer
-	 * @param FilePath - Absolute path to source PNG file
-	 * @return Import result with vertex count and error info
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Landscape|Painting")
-	static FWeightMapImportResult ImportWeightMap(
-		const FString& LandscapeNameOrLabel,
-		const FString& LayerName,
-		const FString& FilePath);
 
 	/**
 	 * Bulk-read layer weights as a flat float array (0.0–1.0), row-major.
@@ -1712,14 +1534,6 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Landscape|Splines")
 	static bool RebuildSplines(const FString& LandscapeNameOrLabel);
 
-	/** Ensure one native specialized Spline Edit Layer on this Landscape; return its index or -1.
-	 * Reuses an existing spline layer without renaming it. Rejects a conflicting ordinary layer
-	 * name, missing target, layer-count limit, or PIE. Preserves base data and active edit layer.
-	 * Creation is undoable; merging is deferred. Does not save or stamp the base layer.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Landscape|Splines")
-	static int32 EnsureSplineEditLayer(const FString& LandscapeNameOrLabel, FName LayerName = TEXT("Splines"));
-
 	/** Split an ordinary segment at a normalized interior Hermite-curve fraction (not distance).
 	 * Returns the new control-point index; the second segment is appended. Existing indices stay valid.
 	 * Preserves segment mesh/material, terrain, collision and render settings; interpolates point
@@ -1849,23 +1663,6 @@ public:
 		bool bAdditive = false);
 
 	/**
-	 * Project multiple mesh actors onto the landscape in one batch call.
-	 * Maps to action="project_multiple_meshes_to_landscape"
-	 *
-	 * @param LandscapeNameOrLabel - Name or label of the landscape
-	 * @param MeshActorLabels      - Labels of static mesh actors to project
-	 * @param BlendWeight          - Blend factor (0-1)
-	 * @param bAdditive            - If true, add displacements
-	 * @return Array of per-mesh projection results
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Landscape")
-	static TArray<FMeshProjectionResult> ProjectMultipleMeshesToLandscape(
-		const FString& LandscapeNameOrLabel,
-		const TArray<FString>& MeshActorLabels,
-		float BlendWeight = 1.0f,
-		bool bAdditive = false);
-
-	/**
 	 * Sample surface Z values from a mesh actor using downward line traces.
 	 * Useful for previewing mesh shape before projection.
 	 * Maps to action="sample_mesh_heights"
@@ -1905,36 +1702,6 @@ public:
 		float CenterX = 0.0f,
 		float CenterY = 0.0f,
 		float Radius = 0.0f);
-
-	/**
-	 * Get the slope angle in degrees at a world location.
-	 * Maps to action="get_slope_at_location"
-	 *
-	 * @param LandscapeNameOrLabel - Landscape to query
-	 * @param WorldX               - World X coordinate
-	 * @param WorldY               - World Y coordinate
-	 * @return Slope in degrees (0=flat, 90=vertical). Returns -1.0 on failure.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Landscape")
-	static float GetSlopeAtLocation(
-		const FString& LandscapeNameOrLabel,
-		float WorldX,
-		float WorldY);
-
-	/**
-	 * Get the terrain surface normal at a world location.
-	 * Maps to action="get_normal_at_location"
-	 *
-	 * @param LandscapeNameOrLabel - Landscape to query
-	 * @param WorldX               - World X coordinate
-	 * @param WorldY               - World Y coordinate
-	 * @return Unit normal vector (ZeroVector on failure)
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Landscape")
-	static FVector GetNormalAtLocation(
-		const FString& LandscapeNameOrLabel,
-		float WorldX,
-		float WorldY);
 
 	/**
 	 * Get per-vertex slope values (degrees) for a world-space region.

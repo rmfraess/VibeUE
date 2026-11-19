@@ -220,17 +220,19 @@ if result.success:
 
 ### Creating Animation from Reference Pose
 
-Use `create_from_pose` to create a static animation from a skeleton's reference pose:
+Use `create_anim_sequence` with an empty bone-track list to create a static animation from a skeleton's reference pose:
 
 ```python
 import unreal
 
 # Create a 1-second static animation from reference pose
-anim_path = unreal.AnimSequenceService.create_from_pose(
+anim_path = unreal.AnimSequenceService.create_anim_sequence(
     skeleton_path="/Game/Characters/Mannequin/Mesh/SK_Mannequin_Skeleton",
     anim_name="AS_Static_Pose",
     save_path="/Game/Animations",
-    duration=1.0
+    duration=1.0,
+    frame_rate=30.0,
+    bone_tracks=[]
 )
 
 if anim_path:
@@ -243,10 +245,10 @@ Use `create_anim_sequence` to create an animation with custom bone tracks and ke
 
 > ✅ Fixed 2026-09-02: the service used to hand the data model one key too few (NumFrames instead
 > of NumFrames + 1), so every track was silently rejected and the "created" asset had no
-> animation (`get_animated_bones` empty, no valid frame count). It now writes one key
+> animation (no animated bones, no valid frame count). It now writes one key
 > per frame boundary and REFUSES (returns "" and discards the asset) when no track accepted its
 > keys, so an empty string means "look at the log", never "an empty clip is on disk". Always
-> read back `get_animated_bones(anim_path)` after creating a clip.
+> read back `unreal.AnimationLibrary.get_animation_track_names(unreal.load_asset(anim_path))` after creating a clip.
 
 **IMPORTANT: Keyframe transforms are ABSOLUTE local-space values, NOT deltas from reference pose.**
 - `position` - Absolute local position relative to parent bone

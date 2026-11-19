@@ -34,14 +34,14 @@ description: Runtime Virtual Texture material types, sizing guidelines, inspecti
 ```python
 import unreal
 
-info = unreal.RuntimeVirtualTextureService.get_runtime_virtual_texture_info(
-    "/Game/VirtualTextures/RVT_Landscape_01")
+r = unreal.load_asset("/Game/VirtualTextures/RVT_Landscape_01")
 
-print(f"Type: {info.material_type}")
-print(f"Tiles: {info.tile_count} × {info.tile_size}px")
-print(f"Border: {info.tile_border_size}")
-print(f"Continuous: {info.continuous_update}")
-print(f"Single space: {info.single_physical_space}")
+# Use the getters for tile values: get_editor_property('tile_count') returns the stored exponent (8), not 256
+print(f"Type: {r.get_editor_property('material_type')}")
+print(f"Tiles: {r.get_tile_count()} × {r.get_tile_size()}px")
+print(f"Border: {r.get_tile_border_size()}")
+print(f"Continuous: {r.get_editor_property('continuous_update')}")
+print(f"Single space: {r.get_editor_property('single_physical_space')}")
 ```
 
 ### Common RVT Issues

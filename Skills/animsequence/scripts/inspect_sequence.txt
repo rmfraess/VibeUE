@@ -5,17 +5,23 @@
 # Sample script for the animsequence skill. Run via execute_python.
 # Use metadata discovery — NEVER unreal.load_asset() in a loop (memory crash).
 import unreal
-ass = unreal.AnimSequenceService
+ar = unreal.AssetRegistryHelpers.get_asset_registry()
 
 # Pick a skeleton out of animation metadata. VibeUE's own skeleton list call is gone; to search for
 # skeleton assets directly, use Epic's EditorToolset.AssetToolset FindAssets filtered to class
 # Skeleton (async — see the SAFE DISCOVERY box in SKILL.md).
-skeletons = [a.skeleton_path for a in ass.list_anim_sequences("/Game", "") if a and a.skeleton_path]
+def tag(a, k):
+    r = a.get_tag_value(k)
+    return r[1] if isinstance(r, tuple) else r
+skeletons = []
+for a in ar.get_assets_by_class(unreal.TopLevelAssetPath("/Script/Engine", "AnimSequence")):
+    s = str(tag(a, "Skeleton"))
+    if str(a.package_path).startswith("/Game") and s and s != "None":
+        skeletons.append(s.split("'")[1] if "'" in s else s)  # tag is Class'/Game/Path.Name'
 if not skeletons:
     print("no skeletons found");
 else:
     skeleton_path = skeletons[0]
-    ar = unreal.AssetRegistryHelpers.get_asset_registry()
     anims = [a for a in ar.get_assets_by_class(unreal.TopLevelAssetPath("/Script/Engine", "AnimSequence"))
              if skeleton_path in str(a.get_tag_value("Skeleton"))]
     print(f"{len(anims)} animations for {skeleton_path}")

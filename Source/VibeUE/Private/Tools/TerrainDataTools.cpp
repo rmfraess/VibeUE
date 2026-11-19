@@ -846,7 +846,7 @@ REGISTER_VIBEUE_TOOL(terrain_data,
 	"IMPORTANT: Use the 'resolution' parameter to match your landscape resolution. "
 	"Heightmap workflow: 1) preview_elevation for suggested settings (returns suggestedZScale, suggestedXYScales by resolution). "
 	"2) generate_heightmap with resolution matching your landscape. "
-	"3) Import via ULandscapeService.import_heightmap() (auto-creates a matching landscape if missing, but explicit create_landscape is recommended for real-world XY/Z scale control). "
+	"3) Create the landscape with LandscapeEditorSubsystem.create_landscape (set the real-world XY/Z scale; the location is the landscape CENTRE), then import with LandscapeEditorSubsystem.import_heightmap_from_file(landscape, edit_layer, path, resample, flip_y). "
 	"CRITICAL: Use suggestedXYScales[resolution] as the landscape X and Y scale — do NOT use the default 100. "
 	"Water workflow (after heightmap is imported): "
 	"1) get_water_features with the same lng/lat/map_size — saves JSON to Saved/Terrain/ and returns a summary with the file path. "
@@ -860,7 +860,7 @@ REGISTER_VIBEUE_TOOL(terrain_data,
 		TOOL_PARAM("map_size",        "Map size in km (default 17.28). Use the same value for heightmap and get_water_features.", "number", false),
 		TOOL_PARAM("format",          "Output format for generate_heightmap: png (default), raw, zip", "string", false),
 		TOOL_PARAM("resolution",      "Output resolution NxN pixels for generate_heightmap. MUST match landscape resolution. "
-		                               "Use ULandscapeService.calculate_landscape_resolution() to compute. "
+		                               "Compute it as components_x * quads_per_section * sections_per_component + 1 (same for Y). "
 		                               "Common: 505 (8x8,63,1), 1009 (8x8,63,2 or 16x16,63,1), 1017 (8x8,127,1). Default: 1081", "number", false),
 		TOOL_PARAM("base_level",      "Base elevation offset in meters (default 0; use preview_elevation for good value)", "number", false),
 		TOOL_PARAM("height_scale",    "Height scale percentage 1-250 (default 100; use preview_elevation for good value)", "number", false),

@@ -100,11 +100,6 @@ struct FRVTVolumeResult
  *       material_type="BaseColor_Normal_Roughness"
  *   )
  *
- *   # Get info about an existing RVT
- *   info = unreal.RuntimeVirtualTextureService.get_runtime_virtual_texture_info(
- *       "/Game/RVT/RVT_MyLandscape"
- *   )
- *
  *   # Create a volume covering a landscape
  *   vol = unreal.RuntimeVirtualTextureService.create_rvt_volume(
  *       "Landscape", "/Game/RVT/RVT_MyLandscape"
@@ -157,20 +152,6 @@ public:
 		int32 TileBorderSize = 4,
 		bool bContinuousUpdate = false,
 		bool bSinglePhysicalSpace = false);
-
-	// =================================================================
-	// Introspection
-	// =================================================================
-
-	/**
-	 * Get information about an existing Runtime Virtual Texture asset.
-	 * Maps to action="get_runtime_virtual_texture_info"
-	 *
-	 * @param AssetPath - Full path to the RVT asset
-	 * @return Info struct with configuration details
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|RVT")
-	static FRVTInfo GetRuntimeVirtualTextureInfo(const FString& AssetPath);
 
 	// =================================================================
 	// Level Integration

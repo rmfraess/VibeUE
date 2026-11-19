@@ -216,53 +216,6 @@ FKey UInputService::FindKeyByName(const FString& KeyName)
 	return Key;
 }
 
-// =================================================================
-// Reflection
-// =================================================================
-
-FInputTypeDiscoveryResult UInputService::DiscoverTypes()
-{
-	FInputTypeDiscoveryResult Result;
-	
-	// Action value types
-	Result.ActionValueTypes.Add(TEXT("Boolean"));
-	Result.ActionValueTypes.Add(TEXT("Axis1D"));
-	Result.ActionValueTypes.Add(TEXT("Axis2D"));
-	Result.ActionValueTypes.Add(TEXT("Axis3D"));
-	
-	// Discover modifier types
-	for (TObjectIterator<UClass> It; It; ++It)
-	{
-		UClass* Class = *It;
-		if (Class->IsChildOf(UInputModifier::StaticClass()) && !Class->HasAnyClassFlags(CLASS_Abstract))
-		{
-			FString ClassName = Class->GetName();
-			ClassName.RemoveFromStart(TEXT("InputModifier"));
-			if (!ClassName.IsEmpty())
-			{
-				Result.ModifierTypes.Add(ClassName);
-			}
-		}
-	}
-	
-	// Discover trigger types
-	for (TObjectIterator<UClass> It; It; ++It)
-	{
-		UClass* Class = *It;
-		if (Class->IsChildOf(UInputTrigger::StaticClass()) && !Class->HasAnyClassFlags(CLASS_Abstract))
-		{
-			FString ClassName = Class->GetName();
-			ClassName.RemoveFromStart(TEXT("InputTrigger"));
-			if (!ClassName.IsEmpty())
-			{
-				Result.TriggerTypes.Add(ClassName);
-			}
-		}
-	}
-	
-	return Result;
-}
-
 // The folder a create_* call writes into. A path that starts with its mount point (/Game/X, /MyPlugin/X) is kept;
 // only a bare folder goes under /Game. A folder under no mounted content root (/Temp/X) is refused with the reason:
 // passed on, AssetTools would open a modal "Path does not start with a valid root" message, which blocks every
@@ -449,69 +402,6 @@ bool UInputService::AddTrigger(
 	}
 
 	return true;
-}
-
-FString UInputService::AddActionTrigger(
-	const FString& ActionPath,
-	const FString& TriggerType,
-	const FString& PropertiesJson)
-{
-	// An Input Action's own triggers apply to every mapping of the action.
-	auto Fail = [](const TCHAR* Code, const FString& Message)
-	{
-		TSharedRef<FJsonObject> Obj = MakeShared<FJsonObject>();
-		Obj->SetBoolField(TEXT("success"), false);
-		Obj->SetStringField(TEXT("error_code"), Code);
-		Obj->SetStringField(TEXT("error_message"), Message);
-		FString Out;
-		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
-		FJsonSerializer::Serialize(Obj, Writer);
-		return Out;
-	};
-
-	// UEditorAssetLibrary::LoadAsset refuses during PIE, which would otherwise surface as ACTION_NOT_FOUND
-	// for an action that exists. Same refusal and code as BlueprintService's LoadBlueprint.
-	if (GEditor && GEditor->PlayWorld)
-	{
-		return Fail(TEXT("PIE_ACTIVE"), FString::Printf(TEXT("add_action_trigger refused '%s' — a Play-In-Editor session is running; stop PIE before editing Input Action assets."), *ActionPath));
-	}
-
-	UInputAction* Action = LoadInputAction(ActionPath);
-	if (!Action)
-	{
-		return Fail(TEXT("ACTION_NOT_FOUND"), FString::Printf(TEXT("Input Action not found: %s"), *ActionPath));
-	}
-	UClass* TriggerClass = VibeUEInputTriggers::FindTriggerClass(TriggerType);
-	if (!TriggerClass)
-	{
-		return Fail(TEXT("TRIGGER_TYPE_NOT_FOUND"), FString::Printf(TEXT("Trigger type not found: %s (see get_available_trigger_types)"), *TriggerType));
-	}
-
-	UInputTrigger* NewTrigger = NewObject<UInputTrigger>(Action, TriggerClass, NAME_None, RF_Transactional);
-	FString PropertyError;
-	if (!NewTrigger || !VibeUEInputTriggers::ApplyPropertiesJson(NewTrigger, PropertiesJson, PropertyError))
-	{
-		return Fail(TEXT("BAD_PROPERTIES"), PropertyError);
-	}
-
-	Action->Modify();
-	const int32 TriggerIndex = Action->Triggers.Add(NewTrigger);
-	// As an edit in the editor would: Enhanced Input's Blueprint nodes listen for OnTriggersChanged.
-	FProperty* TriggersProperty = FindFProperty<FProperty>(UInputAction::StaticClass(), GET_MEMBER_NAME_CHECKED(UInputAction, Triggers));
-	FPropertyChangedEvent ChangedEvent(TriggersProperty, EPropertyChangeType::ArrayAdd);
-	Action->PostEditChangeProperty(ChangedEvent);
-	Action->GetOutermost()->MarkPackageDirty();
-
-	TSharedRef<FJsonObject> R = MakeShared<FJsonObject>();
-	R->SetBoolField(TEXT("success"), true);
-	R->SetStringField(TEXT("action"), Action->GetName());
-	R->SetStringField(TEXT("trigger"), TriggerClass->GetName());
-	R->SetNumberField(TEXT("trigger_index"), TriggerIndex);
-	R->SetStringField(TEXT("note"), TEXT("The asset is modified, not saved. A running PIE session keeps its copy of the triggers: restart PIE to see the change."));
-	FString Out;
-	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
-	FJsonSerializer::Serialize(R, Writer);
-	return Out;
 }
 
 // =================================================================

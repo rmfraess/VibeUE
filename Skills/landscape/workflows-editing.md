@@ -88,12 +88,16 @@ result = unreal.LandscapeService.apply_noise("MyTerrain", 0.0, 0.0, 20000.0, 200
 ```python
 import unreal
 
-# 1. Create layer info object — ALWAYS use .asset_path, never guess the path
-grass_info = unreal.LandscapeMaterialService.create_layer_info_object("Grass", "/Game/Landscape")
-# grass_info.asset_path will be "/Game/Landscape/LI_Grass" (NOT "Grass_LayerInfo")
+ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+L = next(l for l in ls.get_landscapes() if l.get_actor_label() == "MyTerrain")
 
-# 2. Add layer to landscape using the EXACT path from step 1
-unreal.LandscapeService.add_layer("MyTerrain", grass_info.asset_path)
+# 1. Create layer info object — keep the returned asset (grass_info.get_path_name()), never guess the path
+grass_info = ls.create_target_layer_info("Grass", "/Game/Landscape")
+grass_info.set_blend_method(unreal.LandscapeTargetLayerBlendMethod.FINAL_WEIGHT_BLENDING)  # NONE for non-weight-blended; confirm enum names via dir()
+unreal.EditorAssetLibrary.save_loaded_asset(grass_info)
+
+# 2. Add the layer to the landscape using the asset from step 1
+ls.add_target_layer(L, grass_info.get_layer_name(), grass_info)   # fallback name: grass_info.get_editor_property('layer_name')
 
 # 3. Paint at location
 unreal.LandscapeService.paint_layer_at_location("MyTerrain", "Grass", 500.0, 500.0, 2000.0, 1.0)
@@ -124,8 +128,9 @@ await call_tool("EditorToolset.LevelToolset.SetActorHidden", actor=landscape, bH
 ok
 ```
 
-`assign_material_to_landscape` (LandscapeMaterialService) is still the call when layer info objects
-must be mapped at the same time.
+To map layer info objects at the same time, use the assign recipe in `landscape-materials`
+(`workflows.md` → Assign Material to Landscape): set `landscape_material`, then `add_target_layer` /
+`set_target_layer_info` per layer.
 
 ### Query Terrain Info
 
@@ -133,19 +138,23 @@ must be mapped at the same time.
 import unreal
 
 # List all landscapes
-landscapes = unreal.LandscapeService.list_landscapes()
-for ls in landscapes:
-    print(f"{ls.actor_label}: {ls.num_components} components, resolution {ls.resolution_x}x{ls.resolution_y}")
+ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+for l in ls.get_landscapes():
+    print(f"{l.get_actor_label()}: {ls.get_landscape_component_count(l)} components, resolution {ls.get_landscape_resolution(l)}")
 
-# Get height at location
-sample = unreal.LandscapeService.get_height_at_location("MyTerrain", 500.0, 500.0)
-if sample.valid:
-    print(f"Height: {sample.height}")
+# Get height at location (trace down through the landscape; height = ztop - distance)
+ztop, zbot = 100000.0, -100000.0
+hit = await call_tool("EditorToolset.LevelToolset.TraceWorld",
+                      start={"x": 500.0, "y": 500.0, "z": ztop}, end={"x": 500.0, "y": 500.0, "z": zbot})
+print(hit)
 
-# Get layer weights
-weights = unreal.LandscapeService.get_layer_weights_at_location("MyTerrain", 500.0, 500.0)
-for w in weights:
-    print(f"{w.layer_name}: {w.weight}")
+# Get layer weights (vertex coords = round((world - landscape location) / scale))
+L = next(l for l in ls.get_landscapes() if l.get_actor_label() == "MyTerrain")
+loc = L.get_actor_location(); sc = L.get_actor_scale3d()
+vx = round((500.0 - loc.x) / sc.x); vy = round((500.0 - loc.y) / sc.y)
+for n in ls.get_target_layer_names(L):
+    if ls.get_target_layer_info(L, n):
+        print(f"{n}: {unreal.LandscapeService.get_weights_in_region('MyTerrain', str(n), vx, vy, 1, 1)[0]}")
 ```
 
 ### Create LandscapeGrassType Asset
@@ -246,7 +255,9 @@ import unreal
 
 src = "SourceLandscape"
 info = unreal.LandscapeService.get_landscape_info(src)
-layers = unreal.LandscapeService.list_layers(src)
+ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+src_l = next(l for l in ls.get_landscapes() if l.get_actor_label() == src)
+layers = [(str(n), ls.get_target_layer_info(src_l, n)) for n in ls.get_target_layer_names(src_l)]
 ```
 
 **Step 2: Calculate exact offset position**
@@ -264,16 +275,13 @@ comp_size = info.subsection_size_quads * info.num_subsections
 count_x = (info.resolution_x - 1) // comp_size
 count_y = (info.resolution_y - 1) // comp_size
 
-unreal.LandscapeService.create_landscape(
-    location=unreal.Vector(new_x, info.location.y, info.location.z),
-    rotation=info.rotation,
-    scale=info.scale,
-    landscape_label=dst,
-    quads_per_section=info.subsection_size_quads,
-    sections_per_component=info.num_subsections,
-    component_count_x=count_x,
-    component_count_y=count_y
-)
+# create_landscape takes the landscape CENTRE; info.location is the min corner
+centre = unreal.Vector(new_x + (info.resolution_x - 1) * info.scale.x / 2,
+                       info.location.y + (info.resolution_y - 1) * info.scale.y / 2,
+                       info.location.z)
+dst_l = ls.create_landscape(centre, info.rotation, info.scale, unreal.IntPoint(count_x, count_y),
+                            info.num_subsections, info.subsection_size_quads, None, 0)   # material, wp_grid_size
+dst_l.set_actor_label(dst)
 ```
 
 **Step 4: Copy heightmap**
@@ -281,22 +289,22 @@ unreal.LandscapeService.create_landscape(
 import tempfile, os
 temp = os.path.join(tempfile.gettempdir(), "terrain_copy.png")
 unreal.LandscapeService.export_heightmap(src, temp)
-unreal.LandscapeService.import_heightmap(dst, temp)
+ls.import_heightmap_from_file(dst_l, ls.get_active_edit_layer(dst_l), temp, False, False)
 os.remove(temp)
 ```
 
 **Step 5: Add layers and copy weight painting**
 ```python
-for layer in layers:
-    # Use layer.layer_info_path — NOT layer.asset_path
-    unreal.LandscapeService.add_layer(dst, layer.layer_info_path)
+for name, li in layers:
+    if li:
+        ls.add_target_layer(dst_l, li.get_layer_name(), li)   # fallback name: li.get_editor_property('layer_name')
 
-for layer in layers:
+for name, li in layers:
     weights = unreal.LandscapeService.get_weights_in_region(
-        src, layer.layer_name, 0, 0, info.resolution_x, info.resolution_y)
+        src, name, 0, 0, info.resolution_x, info.resolution_y)
     if weights and sum(weights) > 0:
         unreal.LandscapeService.set_weights_in_region(
-            dst, layer.layer_name, 0, 0, info.resolution_x, info.resolution_y, weights)
+            dst, name, 0, 0, info.resolution_x, info.resolution_y, weights)
 ```
 
 **Step 6: Copy splines (with rotations, tangents, and meshes)**
@@ -357,19 +365,18 @@ FoliageService only manages MANUALLY placed instances (e.g. individual trees).
 ```python
 import unreal
 
-if not unreal.LandscapeService.landscape_exists("MyTerrain"):
-    unreal.LandscapeService.create_landscape(
-        location=unreal.Vector(0, 0, 0),
-        rotation=unreal.Rotator(0, 0, 0),
-        scale=unreal.Vector(100, 100, 100),
-        landscape_label="MyTerrain"
-    )
-
 le = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+if not any(l.get_actor_label().lower() == "MyTerrain".lower() or l.get_name().lower() == "MyTerrain".lower() for l in le.get_landscapes()):
+    # create_landscape takes the landscape CENTRE (25200 = 8*63*100/2: min corner at (0, 0))
+    new_l = le.create_landscape(unreal.Vector(25200, 25200, 0), unreal.Rotator(0, 0, 0), unreal.Vector(100, 100, 100),
+                                unreal.IntPoint(8, 8), 1, 63, None, 0)   # ncx/ncy, sections, quads, material, wp_grid_size
+    new_l.set_actor_label("MyTerrain")
+
 landscape = next(a for a in unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors()
                  if isinstance(a, unreal.Landscape) and a.get_actor_label() == "MyTerrain")
 if unreal.Name("Grass") not in le.get_target_layer_names(landscape):
-    unreal.LandscapeService.add_layer("MyTerrain", "/Game/Landscape/LI_Grass")
+    li = unreal.EditorAssetLibrary.load_asset("/Game/Landscape/LI_Grass")
+    le.add_target_layer(landscape, li.get_layer_name(), li)   # fallback name: li.get_editor_property('layer_name')
 ```
 
 ### Heightmap Sizing Utilities
@@ -379,12 +386,18 @@ if unreal.Name("Grass") not in le.get_target_layer_names(landscape):
 ```python
 import unreal
 
-# Works with PNG (16-bit grayscale) and RAW (16-bit) files
-dims = unreal.LandscapeService.get_heightmap_dimensions("C:/Heightmaps/terrain.png")
-if dims.success:
-    print(f"Size: {dims.width}x{dims.height}, Bit depth: {dims.bit_depth}")
-else:
-    print(f"Error: {dims.error_message}")
+import struct, math, os
+
+# PNG: width/height/bit depth are in the header
+p = "C:/Heightmaps/terrain.png"
+d = open(p, "rb").read(26)
+w, h = struct.unpack(">II", d[16:24]); bit_depth = d[24]
+print(f"Size: {w}x{h}, Bit depth: {bit_depth}")
+
+# .raw/.r16 (16-bit, square only)
+p = "C:/Heightmaps/terrain.r16"
+n = os.path.getsize(p) // 2; side = math.isqrt(n); assert side * side == n
+print(f"Size: {side}x{side}")
 ```
 
 #### Calculate Landscape Resolution
@@ -393,14 +406,11 @@ else:
 import unreal
 
 # Pure math — compute what resolution a landscape config produces
-info = unreal.LandscapeService.calculate_landscape_resolution(
-    component_count_x=8, component_count_y=8,
-    quads_per_section=63, sections_per_component=2
-)
-print(f"Resolution: {info.resolution_x}x{info.resolution_y}")  # 1009×1009
-print(f"Total vertices: {info.total_vertices}")
-print(f"Total components: {info.total_components}")
-print(f"Description: {info.description}")
+cx, cy, q, s = 8, 8, 63, 2   # component_count_x/y, quads_per_section, sections_per_component
+rx = cx * q * s + 1; ry = cy * q * s + 1
+print(f"Resolution: {rx}x{ry}")  # 1009×1009
+print(f"Total vertices: {rx * ry}")
+print(f"Total components: {cx * cy}")
 ```
 
 #### Find Landscape Config for Heightmap
@@ -409,10 +419,15 @@ print(f"Description: {info.description}")
 import unreal
 
 # Given a heightmap resolution, find the landscape config that matches
-config = unreal.LandscapeService.find_landscape_config_for_resolution(1009, 1009)
-if config.total_components > 0:
-    print(f"Match found: {config.description}")
-    # Use this config when calling create_landscape
+W = H = 1009
+# (total_components, ncx, ncy, quads, sections) for every config whose resolution matches
+cfg = [((W - 1) // (q * s) * ((H - 1) // (q * s)), (W - 1) // (q * s), (H - 1) // (q * s), q, s)
+       for s in (1, 2) for q in (7, 15, 31, 63, 127, 255)
+       if (W - 1) % (q * s) == 0 and (H - 1) % (q * s) == 0]
+best = min(cfg) if cfg else None   # fewest components
+if best:
+    print(f"Match found: {best[1]}x{best[2]} components, {best[3]} quads/section, {best[4]} sections/component")
+    # Use this config when creating the landscape
 else:
     print("No exact match — resize the heightmap instead")
 ```
@@ -447,8 +462,7 @@ quads = 63
 sections = 2
 
 # Step 2: Calculate resolution
-res = unreal.LandscapeService.calculate_landscape_resolution(comp_x, comp_y, quads, sections)
-target_res = res.resolution_x  # 1009
+target_res = comp_x * quads * sections + 1  # 1009
 
 # Step 3: Request heightmap via terrain_data MCP tool with resolution=target_res
 # (AI calls: terrain_data generate_heightmap lat=X lon=Y resolution=1009)
@@ -464,32 +478,24 @@ z_scale = int(20000 / height_scale)  # = 80 for height_scale=250
 
 # Step 5: Verify downloaded heightmap dimensions
 heightmap_path = "C:/path/to/downloaded_heightmap.png"
-dims = unreal.LandscapeService.get_heightmap_dimensions(heightmap_path)
-print(f"Downloaded: {dims.width}x{dims.height}")
+import struct
+w, h = struct.unpack(">II", open(heightmap_path, "rb").read(26)[16:24])   # PNG header
+print(f"Downloaded: {w}x{h}")
 
 # Step 5: Resize if needed (safety check)
-if dims.width != target_res or dims.height != target_res:
+if w != target_res or h != target_res:
     resize = unreal.LandscapeService.resize_heightmap(heightmap_path, target_res, target_res)
     heightmap_path = resize.output_file
     print(f"Resized to {target_res}x{target_res}")
 
 # Step 6: Create landscape
-result = unreal.LandscapeService.create_landscape(
-    location=unreal.Vector(0, 0, 0),
-    rotation=unreal.Rotator(0, 0, 0),
-    scale=unreal.Vector(100, 100, z_scale),
-    sections_per_component=sections,
-    quads_per_section=quads,
-    component_count_x=comp_x,
-    component_count_y=comp_y,
-    landscape_label="RealWorldTerrain"
-)
+ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+half = (target_res - 1) * 100 / 2   # create_landscape takes the CENTRE; this puts the min corner at (0, 0)
+L = ls.create_landscape(unreal.Vector(half, half, 0), unreal.Rotator(0, 0, 0), unreal.Vector(100, 100, z_scale),
+                        unreal.IntPoint(comp_x, comp_y), sections, quads, None, 0)   # material, wp_grid_size
+L.set_actor_label("RealWorldTerrain")
 
 # Step 7: Import
-if result.success:
-    import_result = unreal.LandscapeService.import_heightmap("RealWorldTerrain", heightmap_path)
-    if import_result.success:
-        print(f"Terrain imported successfully at {import_result.resolution}")
-    else:
-        print(f"Import failed: {import_result.error_message}")
+ls.import_heightmap_from_file(L, ls.get_active_edit_layer(L), heightmap_path, False, False)
+print(f"Terrain imported at {target_res}x{target_res}")
 ```

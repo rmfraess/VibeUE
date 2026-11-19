@@ -338,8 +338,7 @@ Fields of the engine's `FStateTreeBindingInfo`:
 `ed.get_binding(target_path, found)` returns one exact target binding. For an **output** binding the
 source address is the *destination* of the copy, the inverse of an ordinary source -> target read.
 
-VibeUE's two surviving property readers — `get_transition_condition_property_names` and
-`get_transition_event_payload_property_names` — also report bindings per property via `p.is_bound`
+VibeUE's surviving property reader `get_transition_event_payload_property_names` also reports bindings per property via `p.is_bound`
 and `p.bound_to` (e.g. `"RootParameter:Parameters.IdlingTime"`). Only the exact bound path is marked;
 a child of a bound struct property (`Offset.Z` under a bound `Offset`) reads `is_bound == False`.
 Array-element bindings (`Arr[2]`) are listed by the engine's `ed.get_bindings()` but never mark
@@ -347,13 +346,11 @@ Array-element bindings (`Arr[2]`) are listed by the engine's `ed.get_bindings()`
 ` (output)`: that property writes the named source.
 
 ```python
-for p in unreal.StateTreeService.get_transition_condition_property_names(
-        st_path, "Root/Idle", 0, "StateTreeObjectIsValidCondition"):
+for p in unreal.StateTreeService.get_transition_event_payload_property_names(st_path, "Root/Idle", 0):
     print(p.name, p.is_bound, p.bound_to)
-# Object True ContextData:Actor.TargetPawn
 ```
 
-For task, evaluator, global task, consideration and enter condition properties, read the values with
+For task, evaluator, global task, consideration, enter condition and transition condition properties (condition ids come from Epic's `get_transitions`), read the values with
 Epic's `get_node_instance_data` and the bindings with the engine-native `ed.get_bindings()` above.
 
 ### Assigning a StateTree to a StateTreeComponent on a Blueprint

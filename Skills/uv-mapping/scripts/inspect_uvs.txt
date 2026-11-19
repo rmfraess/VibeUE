@@ -1,15 +1,26 @@
 # Copyright Buckley Builds LLC 2026 All Rights Reserved.
 
-# inspect_uvs.txt — Inspect UV channels + health on a StaticMesh, and transform (tile) a channel.
+# inspect_uvs.txt — Inspect UV channels + health on a StaticMesh, and export a UV layout image.
 #
 # Sample script for the uv-mapping skill. Run via execute_python.
 import unreal
 uv = unreal.UVMappingService
+svc = unreal.ModelingService
+sub = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
 
 MESH = "/Game/Meshes/SM_Example"   # a StaticMesh asset
 
-print("channels:", [str(c) for c in uv.list_uv_channels(MESH)])
-print("health:", uv.get_uv_health(MESH))
+mesh = unreal.load_asset(MESH)
+for lod in range(mesh.get_num_lods()):
+    h = svc.create_mesh().handle
+    try:
+        unreal.GeometryScript_AssetUtils.copy_mesh_from_static_mesh(mesh, svc.get_dynamic_mesh(h), unreal.GeometryScriptCopyMeshFromAssetOptions(), unreal.GeometryScriptMeshReadLOD(lod_index=lod))
+        for ch in range(sub.get_num_uv_channels(mesh, lod)):
+            print("lod", lod, "channel", ch, svc.get_uv_stats(h, ch, 512))   # islands, unset triangles, coverage, overlap, texel density
+    finally:
+        svc.release_mesh(h)
+print("lightmap:", mesh.get_editor_property("light_map_coordinate_index"), mesh.get_editor_property("light_map_resolution"),
+      sub.get_lod_build_settings(mesh, 0))
 # To transform a channel, use native GeometryScript_UVs with a static/dynamic mesh roundtrip.
 img = uv.export_uv_layout_image(MESH, 0)
 print("layout image:", img)

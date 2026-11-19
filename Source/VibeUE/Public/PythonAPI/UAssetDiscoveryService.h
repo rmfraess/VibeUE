@@ -89,16 +89,14 @@ struct FUnattendedDeleteResult
  *    SetContentBrowserPath / GetOpenAssets)
  *  - files on disk: `FileSystemToolset` (ReadTextFile / WriteTextFile / ListDirectory / DeleteFile)
  *
- * What is left is three calls. One is an MCP tool: ReimportAsset, because nothing in the engine
+ * What is left is two calls. One is an MCP tool: ReimportAsset, because nothing in the engine
  * surface reimports an asset. (Export through an asset's registered exporter is native:
- * unreal.AssetToolsHelpers.get_asset_tools().export_assets.)
+ * unreal.AssetToolsHelpers.get_asset_tools().export_assets. Import is native too: an automated
+ * unreal.AssetImportTask passed to get_asset_tools().import_asset_tasks.)
  *
- * Two are DEMOTED -- no longer MCP tools, still callable from execute_python:
- *   path, err = unreal.AssetDiscoveryService.import_asset(
- *       "C:/Art/crate.fbx", "/Game/Props", "SM_Crate")        # any importable format, one call
+ * One is DEMOTED -- no longer an MCP tool, still callable from execute_python:
  *   result = unreal.AssetDiscoveryService.delete_asset_unattended("/Game/Anim/AS_Temp", True)
- * import_asset takes an image, a mesh or anything else the editor imports without first choosing a
- * per-type toolset; delete_asset_unattended never raises the engine's referenced-asset modal, which
+ * delete_asset_unattended never raises the engine's referenced-asset modal, which
  * wedges the game thread of an unattended editor until the process is killed.
  */
 UCLASS(BlueprintType)
@@ -107,37 +105,6 @@ class VIBEUE_API UAssetDiscoveryService : public UToolsetDefinition
 	GENERATED_BODY()
 
 public:
-	/**
-	 * Import a file from disk into the Content Browser and save it: an image as a Texture2D, a mesh (FBX, OBJ, glTF, ...)
-	 * or any other format the editor's importers take as its asset. An existing asset of the same name is replaced,
-	 * and so is any same-named asset in DestinationFolder that a multi-asset file brings along (an FBX's materials and
-	 * textures), without a prompt: import such files into a folder of their own.
-	 *
-	 * Images use the texture factory's direct binary path (FactoryCreateBinary). Every other format goes
-	 * through AssetTools' AssetImportTask, automated and synchronous. Its wait pumps the game thread's task queue,
-	 * which asserts (RecursionGuard) only when the caller is itself a game-thread task; tool calls and
-	 * execute_python_code are not, and a call from inside such a task is refused with a message.
-	 *
-	 * Image formats: png, jpg, jpeg, bmp, tga, dds, exr, hdr, tiff, tif, psd, pcx.
-	 *
-	 * @param SourceFilePath    - Absolute path to the file on disk
-	 * @param DestinationFolder - Content Browser folder (e.g. "/Game/UI/Textures")
-	 * @param AssetName         - Optional asset name; if empty, derived from the file name
-	 * @param OutError          - Receives a human-readable error message on failure
-	 * @return The created asset's object path (e.g. "/Game/UI/Textures/T_Foo.T_Foo"), or empty on failure. For a file
-	 *         that brings several assets, the main one: the mesh over its materials, textures, skeleton and physics
-	 *         asset (named AssetName when the importer used it; otherwise the importer's name is in the path)
-	 *
-	 * Example:
-	 *   path, err = unreal.AssetDiscoveryService.import_asset("C:/Images/rocks.jpg", "/Game/UI/Textures", "T_Rocks")
-	 *   path, err = unreal.AssetDiscoveryService.import_asset("C:/Art/crate.fbx", "/Game/Props", "SM_Crate")
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|Assets")
-	static FString ImportAsset(
-		const FString& SourceFilePath,
-		const FString& DestinationFolder,
-		const FString& AssetName,
-		FString& OutError);
 
 	/**
 	 * Delete an asset with NO dialog, for unattended agent sessions. The engine's

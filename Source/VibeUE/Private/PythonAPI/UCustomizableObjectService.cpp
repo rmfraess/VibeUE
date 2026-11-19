@@ -292,17 +292,6 @@ TArray<FVibeCONodeTypeInfo> UCustomizableObjectService::DiscoverNodeTypes(const 
 	return Types;
 }
 
-TArray<FVibeCOPropertyInfo> UCustomizableObjectService::GetNodeTypeProperties(const FString& NodeClass)
-{
-	if (!IsMutableAvailable())
-	{
-		return {};
-	}
-	FString Error;
-	UClass* Class = VibeCO::ResolveNodeClass(NodeClass, Error);
-	return Class ? VibeCO::DescribeProperties(Class->GetDefaultObject()) : TArray<FVibeCOPropertyInfo>();
-}
-
 TArray<FVibeCOPropertyInfo> UCustomizableObjectService::GetNodeProperties(const FString& AssetPath, const FString& NodeId)
 {
 	UObject* Object = nullptr;

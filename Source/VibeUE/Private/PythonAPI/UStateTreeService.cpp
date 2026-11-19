@@ -424,26 +424,6 @@ static void AppendPropertyInfo(FProperty* Property, void* ContainerValue, const 
 	}
 }
 
-static void AppendEditableProperties(const UStruct* RootStruct, void* RootValue,
-	TArray<FStateTreePropertyInfo>& OutProperties, TSet<FString>* SeenPropertyPaths = nullptr)
-{
-	if (!RootStruct || !RootValue)
-	{
-		return;
-	}
-
-	for (TFieldIterator<FProperty> It(RootStruct, EFieldIterationFlags::IncludeSuper); It; ++It)
-	{
-		FProperty* Property = *It;
-		if (!Property || Property->GetOwnerStruct() != RootStruct)
-		{
-			continue;
-		}
-
-		AppendPropertyInfo(Property, RootValue, TEXT(""), OutProperties, SeenPropertyPaths);
-	}
-}
-
 static FString GetBindablePropertySegmentName(const FProperty* Property)
 {
 	if (!Property)
@@ -634,75 +614,8 @@ static void AppendBindableEditableProperties(const UStruct* RootStruct, void* Ro
 	}
 }
 
-static bool GetTaskNodeData(FStateTreeEditorNode* TaskNode, const UStruct*& OutStruct, void*& OutMemory)
-{
-	if (!TaskNode || !TaskNode->Node.IsValid())
-	{
-		return false;
-	}
-
-	OutStruct = TaskNode->Node.GetScriptStruct();
-	OutMemory = TaskNode->Node.GetMutableMemory();
-	return OutStruct != nullptr && OutMemory != nullptr;
-}
-
-/**
- * Resolve the instance data for a task node, handling both struct-based (FInstancedStruct)
- * and UObject-based (InstanceObject) instance data patterns.
- * UE5.5+ tasks may use either — we must handle both.
- */
-static bool GetTaskInstanceData(FStateTreeEditorNode* TaskNode, const UStruct*& OutStruct, void*& OutMemory)
-{
-	if (!TaskNode)
-	{
-		return false;
-	}
-
-	// Struct-based instance data (classic pattern, UE5.4 and earlier tasks)
-	if (TaskNode->Instance.IsValid())
-	{
-		OutStruct = TaskNode->Instance.GetScriptStruct();
-		OutMemory = TaskNode->Instance.GetMutableMemory();
-		return OutStruct != nullptr && OutMemory != nullptr;
-	}
-
-	// UObject-based instance data (UE5.5+ pattern)
-	if (IsValid(TaskNode->InstanceObject))
-	{
-		OutStruct = TaskNode->InstanceObject->GetClass();
-		OutMemory = TaskNode->InstanceObject;
-		return OutStruct != nullptr && OutMemory != nullptr;
-	}
-
-	return false;
-}
-
 static bool ResolvePropertyPath(const UStruct* RootStruct, void* RootValue, const FString& PropertyPath,
 	FProperty*& OutProperty, void*& OutValuePtr);
-
-static bool ResolveTaskPropertyPath(FStateTreeEditorNode* TaskNode, const FString& PropertyPath,
-	FProperty*& OutProperty, void*& OutValuePtr)
-{
-	const UStruct* NodeStruct = nullptr;
-	void* NodeMemory = nullptr;
-	if (GetTaskNodeData(TaskNode, NodeStruct, NodeMemory)
-		&& ResolvePropertyPath(NodeStruct, NodeMemory, PropertyPath, OutProperty, OutValuePtr))
-	{
-		return true;
-	}
-
-	const UStruct* InstanceStruct = nullptr;
-	void* InstanceMemory = nullptr;
-	if (GetTaskInstanceData(TaskNode, InstanceStruct, InstanceMemory)
-		&& ResolvePropertyPath(InstanceStruct, InstanceMemory, PropertyPath, OutProperty, OutValuePtr))
-	{
-		return true;
-	}
-
-	OutProperty = nullptr;
-	OutValuePtr = nullptr;
-	return false;
-}
 
 static bool ResolvePropertyPath(const UStruct* RootStruct, void* RootValue, const FString& PropertyPath, FProperty*& OutProperty, void*& OutValuePtr)
 {
@@ -2049,39 +1962,6 @@ static EPropertyBagPropertyType StringToPropertyBagType(const FString& TypeStr)
 	return EPropertyBagPropertyType::None;
 }
 
-/** Generic: find a node by struct name in any TArray<FStateTreeEditorNode>. */
-static FStateTreeEditorNode* FindEditorNodeByStructInArray(TArray<FStateTreeEditorNode>& Nodes,
-	const FString& StructName, int32 MatchIndex, int32* OutResolvedMatchIndex = nullptr)
-{
-	TArray<int32> MatchingIndices;
-	for (int32 i = 0; i < Nodes.Num(); ++i)
-	{
-		const UScriptStruct* NodeStruct = Nodes[i].Node.GetScriptStruct();
-		if (StructNameMatches(NodeStruct, StructName)
-			|| BlueprintWrapperMatchesName(Nodes[i], StructName))
-		{
-			MatchingIndices.Add(i);
-		}
-	}
-
-	if (MatchingIndices.IsEmpty())
-	{
-		return nullptr;
-	}
-
-	const int32 SelectedMatchIndex = (MatchIndex < 0) ? (MatchingIndices.Num() - 1) : MatchIndex;
-	if (!MatchingIndices.IsValidIndex(SelectedMatchIndex))
-	{
-		return nullptr;
-	}
-
-	if (OutResolvedMatchIndex)
-	{
-		*OutResolvedMatchIndex = SelectedMatchIndex;
-	}
-	return &Nodes[MatchingIndices[SelectedMatchIndex]];
-}
-
 /** Get and set default value from FInstancedPropertyBag by property name string. */
 static FString ExportPropertyBagValue(const FInstancedPropertyBag& Bag, const FName& PropName)
 {
@@ -2539,96 +2419,6 @@ TArray<FString> UStateTreeService::GetAvailableEvaluatorTypes()
 	return Results;
 }
 
-
-bool UStateTreeService::CreateStateTree(const FString& AssetPath, const FString& SchemaClassName)
-{
-	if (AssetPath.IsEmpty())
-	{
-		UE_LOG(LogStateTreeService, Warning, TEXT("CreateStateTree: AssetPath is empty"));
-		return false;
-	}
-
-	// Split into package path and asset name
-	FString PackagePath;
-	FString AssetName;
-	if (!AssetPath.Split(TEXT("/"), &PackagePath, &AssetName, ESearchCase::IgnoreCase, ESearchDir::FromEnd))
-	{
-		UE_LOG(LogStateTreeService, Warning, TEXT("CreateStateTree: Invalid asset path: %s"), *AssetPath);
-		return false;
-	}
-	PackagePath = AssetPath.Left(AssetPath.Len() - AssetName.Len() - 1);
-
-	// Resolve the schema class — default to StateTreeComponentSchema if none specified
-	FString SchemaName = SchemaClassName;
-	if (SchemaName.IsEmpty())
-	{
-		SchemaName = TEXT("StateTreeComponentSchema");
-	}
-
-	// Allow shorthand names (e.g. "Component" → "StateTreeComponentSchema")
-	if (!SchemaName.Contains(TEXT("Schema")))
-	{
-		SchemaName = TEXT("StateTree") + SchemaName + TEXT("Schema");
-	}
-
-	UClass* SchemaClass = nullptr;
-	for (TObjectIterator<UClass> It; It; ++It)
-	{
-		if (It->IsChildOf(UStateTreeSchema::StaticClass()) && !It->HasAnyClassFlags(CLASS_Abstract))
-		{
-			if (It->GetName() == SchemaName)
-			{
-				SchemaClass = *It;
-				break;
-			}
-		}
-	}
-
-	if (!SchemaClass)
-	{
-		UE_LOG(LogStateTreeService, Warning, TEXT("CreateStateTree: Schema class not found: %s. Available schemas:"), *SchemaName);
-		for (TObjectIterator<UClass> It; It; ++It)
-		{
-			if (It->IsChildOf(UStateTreeSchema::StaticClass()) && !It->HasAnyClassFlags(CLASS_Abstract))
-			{
-				UE_LOG(LogStateTreeService, Warning, TEXT("  - %s"), *It->GetName());
-			}
-		}
-		return false;
-	}
-
-	// Create the package and asset directly to avoid the factory's schema-picker dialog
-	const FString PackageName = PackagePath / AssetName;
-	UPackage* Package = CreatePackage(*PackageName);
-	if (!Package)
-	{
-		UE_LOG(LogStateTreeService, Warning, TEXT("CreateStateTree: Failed to create package: %s"), *PackageName);
-		return false;
-	}
-
-	UStateTree* NewStateTree = NewObject<UStateTree>(Package, *AssetName, RF_Public | RF_Standalone | RF_Transactional);
-	if (!NewStateTree)
-	{
-		UE_LOG(LogStateTreeService, Warning, TEXT("CreateStateTree: Failed to create UStateTree object"));
-		return false;
-	}
-
-	// Create editor data and set the schema on it (the compiler propagates it to UStateTree during compilation)
-#if WITH_EDITORONLY_DATA
-	UStateTreeEditorData* EditorData = NewObject<UStateTreeEditorData>(NewStateTree, NAME_None, RF_Transactional);
-	EditorData->Schema = NewObject<UStateTreeSchema>(EditorData, SchemaClass);
-	NewStateTree->EditorData = EditorData;
-#endif
-
-	// Notify the asset registry
-	FAssetRegistryModule::AssetCreated(NewStateTree);
-	Package->SetDirtyFlag(true);
-	NewStateTree->Modify();
-
-	UE_LOG(LogStateTreeService, Log, TEXT("CreateStateTree: Created StateTree at %s (schema: %s)"),
-	       *AssetPath, *SchemaClass->GetName());
-	return true;
-}
 
 
 
@@ -3342,43 +3132,6 @@ bool UStateTreeService::AddTransitionCondition(const FString& AssetPath, const F
 
 
 
-TArray<FStateTreePropertyInfo> UStateTreeService::GetTransitionConditionPropertyNames(const FString& AssetPath,
-	const FString& StatePath, int32 TransitionIndex, const FString& ConditionStructName, int32 ConditionMatchIndex)
-{
-	TArray<FStateTreePropertyInfo> Result;
-
-#if WITH_EDITORONLY_DATA
-	UStateTree* StateTree = LoadStateTree(AssetPath);
-	if (!StateTree) { return Result; }
-
-	UStateTreeEditorData* EditorData = GetEditorData(StateTree);
-	if (!EditorData) { return Result; }
-
-	UStateTreeState* State = FindStateByPath(EditorData, StatePath);
-	if (!State || !State->Transitions.IsValidIndex(TransitionIndex)) { return Result; }
-
-	FStateTreeEditorNode* CondNode = FindEditorNodeByStructInArray(
-		State->Transitions[TransitionIndex].Conditions, ConditionStructName, ConditionMatchIndex);
-	if (!CondNode) { return Result; }
-
-	TSet<FString> SeenPropertyPaths;
-	const UStruct* NodeStruct = nullptr;
-	void* NodeMemory = nullptr;
-	if (GetTaskNodeData(CondNode, NodeStruct, NodeMemory))
-	{
-		AppendEditableProperties(NodeStruct, NodeMemory, Result, &SeenPropertyPaths);
-	}
-	const UStruct* InstanceStruct = nullptr;
-	void* InstanceMemory = nullptr;
-	if (GetTaskInstanceData(CondNode, InstanceStruct, InstanceMemory))
-	{
-		AppendEditableProperties(InstanceStruct, InstanceMemory, Result, &SeenPropertyPaths);
-	}
-#endif
-
-	return Result;
-}
-
 TArray<FStateTreePropertyInfo> UStateTreeService::GetTransitionEventPayloadPropertyNames(const FString& AssetPath,
 	const FString& StatePath, int32 TransitionIndex)
 {
@@ -3414,52 +3167,6 @@ TArray<FStateTreePropertyInfo> UStateTreeService::GetTransitionEventPayloadPrope
 #endif
 
 	return Result;
-}
-
-bool UStateTreeService::SetTransitionConditionPropertyValue(const FString& AssetPath, const FString& StatePath,
-	int32 TransitionIndex, const FString& ConditionStructName, const FString& PropertyPath,
-	const FString& Value, int32 ConditionMatchIndex)
-{
-	UStateTree* StateTree = LoadStateTree(AssetPath);
-	if (!StateTree) { return false; }
-
-#if WITH_EDITORONLY_DATA
-	UStateTreeEditorData* EditorData = GetEditorData(StateTree);
-	if (!EditorData) { return false; }
-
-	UStateTreeState* State = FindStateByPath(EditorData, StatePath);
-	if (!State || !State->Transitions.IsValidIndex(TransitionIndex))
-	{
-		UE_LOG(LogStateTreeService, Warning, TEXT("SetTransitionConditionPropertyValue: Invalid state or transition index"));
-		return false;
-	}
-
-	FStateTreeEditorNode* CondNode = FindEditorNodeByStructInArray(
-		State->Transitions[TransitionIndex].Conditions, ConditionStructName, ConditionMatchIndex);
-	if (!CondNode)
-	{
-		UE_LOG(LogStateTreeService, Warning, TEXT("SetTransitionConditionPropertyValue: Condition '%s' not found"), *ConditionStructName);
-		return false;
-	}
-
-	FProperty* Property = nullptr;
-	void* PropertyValuePtr = nullptr;
-	if (!ResolveTaskPropertyPath(CondNode, PropertyPath, Property, PropertyValuePtr))
-	{
-		UE_LOG(LogStateTreeService, Warning, TEXT("SetTransitionConditionPropertyValue: Could not resolve property path '%s'"), *PropertyPath);
-		return false;
-	}
-
-	if (!SetPropertyValueFromString(Property, PropertyValuePtr, Value))
-	{
-		return false;
-	}
-
-	MarkStateTreeDirty(StateTree);
-	return true;
-#else
-	return false;
-#endif
 }
 
 

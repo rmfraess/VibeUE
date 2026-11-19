@@ -36,7 +36,7 @@ related_skills:
 > 🧠 **Brains complement:** IF an `unreal-engine-skills-manager` tool (external MCP) exists in this session, call it with `{action: "load", skill: "audio-and-metasounds"}` for UE domain knowledge on this topic — correct APIs, architecture, best practices — and treat it as the rubric for any review / "best practices" question. If no such tool is available (e.g. running under Claude Code or Codex without that MCP), skip this line entirely and proceed with this skill alone — do NOT attempt the call.
 
 > **Wrong skill for MetaSound assets?** If the user asked about `MetaSound`, `MS_` assets, or `UMetaSoundSource`, use the engine's **`MetaSoundToolset`** via `call_tool` (Authoring / Inspection / Discovery, 42 tools) — VibeUE no longer ships a MetaSound service.
-> SoundCue and MetaSound are completely separate systems — do not use `SoundCueService` for MetaSound tasks.
+> SoundCue and MetaSound are completely separate systems — do not use the SoundCue tools for MetaSound tasks.
 
 # Sound Cue Editor Skill
 
@@ -44,10 +44,10 @@ related_skills:
 
 ```python
 import unreal
-svc = unreal.SoundCueService()
+sub = unreal.get_editor_subsystem(unreal.SoundCueEditorSubsystem)
 ```
 
-`SoundCueService` owns the cue's **node graph** only. Everything else is Epic's, called from the
+`SoundCueEditorSubsystem` owns the cue's **node graph**. Everything else is Epic's, called from the
 same `execute_python` script with the injected `await call_tool("Toolset.Full.Name.Tool", ...)`:
 
 | Task | Epic tool |
@@ -57,7 +57,7 @@ same `execute_python` script with the injected `await call_tool("Toolset.Full.Na
 | Cue volume, pitch, sound class, attenuation, concurrency | `EditorToolset.ObjectToolset.SetProperties` / `GetProperties` on the `USoundCue` |
 | SoundWave looping, volume, pitch, subtitle priority | `EditorToolset.ObjectToolset.SetProperties` / `GetProperties` on the `USoundWave` |
 
-`SoundCueService` edits only dirty the package — save with `AssetToolset.SaveAsset` when done.
+Graph edits only dirty the package — save with `AssetToolset.SaveAsset` when done.
 
 ---
 
@@ -92,8 +92,8 @@ UE strips the `b` prefix from bool UPROPERTY names in Python:
 
 ### ⚠️ Node indices are positional and may shift
 
-`list_nodes()` returns nodes in graph order — indices can change if new nodes are added.
-Always call `list_nodes()` to get current indices before using the index-based calls below.
+`describe_sound_cue(cue).nodes` and `get_nodes(cue)` list nodes in graph order — indices can change if new nodes are added.
+Always re-read them to get current indices before using the index-based calls below.
 Native `SoundCueEditorSubsystem` calls take node objects, not these indices.
 
 ### ⚠️ Quality Level node has a fixed slot count
@@ -134,13 +134,13 @@ Use native `unreal.SoundCueEditorSubsystem.add_node` with a concrete node class 
 
 ### Node Management
 
-| Method | Returns | Notes |
-|--------|---------|-------|
-| `list_nodes(path)` | `Array[FSoundCueNodeInfo]` | current indices for the calls below |
-| `set_wave_player_asset(path, index, wave_path)` | `bool` | reassign wave on existing node |
-| `move_node(path, index, x, y)` | `bool` | reposition a node in the graph |
-| `get_node_property(path, index, prop_name)` | `FString` | read any node UPROPERTY |
-| `set_node_property(path, index, prop_name, value)` | `bool` | write any node UPROPERTY |
+| Task | Call |
+|------|------|
+| List nodes (current indices for the calls below) | `unreal.SoundCueEditorSubsystem.describe_sound_cue(cue)` |
+| Reassign the wave on a Wave Player | `wp = sub.get_nodes(cue)[i]`, then `wp.set_editor_property('sound_wave_asset_ptr', wave)` inside a `unreal.ScopedEditorTransaction` (fallback: `ObjectToolset.SetProperties` with `{"SoundWaveAssetPtr": "<wave path>"}`) |
+| Reposition nodes | `sub.layout_sound_cue(cue)` (whole graph; there is no per-node position call) |
+| Read any node UPROPERTY | `{str(k): v for k, v in d.nodes[i].properties.items()}[prop]`, or `ObjectToolset.GetProperties` on `d.nodes[i].node` |
+| Write any node UPROPERTY | `node = sub.get_nodes(cue)[i]`; in a `unreal.ScopedEditorTransaction`: `cue.modify()`, `node.set_editor_property(prop, value)`; then `cue.mark_package_dirty()` (or `ObjectToolset.SetProperties`) |
 
 Native graph management: `unreal.SoundCueEditorSubsystem.describe_sound_cue`, `connect_nodes`, `disconnect_child`, `set_root_node`, and `remove_node`.
 
@@ -148,22 +148,24 @@ Native graph management: `unreal.SoundCueEditorSubsystem.describe_sound_cue`, `c
 
 Native cue properties: `ObjectToolset.SetProperties` / `GetProperties`; supply the complete desired concurrency set when replacing it.
 
-### FSoundCueNodeInfo fields
+### `describe_sound_cue` fields
 
 ```python
-n.node_index      # int — graph node index
-n.node_class      # str — e.g. "SoundNodeWavePlayer"
-n.node_title      # str — display name
-n.pos_x, n.pos_y  # float — graph position
-n.is_root_node    # bool — True if this node is SoundCue.FirstNode
-n.child_indices   # list[int] — indices of connected children (-1 = unconnected slot)
+d = unreal.SoundCueEditorSubsystem.describe_sound_cue(cue)
+d.root                  # the root node
+d.nodes[i].node         # the SoundNode object
+d.nodes[i].title        # display name
+d.nodes[i].position     # graph position
+d.nodes[i].children     # connected children
+d.nodes[i].properties   # node UPROPERTY values
+d.comments              # graph comments
 ```
 
 ### SoundWave Utilities
 
-| Method | Returns | Notes |
-|--------|---------|-------|
-| `get_sound_wave_info(sw_path)` | `FSoundWaveInfo` | duration, sample rate, channels, looping, streaming |
+| Task | Call |
+|------|------|
+| Duration, sample rate, channels, looping, streaming | `ObjectToolset.GetProperties(instance={'refPath': wave_path}, properties=['Duration','NumChannels','SampleRate','bLooping','bStreaming'])` |
 
 Native import: `SoundWaveToolset.ImportFile` (await completion; explicitly set `bReplaceExisting=true` and `bSave=true`).
 
@@ -179,17 +181,6 @@ Set a loaded SoundWave property with `sw.set_editor_property(prop, value)` (or O
 USoundWave has **no** `VolumeMultiplier` / `PitchMultiplier` (those are `USoundCue`'s). `bStreaming`
 is a legacy bare `UPROPERTY()` — not editable, so `SetProperties` cannot set it; streaming is
 controlled by the wave's `LoadingBehavior`.
-
-### FSoundWaveInfo fields
-
-```python
-info.asset_path    # str
-info.duration      # float — seconds
-info.sample_rate   # int — Hz
-info.num_channels  # int — 1=mono, 2=stereo
-info.looping       # bool  (note: NOT is_looping — UE strips the 'b' only)
-info.streaming     # bool  (note: NOT is_streaming)
-```
 
 ### FSoundCueResult fields
 

@@ -5,11 +5,14 @@
 # Sample script for the landscape skill. Run via execute_python.
 import unreal
 ls = unreal.LandscapeService
+sub = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
 
-r = ls.create_landscape(unreal.Vector(0,0,0), unreal.Rotator(0,0,0), unreal.Vector(100,100,100),
-                        component_count_x=8, component_count_y=8, landscape_label="SkillTest_Landscape")
-print("create_landscape:", r)
+# create_landscape takes the landscape CENTRE: 25200 = 8*63*100/2, so the min corner lands on (0, 0)
+L = sub.create_landscape(unreal.Vector(25200, 25200, 0), unreal.Rotator(0,0,0), unreal.Vector(100,100,100),
+                         unreal.IntPoint(8, 8), 1, 63, None, 0)   # ncx/ncy, sections, quads, material, wp_grid_size
 label = "SkillTest_Landscape"
+L.set_actor_label(label)
+print("create_landscape:", L.get_actor_label())
 
 # Procedural features (center_x, center_y in landscape space)
 print("mountain:", ls.create_mountain(label, 4000, 4000, 2000, 800, sharpness=1.0, add_noise=True, seed=7))

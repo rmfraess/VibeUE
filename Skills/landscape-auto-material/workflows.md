@@ -7,17 +7,14 @@ description: Step-by-step recipes for building landscape auto-materials, biome i
 
 ### Workflow A: Create Auto-Material with Texture Discovery
 
-Use `FindLandscapeTextures` to scan a directory and `CreateAutoMaterial` to build the material automatically:
+Use `AssetToolset.FindAssets` to scan a directory and `CreateAutoMaterial` to build the material automatically:
 
 **Block 1 — Discover textures:**
 ```python
-import unreal
-
-# Find landscape texture sets in a directory
-textures = unreal.LandscapeMaterialService.find_landscape_textures("/Game/Textures/Landscape")
-
-for tex_set in textures:
-    print(f"{tex_set.terrain_type}: albedo={tex_set.albedo_path}, normal={tex_set.normal_path}")
+# Find Texture2D assets under a directory (albedo/normal/roughness are picked by name suffix, see parameter-reference.md)
+r = await call_tool("EditorToolset.AssetToolset.FindAssets", filter={"folderPath": "/Game/Textures/Landscape",
+    "name": "Grass", "assetType": {"refPath": "/Script/Engine.Texture2D"}, "bRecursive": True, "tags": [], "maxResults": 50})
+print(r)
 ```
 
 **Block 2 — Build auto-material:**

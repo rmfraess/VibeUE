@@ -53,7 +53,7 @@ this `SKILL.md` on disk) directly:
 
 | Sub-doc | When to load |
 |---------|--------------|
-| `return-types.md` | Exact property names of `LandscapeCreateResult`, `LandscapeInfo_Custom`, `LandscapeLayerInfo_Custom`, `LandscapeSplinePointInfo`, `LandscapeSplineSegmentInfo`, `LandscapeSplineMeshEntryInfo`, plus the `create_landscape` signature. |
+| `return-types.md` | Exact property names of `LandscapeInfo_Custom`, `LandscapeLayerInfo_Custom`, `LandscapeSplinePointInfo`, `LandscapeSplineSegmentInfo`, `LandscapeSplineMeshEntryInfo`. |
 | `workflows-creation.md` | Creating landscapes, getting info, importing/exporting heightmaps, recreating splines, copying terrain/paint layers between landscapes, calculating side-by-side offsets, reading height data in a region. |
 | `workflows-editing.md` | Sculpting, direct region editing, procedural noise, painting layers, setting material, querying terrain, LandscapeGrassType creation/cloning, full landscape cloning, existence checks, heightmap sizing utilities. |
 | `intelligent-sculpting.md` | v3 semantic features (mountain/valley/ridge/plateau/crater/terraces/erosion/blend), terrain analysis (slope/normal/flat areas), mesh projection, batch line traces, complete v3 workflow example. |
@@ -80,16 +80,22 @@ Creating landscapes with many components is SLOW. Python execution has a 30-seco
 - `ComponentCount=36x36` or larger — too many components, takes minutes
 - `ComponentCount=72x72` — definitely exceeds timeout
 
-**⚠️ A timeout does NOT cancel the operation.** `PYTHON_EXECUTION_TIMEOUT` means the tool stopped waiting — the create keeps running on the game thread and usually completes. **Never blindly retry**: you'd stack a second landscape with the same label (then `delete_landscape` removes only the first match and `landscape_exists` stays true, which looks like a delete failure). After a timeout, check `landscape_exists(label)` first. `create_landscape` also refuses to create a landscape whose label already exists.
+**⚠️ A timeout does NOT cancel the operation.** `PYTHON_EXECUTION_TIMEOUT` means the tool stopped waiting — the create keeps running on the game thread and usually completes. **Never blindly retry**: you'd stack a second landscape with the same label (then deleting by label removes only the first match and the label still exists, which looks like a delete failure). After a timeout, check whether a landscape with that label already exists (`any(l.get_actor_label() == label for l in ls.get_landscapes())`, `ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)`) first.
 
 ### ⚠️ Heightmap Import: Resolution MUST Exactly Match
 
 A `.raw` import needs the `<name>.json` sidecar (width, height, bpp) that `export_heightmap` writes beside it; a
 headless `.raw` from elsewhere fails since UE 5.9 Preview 2: rename it `.r16` or use `.png`.
 
-`import_heightmap()` requires the heightmap file resolution to **exactly match** the landscape resolution. **There is NO automatic scaling.** A size mismatch will fail or produce flat/corrupt terrain.
+Import with the engine's `LandscapeEditorSubsystem`:
 
-If the target landscape label does not exist, `import_heightmap()` now auto-creates a matching landscape at world origin with default scale `(100,100,100)` before importing. For real-world terrain workflows, explicitly creating the landscape first is still recommended so you can control XY/Z scale.
+```python
+ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+L = next(l for l in ls.get_landscapes() if l.get_actor_label() == label)
+ls.import_heightmap_from_file(L, ls.get_active_edit_layer(L), path, False, False)  # resample=False, flip_y=False
+```
+
+With `resample=False` the heightmap file resolution must **exactly match** the landscape resolution; a size mismatch will fail or produce flat/corrupt terrain. `resample=True` fits other sizes (`flip_y=True` if row 0 is max-Y), but a bicubic `resize_heightmap` gives smoother results. Create the landscape first so you control XY/Z scale.
 
 **Landscape resolution formula:** `Resolution = (ComponentCount × QuadsPerSection × SectionsPerComponent) + 1`
 
@@ -112,14 +118,14 @@ If the target landscape label does not exist, `import_heightmap()` now auto-crea
 
 ### Heightmap ↔ Landscape Sizing Utilities
 
-Four Python utility functions help match heightmaps to landscapes:
+These help match heightmaps to landscapes:
 
-| Function | Purpose |
-|----------|---------|
-| `get_heightmap_dimensions(file_path)` | Read width/height/bitdepth of a PNG or RAW heightmap file |
+| Helper | Purpose |
+|--------|---------|
+| PNG header / file size | Read width/height of a heightmap file: `w, h = struct.unpack('>II', open(p, 'rb').read(26)[16:24])` (.png); `.raw`/`.r16` is square 16-bit: `side = math.isqrt(os.path.getsize(p) // 2)` |
 | `resize_heightmap(source, width, height, output, interpolation)` | Resample a 16-bit heightmap to new dimensions. Default `interpolation="bicubic"` (Catmull-Rom, smooth normals); pass `"bilinear"` only if you need the legacy behavior — bilinear upsampling of a low-res DEM produces blocky planar facets on flat plains |
-| `calculate_landscape_resolution(cx, cy, quads, sections)` | Compute resolution from landscape config parameters |
-| `find_landscape_config_for_resolution(width, height)` | Find the best landscape config that matches a given resolution |
+| `cx * quads * sections + 1` | Resolution along one axis from the landscape config (`cx` components) |
+| `(W - 1) % (quads * sections) == 0` | A config matches a resolution when this holds on both axes (quads in 7/15/31/63/127/255, sections 1 or 2); components per axis = `(W - 1) // (quads * sections)`; pick the config with the fewest components |
 
 ### ✅ Recommended Workflow: Request Matching Resolution
 
@@ -138,30 +144,27 @@ Four Python utility functions help match heightmaps to landscapes:
 
 If you already have a heightmap at a non-matching resolution:
 
-1. Check dimensions: `get_heightmap_dimensions(file_path)`
+1. Check dimensions (PNG header / file size, see above)
 2. Either:
-   - Find a landscape config that matches: `find_landscape_config_for_resolution(width, height)`
+   - Find a landscape config that matches (`(W - 1) % (quads * sections) == 0`)
    - Or resize the heightmap to match your landscape: `resize_heightmap(source, target_w, target_h)`
 3. Create landscape / import resized heightmap
 
 ### World Partition landscapes (streaming proxies)
 
-In a **World Partition** level, pass `world_partition_grid_size` (components per proxy grid cell,
-e.g. `2`) to `create_landscape` to split the landscape into `ALandscapeStreamingProxy` actors —
+In a **World Partition** level, pass the `wp_grid_size` argument (components per proxy grid cell,
+e.g. `2`) of `LandscapeEditorSubsystem.create_landscape` to split the landscape into `ALandscapeStreamingProxy` actors —
 the same thing the editor's New Landscape tool does in a WP world:
 
 ```python
-result = unreal.LandscapeService.create_landscape(
-    unreal.Vector(0, 0, 0), unreal.Rotator(0, 0, 0), unreal.Vector(100, 100, 100),
-    sections_per_component=1, quads_per_section=63,
-    component_count_x=8, component_count_y=8,
-    landscape_label="WPLandscape", world_partition_grid_size=2)
+ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+# location is the landscape CENTRE: corner = centre - (ncx*sections*quads/2, ncy*sections*quads/2) * scale_xy
+L = ls.create_landscape(unreal.Vector(25200, 25200, 0), unreal.Rotator(0, 0, 0), unreal.Vector(100, 100, 100),
+                        unreal.IntPoint(8, 8), 1, 63, None, 2)   # ncx/ncy, sections, quads, material, wp_grid_size
+L.set_actor_label("WPLandscape")
 ```
 
-- The default `world_partition_grid_size=0` keeps the single monolithic `ALandscape` (old behavior).
-- The call **fails with an error if the level is not World Partition** — the engine's grid split is
-  a silent no-op there, so VibeUE refuses instead of pretending.
-- `import_heightmap`, sculpting, painting, and region edits are proxy-transparent: they resolve the
+- Sculpting, painting, and region edits are proxy-transparent: they resolve the
   parent `ALandscape` and fan updates out to every proxy sharing its landscape GUID. Nothing else
   in your workflow changes.
 
@@ -173,7 +176,7 @@ default *In Landscape Mode And User Triggered Changes*) does **not** mark an edi
 tracks the touched packages in an internal modified-package list instead of the normal dirty flag. The
 practical consequences, all measured:
 
-- **`import_heightmap` dirties the proxies but does not save them.** You must save explicitly.
+- **`import_heightmap_from_file` dirties the proxies but does not save them.** You must save explicitly.
 - **A brush / region / semantic op (`flatten_at_location`, `set_height_in_region`, sculpt/smooth/…) can
   write the proxy `.uasset` files to disk during the edit-layer resolve while the editor's dirty list
   shows nothing.** One `flatten_at_location` left 49 proxy files modified on disk with an empty dirty
@@ -210,7 +213,7 @@ for p in rep.proxies:
 - **`save_landscape(label)`** is the deterministic, explicit save: it collects the parent `ALandscape`
   package **plus every proxy sharing the landscape GUID** and saves them all through
   `UEditorLoadingAndSavingUtils::SavePackages(..., only_dirty=False)` — i.e. regardless of the dirty
-  flag. Use it after `import_heightmap` (which never saves), or any time you want a clean, audited flush.
+  flag. Use it after `import_heightmap_from_file` (which never saves), or any time you want a clean, audited flush.
 
 ```python
 res = svc.save_landscape("Landscape")
@@ -317,15 +320,16 @@ factory = unreal.LandscapeGrassTypeFactory()
 new_asset = asset_tools.create_asset("LGT_MyGrass", "/Game/Grass", unreal.LandscapeGrassType, factory)
 ```
 
-### Landscape materials: Epic creates the asset, LandscapeMaterialService adds the landscape nodes
+### Landscape materials: Epic creates the asset and the landscape nodes
 
 - **Create the material** with Epic's `EditorToolset.MaterialToolset.CreateMaterial`
   (`folderPath`, `assetName`; returns a `{refPath}` handle). A landscape material starts as an
-  ordinary surface material — VibeUE's `create_landscape_material` made exactly the same bare
-  material and is now a Python-only helper kept for `create_auto_material`.
-- **Add the landscape scaffolding** (layer blend, layer coords, layer sample/weight, grass output,
-  height/slope masks) with `unreal.LandscapeMaterialService` in `execute_python` — Epic has no
-  landscape-node tools. Or build everything in one call with `create_auto_material`.
+  ordinary surface material.
+- **Add the landscape scaffolding** (layer blend, layer coords, layer sample/weight, grass output)
+  with `EditorToolset.MaterialToolset.AddExpression` (`expressionClass` `/Script/Landscape.MaterialExpressionLandscape...`)
+  plus `ObjectToolset.SetProperties` and `ConnectExpressions` — see `landscape-materials`. Or build
+  everything, with height/slope auto-blend masks, in one call with
+  `LandscapeMaterialService.create_auto_material`.
 
 VibeUE's old `MaterialService` is **deleted**: generic material work is Epic's
 `EditorToolset.MaterialToolset` / `MaterialInstanceToolset`.
@@ -333,10 +337,9 @@ VibeUE's old `MaterialService` is **deleted**: generic material work is Epic's
 ### Layer Info Objects Required
 
 Every paint layer needs a `ULandscapeLayerInfoObject` asset:
-1. Create with `LandscapeMaterialService.create_layer_info_object()`
-2. **ALWAYS store and use `.asset_path` from the result** — never guess paths
-3. Naming convention is `LI_<LayerName>` (e.g., `LI_Grass`, `LI_Rock`) — NOT `Grass_LayerInfo`
-4. Then add to landscape with `LandscapeService.add_layer(landscape_label, info.asset_path)`
+1. Create with `ls.create_target_layer_info(layer_name, folder)` (`ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)`); it returns the asset
+2. **ALWAYS keep the returned asset and use `li.get_path_name()`** — never guess paths
+3. Then add to the landscape with `ls.add_target_layer(L, li.get_layer_name(), li)` (fallback name: `li.get_editor_property('layer_name')`)
 
 ### Material Must Be Compiled First
 
@@ -364,18 +367,16 @@ Do this in separate steps:
 
 | WRONG | CORRECT |
 |-------|---------|
-| `create_landscape(..., actor_label="X")` | `create_landscape(..., landscape_label="X")` |
-| `result.actor_path` | `result.actor_label` (no actor_path exists) |
 | `info.success` | Check `info.actor_label` (no success field on info) |
 | `info.num_sections` | `info.num_subsections` |
 | `info.quads_per_section` | `info.subsection_size_quads` |
-| `MaterialService.*` (deleted) to create a landscape material | `MaterialToolset.CreateMaterial` (`folderPath`, `assetName`), then `LandscapeMaterialService` for the landscape nodes |
-| Guessing layer info path `Grass_LayerInfo` | Use `create_layer_info_object().asset_path` → `LI_Grass` |
+| `MaterialService.*` (deleted) to create a landscape material | `MaterialToolset.CreateMaterial` (`folderPath`, `assetName`), then `MaterialToolset.AddExpression` for the landscape nodes |
+| Guessing a layer info path | Use the path of the asset returned by `create_target_layer_info` (`li.get_path_name()`) |
 | `segment.start_control_point_index` | `segment.start_point_index` (spline segment) |
 | `segment.end_control_point_index` | `segment.end_point_index` (spline segment) |
-| `layer.name` on list_layers result | `layer.layer_name` (LandscapeLayerInfo_Custom property) |
+| `layer.name` on a `get_landscape_info().layers` entry | `layer.layer_name` (LandscapeLayerInfo_Custom property) |
 | `LandscapeService.create_spline_control_point(...)` (no such method) | `LandscapeService.create_spline_point(...)` -- no "control" in the name |
-| `LandscapeMaterialService.add_material_layer(...)` (no such method) | `LandscapeMaterialService.add_layer_to_blend_node(...)` |
+| `LandscapeMaterialService.add_material_layer(...)` (no such method) | `ObjectToolset.SetProperties` on the LayerBlend expression's `Layers` (read with `GetProperties`, append) |
 | `LandscapeService.set_landscape_material` / `set_landscape_property` / `set_landscape_visibility` (cut / demoted) | `ObjectToolset.SetProperties` on the landscape actor (`{"LandscapeMaterial": "<object path>"}`); `LevelToolset.SetActorHidden` — see workflows-editing.md |
 | `connect_spline_points(..., tangent_length=25.0)` ignoring negative source | Pass `tangent_length=seg.start_tangent_length, end_tangent_length=seg.end_tangent_length` — **both** tangents are needed for exact shape |
 | Only passing `tangent_length` to `connect_spline_points` | Must also pass `end_tangent_length=seg.end_tangent_length` — end tangent is typically negative (UE convention). Omitting it defaults to `-start_tangent` which is usually correct for NEW splines, but when copying, always pass both explicitly |
@@ -395,17 +396,13 @@ Do this in separate steps:
 | Manually scattering foliage to replicate a landscape that uses LandscapeGrassType | If foliage is procedural (from LandscapeGrassType on the material), just copy paint layers — foliage auto-generates from weights. Check if `list_foliage_types()` returns 0; if so, foliage is procedural. |
 | Using `terrain_data` without `resolution` and getting 1081×1081 | Always pass `resolution=N` matching your landscape. Common values: 505, 1009, 1017, 2033 |
 | Assuming 1081×1081 heightmap will fit any landscape | 1081 requires 36×36 components which WILL timeout. Use `resolution=1009` (8×8, 63q, 2s) instead |
-| Importing a heightmap without checking dimensions | Always call `get_heightmap_dimensions()` first, then `resize_heightmap()` if sizes don't match |
+| Importing a heightmap without checking dimensions | Always read the heightmap dimensions first (PNG header / file size), then `resize_heightmap()` if sizes don't match |
 | Creating landscape then downloading heightmap (wrong order) | Decide config → calculate resolution → download at that resolution → create landscape → import |
 | `info.scale_x` on LandscapeInfo_Custom | `info.scale.x` — `scale`, `location`, `rotation` are Vector/Rotator structs, not flattened floats |
 | Assuming a landscape is centered on its location | It spans **+X/+Y from its location** (corner-anchored): bounds = `location` to `location + (resolution-1)*scale`. A landscape created at (0,0) with 505 res @ scale 100 covers (0,0)–(50400,50400); its center is (25200,25200) |
-| `create_layer_info_object("Grass", "/Game/X", "LI_Grass")` | Third param is a **bool**: `create_layer_info_object(layer_name, destination_path, is_weight_blended=True)` — passing a string asset name causes `TypeError: Cannot nativize 'str' as 'bool'` |
-| `AssetTools.create_asset(..., unreal.LandscapeLayerInfoObject, None)` to make a layer info | Yields a broken asset with `LayerName=None`, and `layer_name` is **read-only** from Python so it can't be fixed afterwards. Use `LandscapeMaterialService.create_layer_info_object(layer_name, path)` — or `EditorAssetLibrary.duplicate_asset` an existing LayerInfo, which keeps its baked LayerName |
-| Retrying `create_landscape` after `PYTHON_EXECUTION_TIMEOUT` | The first call usually still completes in the background — check `landscape_exists(label)` before retrying (duplicate labels now return an error) |
-| `result.location` on LandscapeCreateResult | Result has ONLY `success`, `actor_label`, `error_message` — get location via `get_landscape_info(label).location` |
-| `result.resolution_x` / `.resolution_y` on HeightmapImportResult | The field is `result.resolution` — a **string** like `"1009x1009"`, not separate ints. Split it if you need numbers. |
-| Treating `get_height_at_location()` as a float | It returns a `LandscapeHeightSample` struct — use `.height` (float) and `.valid` (bool); `float(sample)` / `f"{sample}"` raise TypeError |
-| Clearing a World-Partition landscape (parent + streaming proxies) | `delete_landscape(label)` now removes the streaming proxies too by default (`include_proxies=True`): it unregisters each `LandscapeStreamingProxy` sharing the landscape's GUID from the `LandscapeInfo`, destroys the proxies, then the parent. Pass `include_proxies=False` for the parent actor only. **Do NOT `destroy_actor` the proxies yourself** — destroying a proxy while the `LandscapeInfo` still references it crashes the editor (access violation in the Landscape module). With the editor closed, deleting the proxy package files under `__ExternalActors__` is the other safe route. |
+| `AssetTools.create_asset(..., unreal.LandscapeLayerInfoObject, None)` to make a layer info | Yields a broken asset with `LayerName=None`, and `layer_name` is **read-only** from Python so it can't be fixed afterwards. Use `LandscapeEditorSubsystem.create_target_layer_info(layer_name, folder)` — or `EditorAssetLibrary.duplicate_asset` an existing LayerInfo, which keeps its baked LayerName |
+| Retrying `ls.create_landscape` after `PYTHON_EXECUTION_TIMEOUT` | The first call usually still completes in the background — check `ls.get_landscapes()` for the label before retrying |
+| Clearing a World-Partition landscape (parent + streaming proxies) | `ls.delete_landscape(L)` (`LandscapeEditorSubsystem`; raises if any WP proxy is unloaded, so load all first) removes the landscape together with its streaming proxies. **Do NOT `destroy_actor` the proxies yourself** — destroying a proxy while the `LandscapeInfo` still references it crashes the editor (access violation in the Landscape module). With the editor closed, deleting the proxy package files under `__ExternalActors__` is the other safe route. |
 | `info.component_count_x` / `info.component_count_y` | `info.num_components` is the TOTAL count (e.g. 64 for 8×8) — there are no per-axis fields |
 | `info.rotation.x` (Rotator) | Rotator fields are `.roll` / `.pitch` / `.yaw` — there is no `.x/.y/.z` on Rotator (only Vector has those) |
 
@@ -439,17 +436,27 @@ material skill through `GetSkills` (AgentSkillToolset):
 
 - `replace_layer_info_with_result(label, from_layer_info, to_layer_info)` uses the native same-name paint target replacement and updates rendered/mobile/collision identities too. Inspect its success and message: by default, attached brushes or custom edit layers return a warning without changing anything because their references may remain unchanged. Explain the warning and obtain the user's approval before opting in to `allow_unrepaired_references=True`; success does not verify or repair external references. The older `replace_layer_info` returns only a boolean and never opts in. Both assets must have the same blend method, blend group, physical material and collision relevance threshold; overlapping destination allocations, collision identities, or source-and-destination edit-layer blend references are rejected even with opt-in. Load and register the entire Landscape first; in non-World-Partition worlds, all streaming levels must be loaded and visible. In World Partition the Landscape must be in the persistent level, with its proxies loaded and registered; a new Landscape may need saving to establish its descriptor-backed extent. It is undoable, target-only and does not save. Use for cloned Landscape dependency repair, not `target_layers` map assignment alone. Compare decoded height/weight exports, generated instances and saved references after a settled tick and reload; preserve the source assets.
 
-- `ensure_spline_edit_layer(landscape_label, layer_name="Splines")` returns the native specialized layer index or `-1`. It reuses the existing spline layer without renaming or duplicating it; an ordinary layer with the requested name is a conflict. Creation is undoable and does not save, switch the active base layer or stamp it. If splines were previously baked into a base layer, creating a spline layer can apply the deformation again; inspect the existing terrain first. Check settled grading/paint after a later tick and save the task-owned affected packages, including external actor packages.
+- Get the reserved spline layer by reusing an existing `LandscapeEditLayerSplines` layer or creating one; an ordinary layer named "Splines" is not one:
+
+  ```python
+  ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+  T = unreal.LandscapeEditLayerSplines
+  ex = [n for n in ls.get_edit_layer_names(L) if ls.get_edit_layer_type(L, n) == T]
+  name = ex[0] if ex else ls.create_edit_layer(L, 'Splines', T)
+  idx = ls.get_edit_layer_index(L, name)
+  ```
+
+  If splines were previously baked into a base layer, creating a spline layer can apply the deformation again; inspect the existing terrain first. Check settled grading/paint after a later tick and save the task-owned affected packages, including external actor packages.
 - For spline-layer roads, use `rebuild_splines(landscape_label)` for explicit mesh/collision recovery after Undo/Redo, including clear-all Redo. It targets only that Landscape and requests a deferred Spline Edit Layer refresh; check the settled terrain on a later call. `apply_splines_to_landscape` applies terrain deformation and painting: it uses the reserved spline layer when present, otherwise requires an explicit unlocked edit layer. Global `Landscape.FixSplines` visits all loaded non-game Worlds.
 - A raster seam between spline meshes can come from the packed GPU mesh-axis quaternion (`PackSplineMeshParams`) while CPU endpoints agree. Include it in diagnosis, compare native and CPU edge-depth scans, and probe with a transient counter-mesh before authoring any compensation. Seen in 5.8; re-check on each engine version.
 - `split_spline_segment(landscape_label, segment_index, split_fraction)` takes an interior **curve parameter**, not a world position or distance percentage. Check `.success`/`.error_message`; `.point_index` is appended, as is the second segment. It preserves segment mesh/material, collision, terrain and render settings; interpolates point width/falloff/roll/mesh offset; creates no control-point mesh. Socket endpoints, invalid fractions and degenerate tangents are rejected before mutation. This does not guarantee identical random-mesh tiling or rasterization after subdivision.
 - `delete_spline_point` removes its connected spans without joining; `delete_all_splines` clears the target route. Both clean native generated meshes/collision. Indices can shift after deletion: fetch `get_spline_info` again. Verify removed-footprint collision and settled terrain, not just counts; explicitly rebuild after Undo/Redo where needed. World Partition spline actors are not selected by the main-Landscape-only identifier API.
-- On a World Partition landscape, verify every sculpt and every reader with a `line_trace_single` grid; the only safe write path is `export_heightmap` -> stamp in Python -> `import_heightmap`. Never synthesise a flat baseline — a flat-plus-pit import erases carved features.
+- On a World Partition landscape, verify every sculpt and every reader with a `line_trace_single` grid; the only safe write path is `export_heightmap` -> stamp in Python -> `import_heightmap_from_file`. Never synthesise a flat baseline — a flat-plus-pit import erases carved features.
 - Pixel mapping: origin is the proxy min corner, `world = min + px * scale`, `worldZ = (H - 32768) * 100/128`, no row flip; check against a known trace height before writing.
-- `import_heightmap` does not write proxies to disk — call `save_landscape` (or `save_packages` the Landscape and every proxy). Use `get_last_landscape_write` to see what changed, since the dirty list is unreliable right after landscape calls.
+- `import_heightmap_from_file` does not write proxies to disk — call `save_landscape` (or `save_packages` the Landscape and every proxy). Use `get_last_landscape_write` to see what changed, since the dirty list is unreliable right after landscape calls.
 - `flatten_at_location` and `set_height_in_region` read and write the same edit layer now, so a region write stays inside its brush on World Partition; `apply_erosion` was always safe.
-- `load_level` from Python leaves all WP cells unloaded for the rest of the session, and `create_landscape` run headless produces a broken landscape (zero heights, no collision).
-- Delete a landscape together with its streaming proxies via `delete_landscape(include_proxies=True)`; destroying proxy actors by hand crashes the editor.
+- `load_level` from Python leaves all WP cells unloaded for the rest of the session, and creating a landscape headless produces a broken landscape (zero heights, no collision).
+- Delete a landscape together with its streaming proxies via `LandscapeEditorSubsystem.delete_landscape(L)` (load all proxies first); destroying proxy actors by hand crashes the editor.
 - The edit-layer merge can re-surface old garbage after a later merge (a brush spawn, `apply_splines_to_landscape`); re-verify landmarks by trace after any landscape-touching op.
 - Spawning any WaterBody auto-spawns a `WaterBrushManager` (`affects_landscape` defaults True) that adds a "Water" edit layer and poisons the terrain; flip that CDO default first and delete any spawned manager. `WaterZone.zone_extent` is on the actor; the river/lake seam material is `lake_transition_material`; `target_wave_mask_depth` is the still-water knob.
 

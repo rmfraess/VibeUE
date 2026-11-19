@@ -1,7 +1,7 @@
 ---
 name: state-trees
 display_name: StateTree Behavior
-description: Author StateTree assets on UE 5.9 using Epic's StateTreeToolset for structure and native StateTreeEditorData for property bindings, with VibeUE for asset creation, node-type discovery, theme colors and root parameters. Use for StateTrees, tasks, transitions, bindings and Utility AI.
+description: Author StateTree assets on UE 5.9 using Epic's StateTreeToolset for structure and native StateTreeEditorData for property bindings, with VibeUE for node-type discovery, theme colors and root parameters. Use for StateTrees, tasks, transitions, bindings and Utility AI.
 vibeue_classes:
   - StateTreeService
 unreal_classes:
@@ -44,8 +44,9 @@ StateTree is Unreal Engine's hierarchical state machine system for AI behavior a
 **On 5.9 this domain is split.** Epic's `StateTreeToolset` owns structural authoring — states, tasks,
 enter conditions, considerations, evaluators, node data and `compile`. Epic's `ObjectToolset` /
 `AssetToolset` own state properties, transitions and saving. VibeUE's `StateTreeService` retains
-asset creation, node-*type* discovery, theme colors and root parameters. Native `StateTreeEditorData`
-handles property bindings; native `StateTreeEditingSubsystem` handles task flags.
+node-*type* discovery, theme colors and root parameters. Native `StateTreeEditorData`
+handles property bindings; native `StateTreeEditingSubsystem` handles task flags; native `AssetTools` +
+`StateTreeFactory` create the asset.
 
 For the earlier 5.9 tool cuts and their replacements, see the migration table below.
 
@@ -57,7 +58,7 @@ For the earlier 5.9 tool cuts and their replacements, see the migration table be
 |---|---|---|
 | Epic's `StateTreeToolset` (a **Python** toolset) | `call_tool` **only** | snake_case — `add_child_state`, `set_node_instance_data`, `compile` |
 | Epic's `ObjectToolset` / `AssetToolset` | `call_tool` **only** | PascalCase — `GetProperties`, `SetProperties`, `SaveAsset` |
-| VibeUE survivors | `unreal.StateTreeService.<snake_case>()` inside `execute_python` | `create_state_tree` |
+| VibeUE survivors | `unreal.StateTreeService.<snake_case>()` inside `execute_python` | `move_transition` |
 | Native binding and task flag APIs | `unreal.StateTreeEditorData` / `unreal.StateTreeEditingSubsystem` inside `execute_python` | `resolve_binding_path`, `set_task_enabled` |
 
 > ⚠️ **`unreal.StateTreeToolset.add_task(...)` does not exist.** Epic's toolsets are not `unreal.*`
@@ -96,7 +97,7 @@ here. Dropping it (`state_tree_toolset.StateTreeToolset`) is the usual mistake.
 
 | Want | Call |
 |---|---|
-| Create the StateTree asset | **VibeUE** `create_state_tree` (Epic deliberately has no asset creation) |
+| Create the StateTree asset | **Native** `AssetToolsHelpers.get_asset_tools().create_asset` with a `StateTreeFactory` (Epic deliberately has no asset creation tool) |
 | Add / move / remove states | **Epic** `add_child_state`, `add_sub_tree`, `move_child_state`, `move_sub_tree`, `remove_child_state`, `remove_sub_tree` |
 | Add / move / remove tasks, enter conditions, considerations, evaluators, global tasks | **Epic** `add_task`, `add_enter_condition`, `add_consideration`, `add_evaluator`, `add_global_task`, `move_task`, `remove_task`, `remove_enter_condition`, `remove_consideration`, `remove_evaluator`, `remove_global_task` |
 | The same, for an `STT_*` **Blueprint** node | **Epic** `add_blueprint_task`, `add_blueprint_enter_condition`, `add_blueprint_consideration`, `add_blueprint_evaluator`, `add_blueprint_global_task` |
@@ -110,7 +111,8 @@ here. Dropping it (`state_tree_toolset.StateTreeToolset`) is the usual mistake.
 | Theme colors | **VibeUE** `get_theme_colors`, `set_state_theme_color`, `rename_theme_color` |
 | Root parameters | **VibeUE** `add_or_update_root_parameter`, `remove_root_parameter`, `rename_root_parameter` |
 | Per-instance parameter override on a placed actor | **VibeUE** `set_component_parameter_override` |
-| Transition conditions (add / inspect / set) | **VibeUE** `add_transition_condition`, `get_transition_condition_property_names`, `set_transition_condition_property_value` |
+| Transition conditions — add | **VibeUE** `add_transition_condition` |
+| Transition conditions — inspect / set | **Epic** `get_transitions` (`conditions[k].id`), then `get_node_instance_data` / `set_node_instance_data` on that id |
 | Task flags | **Native** `StateTreeEditingSubsystem.set_task_enabled`, `set_task_considered_for_completion` using the task GUID |
 | Select / expand a state in the editor | **VibeUE** `select_state`, `set_state_expanded` |
 | Compile | **Epic** `compile` |
@@ -387,8 +389,7 @@ batch. Run `describe_toolset` for the exact argument names.
 
 | WRONG | CORRECT |
 |-------|---------|
-| `create_state_tree(...)` returns False and you retry other paths/folders | The path is rarely the problem — the **schema** is. Default `StateTreeComponentSchema` requires the GameplayStateTree plugin. List what this project actually has with `ObjectToolset.SearchSubclasses` on `UStateTreeSchema` and pass one of those explicitly |
-| Creating StateTrees via `AssetTools` + `unreal.StateTreeFactory` | Fails from Python (`Cannot nativize 'StateTreeFactory'…` / returns None) — use `StateTreeService.create_state_tree()`. Epic has no asset-creation tool at all, by design |
+| `create_asset(...)` returns None and you retry other paths/folders | The path is rarely the problem — the **schema** is. Default `StateTreeComponentSchema` requires the GameplayStateTree plugin. List what this project actually has with `ObjectToolset.SearchSubclasses` on `UStateTreeSchema` and set one of those as the factory's `state_tree_schema_class` |
 | `unreal.StateTreeToolset.get_all_states(st)` | Epic's toolset is **`call_tool` only** — there is no `unreal.StateTreeToolset` Python class |
 | Binding by guessing property paths or owner IDs | Use native `StateTreeEditorData.resolve_binding_path` and `set_binding` with discovered owner GUIDs |
 | `info = get_state_tree_info(path)` then `info.all_states` / `info.transitions` / `info.context_actor_class` | Removed with the tool. Structure → Epic `get_all_states` / `get_children`; node values → Epic `get_node_instance_data`; state fields and `Transitions` → `ObjectToolset.GetProperties` on the state; context actor class → `GetProperties` on the editor data's `Schema`, then on the schema object |
@@ -406,18 +407,18 @@ ASSET = "EditorToolset.AssetToolset"
 **Run `describe_toolset` once for each of the three before the first write** — the argument names
 below are shown as `{...}` on purpose, because this skill does not guess Epic's parameter spellings.
 
-**Step 1 — create the asset (VibeUE, `execute_python`).** Epic has no asset creation.
+**Step 1 — create the asset (native, `execute_python`).** Epic has no asset-creation tool.
 
 ```python
 import unreal
 
-created = unreal.StateTreeService.create_state_tree("/Game/AI/MyBehavior")
-if not created:
-    # Most common cause: the schema doesn't exist in this project. The default
-    # "StateTreeComponentSchema" comes from the GameplayStateTree plugin — list what this
-    # project really has with ObjectToolset.SearchSubclasses on UStateTreeSchema, then:
-    #   create_state_tree("/Game/AI/MyBehavior", "<one of those>")
-    pass
+f = unreal.StateTreeFactory()
+# The default "StateTreeComponentSchema" comes from the GameplayStateTree plugin — if create_asset
+# returns None, list what this project really has with ObjectToolset.SearchSubclasses on
+# UStateTreeSchema and set one of those instead.
+f.set_editor_property("state_tree_schema_class",
+                      unreal.load_class(None, "/Script/GameplayStateTreeModule.StateTreeComponentSchema"))
+st = unreal.AssetToolsHelpers.get_asset_tools().create_asset("MyBehavior", "/Game/AI", unreal.StateTree, f)
 ```
 
 **Steps 2-6 — structure, node values, transitions, compile, save (Epic, `call_tool`).**
@@ -667,12 +668,12 @@ node's template struct, `get/set_node_execution_runtime_data` for execution-time
 Conditions like `StateTreeObjectIsValidCondition` have properties that **must be bound**
 to context data or event payload — setting a string value won't work. Use native
 `StateTreeEditorData.resolve_binding_path` and `set_binding` with the source and target owner GUIDs
-rather than writing a value (`set_transition_condition_property_value` or Epic's `set_node_instance_data` on an enter condition).
+rather than writing a value (Epic's `set_node_instance_data` on a transition or enter condition).
 
 ```python
 # WRONG — trying to set "Object" as a string value (will fail or compile error)
-unreal.StateTreeService.set_transition_condition_property_value(
-    path, "Root", 0, "StateTreeObjectIsValidCondition", "Object", "/Game/SomeActor")
+await call_tool("state_tree_toolset.state_tree.StateTreeToolset.set_node_instance_data",
+                state_tree={"refPath": path}, node_id=COND_ID, instance_data='{"Object": "/Game/SomeActor"}')
 
 # Bind to the context actor property with native StateTreeEditorData.resolve_binding_path and set_binding using owner GUIDs.
 
@@ -695,8 +696,7 @@ UE Python bindings strip the `b` prefix from bool UPROPERTY names and convert to
 # C++ field:     bEnabled  → Python: enabled
 # C++ field:     bExpanded → Python: expanded
 
-for p in unreal.StateTreeService.get_transition_condition_property_names(
-        path, "Root", 0, "StateTreeObjectIsValidCondition"):
+for p in unreal.StateTreeService.get_transition_event_payload_property_names(path, "Root", 0):
     print(p.name, p.is_bound, p.bound_to)   # NOT p.is_bound or p.bIsBound
 ```
 
@@ -726,7 +726,7 @@ call_tool AddEvent {"blueprint": {"refPath": "/Game/StateTree/STT_MyTask"}, "eve
 
 ## Sample scripts (run via `execute_python`)
 
-- **`scripts/build_state_tree.txt`** — the full mixed build: VibeUE `create_state_tree`, Epic
+- **`scripts/build_state_tree.txt`** — the full mixed build: native `StateTreeFactory` asset creation, Epic
   `add_sub_tree` / `add_child_state` / `add_task`, a transition appended in one
   `ObjectToolset.SetProperties` (Rule 1), Epic `compile` + `AssetToolset.SaveAsset`, then a VibeUE
   root parameter and a native binding pointer. VibeUE and native APIs run under `execute_python`;

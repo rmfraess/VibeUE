@@ -146,46 +146,6 @@ class VIBEUE_API UEnvQueryService : public UToolsetDefinition
 	GENERATED_BODY()
 
 public:
-	/**
-	 * Rebuild the option and test nodes of a sparse graph from UEnvQuery::Options, then lay out,
-	 * commit and save. Empty on success, else the reason. This is the cure for the "sparse graph"
-	 * shape: options live in UEnvQuery::Options with no matching nodes in the editor graph.
-	 *
-	 * The reconstruction is UEnvironmentQueryGraph::SpawnMissingNodes(), reached through
-	 * Initialize() — it REUSES the live UEnvQueryOption / UEnvQueryTest objects rather than
-	 * recreating them (EnvironmentQueryGraph.cpp:426-446), so a repaired query keeps every property
-	 * ever authored on it.
-	 *
-	 * Refuses when there is nothing to repair — no options, or the graph already has option nodes
-	 * below the root — so a second run cannot duplicate anything, and so it is never a way to
-	 * "just recompile" a healthy query. It also refuses on a graph with no ROOT node, which
-	 * is not a repairable shape but a destructive one: there would be nothing to link the rebuilt
-	 * options to, and the commit would empty the option list it was asked to recover.
-	 *
-	 * It cannot repair an option whose node exists in the graph but is unlinked from the root (the
-	 * "orphaned option" shape): SpawnMissingNodes skips any option that already has a node, so it
-	 * is never relinked. That one is a hand fix in the Environment Query editor.
-	 *
-	 * Honest caveat, and the one thing worth knowing before reaching for this: on EQS the
-	 * reconstruction is NOT exclusive to this call, and the sparse shape therefore self-heals.
-	 * UEnvironmentQueryGraph::Initialize() IS LockUpdates + SpawnMissingNodes + CalculateAllWeights +
-	 * UnlockUpdates (EnvironmentQueryGraph.cpp:168-176), the EQS asset editor calls Initialize() on
-	 * every open (EnvironmentQueryEditor.cpp:224), and this service's own EnsureGraph calls it on
-	 * every write. So opening a sparse query in the editor, or running any mutator against it,
-	 * repairs it too.
-	 *
-	 * This is a genuine divergence from BehaviorTree, and NOT the one usually quoted: both editors
-	 * call Initialize() unconditionally, outside their null-EdGraph branch (BehaviorTreeEditor.cpp
-	 * :365, EnvironmentQueryEditor.cpp:224). The difference is the body —
-	 * UBehaviorTreeGraph::Initialize() is Super::Initialize() + UpdateInjectedNodes()
-	 * (BehaviorTreeGraph.cpp:202-206) and rebuilds nothing from the asset.
-	 *
-	 * What this call adds over opening or re-saving the asset is therefore the refusals, the
-	 * before/after node counts in the log, and a name for the operation — not a capability those
-	 * lack.
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|EQS")
-	static FString RepairGraphFromOptions(const FString& AssetPath);
 
 	/**
 	 * Run the query against the live Play In Editor world, from QuerierActorNameOrLabel's position,

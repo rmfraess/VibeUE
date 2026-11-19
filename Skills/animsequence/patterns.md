@@ -94,12 +94,14 @@ def find_notify_index(anim_path, name):
     return -1
 
 # Step 1: Find an animation and get the FULL asset path
-results = unreal.AnimSequenceService.list_anim_sequences("/Game/Animations", "")
+ar = unreal.AssetRegistryHelpers.get_asset_registry()
+results = ar.get_assets(unreal.ARFilter(class_paths=[unreal.TopLevelAssetPath('/Script/Engine', 'AnimSequence')],
+                                        package_paths=["/Game/Animations"], recursive_paths=True))
 if not results:
     print("No animations found")
 else:
     # CRITICAL: anim_path is the full asset path, not the containing folder
-    anim_path = results[0].anim_path
+    anim_path = str(results[0].package_name)
     print(f"Using animation: {anim_path}")
     
     # List existing notifies
@@ -192,7 +194,7 @@ if info:
 6. **Bone Names**: Must match exact bone names from skeleton
 7. **Save Before Use**: Newly created animations are automatically saved
 8. **Keyframe Times**: Must be within [0, duration] range
-9. **Reference Pose**: `create_from_pose` uses skeleton's reference pose
+9. **Reference Pose**: `create_anim_sequence` with an empty bone-track list creates a static reference-pose clip
 10. **Notify Class Paths**: `add_notify` requires a FULL class path; native state-notify creation takes a concrete class:
    - Instant notify: `/Script/Engine.AnimNotify`
    - State notify: a concrete subclass such as `/Script/Engine.AnimNotifyState_Trail` (the base
@@ -201,10 +203,10 @@ if info:
    - Custom: `/Script/YourModule.YourNotifyClass`
 11. **Bone Rotation Axes Are Non-Intuitive**: Roll/Pitch/Yaw do NOT map predictably to world-space movement. Each bone's local coordinate system is different. **Always discover axis mappings** using native `AnimPoseExtensions.get_reference_pose` and `get_anim_pose_at_time` before creating rotation animations!
 12. **Notify indices are unstable**: Notifies are sorted by `trigger_time`; any add/retime shifts indices. Re-fetch `list_notifies` and resolve by name before each index-based call. (See the notify gotcha box above.)
-13. **`list_anim_sequences` does NOT report root motion**: it returns `root_motion=False` for every entry. For accurate root-motion status (and `raw_size`/`compressed_size`/`bone_track_count`), use `get_anim_sequence_info`, whose results expose `enable_root_motion`.
-14. **Search-result types differ**: the Asset Registry query returns `AssetData` (`package_name` and `asset_name`); `list_anim_sequences` returns `AnimSequenceInfo` (`anim_path` and `anim_name`), and `AssetToolset.FindAssets` returns object-path strings. Filter out `None` service results before reading fields.
-15. **Scope searches to a folder**: a project-wide wildcard (e.g. `*Run*` over all of `/Game`) can exceed the 30 s Python timeout. Pass a `search_path` folder to keep `list_anim_sequences` fast.
-16. **Verify frame rate after creation**: `create_anim_sequence(frame_rate=...)` has been observed to come back at 30 FPS for a 60 FPS request — always read back `get_animation_frame_rate(anim_path)` and don't assume a non-30 rate stuck.
+13. **Root-motion status**: read it with `unreal.AnimationLibrary.is_root_motion_enabled(anim)`; sizes with `AnimSequenceService.get_compression_info(anim_path)`.
+14. **Search-result types differ**: the Asset Registry query returns `AssetData` (`package_name` and `asset_name`), and `AssetToolset.FindAssets` returns object-path strings.
+15. **Scope searches to a folder**: a project-wide wildcard (e.g. `*Run*` over all of `/Game`) can exceed the 30 s Python timeout. Pass a folder (`package_paths` / `folderPath`) to keep searches fast.
+16. **Verify frame rate after creation**: `create_anim_sequence(frame_rate=...)` has been observed to come back at 30 FPS for a 60 FPS request — always read back `fr = unreal.load_asset(anim_path).data_model_interface.get_frame_rate()` (`fr.numerator / fr.denominator`) and don't assume a non-30 rate stuck.
 17. **Montages use `AnimMontageService`**: `AnimSequenceService` accepts `AnimSequence` assets only.
     Passing an `AnimMontage` returns the failure sentinel; call the corresponding
     `unreal.AnimMontageService` method where retained, or the corresponding native animation API.

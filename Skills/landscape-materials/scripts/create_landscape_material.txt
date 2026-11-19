@@ -7,27 +7,29 @@
 # SPLIT: compiling is Epic's MaterialToolset.Recompile (VibeUE's MaterialService is GONE) and is
 # slow, so it is a SEPARATE call_tool step — never in this block. Always create LayerInfo objects
 # for layers.
+import json
 import unreal
-lms = unreal.LandscapeMaterialService
 
-# The material asset itself is Epic's MaterialToolset.CreateMaterial (returns a {refPath} handle);
-# LandscapeMaterialService only adds the landscape nodes.
+# The material asset and every node in it are Epic's MaterialToolset / ObjectToolset
+# (expression refs are {"refPath": ...} handles).
 path = "/Game/Landscape/M_Landscape"
-if not await call_tool("EditorToolset.AssetToolset.Exists", path=path):
+MAT = {"refPath": "%s.%s" % (path, path.rsplit("/", 1)[-1])}
+if not await call_tool("EditorToolset.AssetToolset.Exists", assetPath=path):
     r = await call_tool("EditorToolset.MaterialToolset.CreateMaterial",
                         folderPath="/Game/Landscape", assetName="M_Landscape")
     print("CREATED:", r)
 
-# Build a LayerBlend node with named layers (Grass, Rock), wire to BaseColor, etc.
-# blend = lms.create_layer_blend_node_with_layers(path, ["Grass", "Rock"], -400, 0)
-# ... connect textures per layer with lms.setup_layer_textures(...) (see workflows.md) ...
+# Build a LayerBlend node with named layers (Grass, Rock); wire to BaseColor and textures afterwards (see workflows.md).
+blend = await call_tool("EditorToolset.MaterialToolset.AddExpression", materialOrFunction=MAT,
+                        expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeLayerBlend"}, x=-400, y=0)
+await call_tool("EditorToolset.ObjectToolset.SetProperties", instance=blend, values=json.dumps({"Layers": [
+    {"LayerName": "Grass", "BlendType": "LB_WeightBlend", "PreviewWeight": 1.0},
+    {"LayerName": "Rock", "BlendType": "LB_WeightBlend", "PreviewWeight": 1.0}]}))
 
 unreal.EditorAssetLibrary.save_asset(path)
 print("done — now run the two engine steps, each as its own call_tool:")
 print('  call_tool MaterialToolset.ConnectToOutput '
-      '{"expression": {"refPath": "<the LandscapeLayerBlend from GetExpressions>"}, '
-      '"outputName": "", "materialProperty": "MP_BaseColor"}')
+      '{"expression": %s, '
+      '"outputName": "", "materialProperty": "MP_BaseColor"}' % json.dumps(blend))
 print('  call_tool MaterialToolset.Recompile {"materialOrFunction": {"refPath": "%s.%s"}}'
       % (path, path.rsplit("/", 1)[-1]))
-# NOTE: a LandscapeMaterialService node_id is an internal handle — Epic's MaterialToolset takes an
-# object ref ({"refPath": ...}), so cross between them with MaterialToolset.GetExpressions.

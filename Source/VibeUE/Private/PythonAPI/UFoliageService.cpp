@@ -1297,52 +1297,6 @@ TArray<FVibeUEFoliageTypeInfo> UFoliageService::ListFoliageTypes()
 	return Result;
 }
 
-int32 UFoliageService::GetInstanceCount(const FString& MeshOrFoliageTypePath)
-{
-	UWorld* World = GetEditorWorld();
-	if (!World)
-	{
-		return -1;
-	}
-
-	// On a partitioned world sum over every loaded cell actor (the first actor holding the type is
-	// only one cell there) and log the cells that are not loaded. -1 still means "not found in any loaded actor".
-	const bool bPartitioned = VibeUEFoliageWP::IsPartitioned(World);
-	int32 PartitionedTotal = -1;
-
-	for (TActorIterator<AInstancedFoliageActor> It(World); It; ++It)
-	{
-		AInstancedFoliageActor* IFA = *It;
-		if (bPartitioned && VibeUEFoliageWP::IsTransientFoliageActor(IFA)) // Foliage mode palette holder
-		{
-			continue;
-		}
-		UFoliageType* FT = FindFoliageTypeInIFA(MeshOrFoliageTypePath, IFA);
-		if (FT)
-		{
-			const TMap<UFoliageType*, TUniqueObj<FFoliageInfo>>& FoliageInfos = IFA->GetFoliageInfos();
-			const TUniqueObj<FFoliageInfo>* FoundInfo = FoliageInfos.Find(FT);
-			if (FoundInfo)
-			{
-				if (bPartitioned)
-				{
-					PartitionedTotal = FMath::Max(PartitionedTotal, 0) + FoundInfo->Get().Instances.Num();
-					continue;
-				}
-				return FoundInfo->Get().Instances.Num();
-			}
-		}
-	}
-
-	if (bPartitioned)
-	{
-		VibeUEFoliageWP::WarnAboutPartialView(World, TEXT("GetInstanceCount"));
-		return PartitionedTotal;
-	}
-
-	return -1;
-}
-
 namespace
 {
 	// Resolves a property path like "CullDistance" or "CullDistance.Max" to the
@@ -2063,8 +2017,3 @@ FFoliageQueryResult UFoliageService::GetFoliageInRadius(
 	return Result;
 }
 
-bool UFoliageService::HasFoliageInstances(const FString& MeshOrFoliageTypePath)
-{
-	int32 Count = GetInstanceCount(MeshOrFoliageTypePath);
-	return Count > 0;
-}

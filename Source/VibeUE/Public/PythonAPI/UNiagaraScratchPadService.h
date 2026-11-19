@@ -193,17 +193,6 @@ public:
 		const FString& Stage,
 		const FString& DesiredName = TEXT("ScratchModule"));
 
-	/**
-	 * List the names of all scratch-pad modules present on an emitter's stacks.
-	 *
-	 * Example:
-	 *   mods = unreal.NiagaraScratchPadService.list_scratch_modules("/Game/VFX/NS_Fx", "Main")
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|NiagaraScratch", meta = (AICallable, AIAccessMode = "Read", DisplayName = "List Scratch Modules"))
-	static TArray<FString> ListScratchModules(
-		const FString& SystemPath,
-		const FString& EmitterName);
-
 	// =================================================================
 	// Graph inspection
 	// =================================================================
@@ -481,25 +470,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "VibeUE|NiagaraScratch", meta = (AICallable, AIAccessMode = "Write", DisplayName = "Apply Scratch Changes"))
 	static bool ApplyChanges(const FString& SystemPath);
-
-	/**
-	 * Get the real Niagara compiler diagnostics from the system's last compile — one line per issue,
-	 * formatted "Severity: [Script] Message". Replaces the useless catch-all "System is invalid after
-	 * compilation": walks every script in the system (system spawn/update + each emitter's scripts) and
-	 * reads its last compile status, error summary, and per-node compile events.
-	 *
-	 * Demoted (not an AI tool): use NiagaraToolsets.NiagaraToolset_System.GetSystemCompileState instead; kept because scripts/tests/niagara_scratch_input_regression.py calls it synchronously.
-	 *
-	 * @param SystemPath - Full path to the Niagara System asset
-	 * @param bErrorsOnly - True (default) returns only errors; False includes warnings
-	 * @return One formatted line per diagnostic; empty if the last compile was clean
-	 *
-	 * Example:
-	 *   for line in unreal.NiagaraScratchPadService.get_compile_messages("/Game/VFX/NS_Fx"):
-	 *       print(line)
-	 */
-	UFUNCTION(BlueprintCallable, Category = "VibeUE|NiagaraScratch")
-	static TArray<FString> GetCompileMessages(const FString& SystemPath, bool bErrorsOnly = true);
 
 	// (All internal helpers are file-static in UNiagaraScratchPadService.cpp.)
 };

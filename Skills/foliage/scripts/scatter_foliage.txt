@@ -14,4 +14,8 @@ MESH = "/Game/Meshes/SM_Bush"
 locations = [unreal.Vector(x*200.0, 0.0, 0.0) for x in range(5)]
 r = fs.add_foliage_instances(MESH, locations, min_scale=0.9, max_scale=1.1,
                              align_to_normal=True, random_yaw=True, trace_to_surface=True)
-print("scatter:", r, "count:", fs.get_instance_count(MESH) if fs.has_foliage_instances(MESH) else 0)
+world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+mesh = unreal.load_asset(MESH)
+count = sum(c.get_instance_count() for a in unreal.GameplayStatics.get_all_actors_of_class(world, unreal.InstancedFoliageActor)
+            for c in a.get_components_by_class(unreal.InstancedStaticMeshComponent) if c.static_mesh == mesh)
+print("scatter:", r, "count:", count)

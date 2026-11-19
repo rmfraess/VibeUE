@@ -43,8 +43,8 @@ anims = [a for a in ar.get_assets_by_class(unreal.TopLevelAssetPath('/Script/Eng
 for a in anims:
     print(a.asset_name, a.package_name)
 ```
-Safe alternatives: the Asset Registry Skeleton-tag query (best), `list_anim_sequences`,
-`get_anim_sequence_info`, Epic's `AssetToolset.FindAssets`, or the Asset Registry API (metadata without loading).
+Safe alternatives: the Asset Registry Skeleton-tag query (best), Epic's `AssetToolset.FindAssets`,
+or the Asset Registry API (metadata without loading).
 
 ## `unreal.Transform` has `.translation`, NOT `.location`
 When inspecting a bone transform (reference pose or a baked frame), the struct fields are
@@ -62,7 +62,7 @@ There is no `duplicate_anim_sequence` on AnimSequenceService. To make a working 
 editing, use `unreal.EditorAssetLibrary.duplicate_asset(source_path, destination_path)` (or Epic's
 `AssetTools` toolset).
 
-## `create_from_pose` / new-asset paths may lack the object suffix
+## `create_anim_sequence` / new-asset paths may lack the object suffix
 Some creation calls return a package path like `/Game/Anims/AS_Foo` without the `.AS_Foo` object
 suffix. If a follow-up call returns NOT FOUND, append the asset name:
 `f"{path}.{path.rsplit('/',1)[-1]}"` (or check with `unreal.EditorAssetLibrary.does_asset_exist(path)`).

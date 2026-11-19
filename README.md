@@ -106,8 +106,6 @@ rather than a bottleneck — see `Skills/frame-rate/`.
   Clearing `bThrottleCPUWhenNotForeground` is not enough: `UEditorEngine::ShouldThrottleCPUUsage`
   falls through to `AreAllWindowsHidden()`, so a minimized editor throttles anyway. This is the one
   that matters for unattended runs.
-- **`force_hitch()`** — inject a deliberate stall to validate that your capture and analysis pipeline
-  actually catches one.
 
 ```python
 import unreal

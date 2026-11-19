@@ -240,24 +240,6 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Viewport")
 	static FString GetViewMode();
 
-	// =================================================================
-	// Field of View
-	// =================================================================
-
-	/**
-	 * Set the viewport horizontal field of view (perspective mode only; no effect in an ortho view).
-	 * Writing it stays here because Epic ships no FOV writer; READ it back with
-	 * SceneCaptureToolset.GetActiveEditorView (Camera.FOV) or from GetViewportInfo().fov.
-	 *
-	 * WARNING: this PERSISTS to EditorPerProjectUserSettings.ini. Snapshot with GetViewportInfo
-	 * and put it back with RestoreViewportInfo, or the user's viewport keeps this FOV forever.
-	 *
-	 * @param FOVDegrees - Field of view in degrees (typically 60-120, default 90)
-	 * @return True if FOV was set successfully
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
-	static bool SetFOV(float FOVDegrees);
-
 
 	// =================================================================
 	// Clipping Planes
@@ -302,44 +284,6 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
 	static bool SetExposure(bool bFixed, float EV100 = 1.0f);
 
-
-	// =================================================================
-	// Game View & Cinematic
-	// =================================================================
-
-	/**
-	 * Toggle Game View mode on/off.
-	 * Game View hides all editor visualizations (wireframes, icons, etc.)
-	 * showing only what the player would see in-game.
-	 *
-	 * @param bEnable - True to enable Game View, false to disable
-	 * @return True if set successfully
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
-	static bool SetGameView(bool bEnable);
-
-	/**
-	 * Set whether the viewport allows cinematic control.
-	 * When enabled, Sequencer cinematics can take over the viewport camera.
-	 *
-	 * @param bAllow - True to allow cinematic control
-	 * @return True if set successfully
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
-	static bool SetAllowCinematicControl(bool bAllow);
-
-	// =================================================================
-	// Realtime Rendering
-	// =================================================================
-
-	/**
-	 * Set whether the viewport renders in realtime.
-	 *
-	 * @param bRealtime - True for realtime rendering, false for on-demand
-	 * @return True if set successfully
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
-	static bool SetRealtime(bool bRealtime);
 
 	// =================================================================
 	// Camera Speed

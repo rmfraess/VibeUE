@@ -1,11 +1,11 @@
 # Performance Tests
 
-Tests for the CPU-vs-GPU triage path, hitch validation (`force_hitch`), trace capture and analysis.
+Tests for the CPU-vs-GPU triage path, hitch validation, trace capture and analysis.
 
 **Read this before running the suite:** performance work is now split. Frame timings are Epic's
 (`PerfToolset.StatsToolset.GetFrameTimings` via `call_tool`) and trace start/stop is a console
 command (`ConsoleToolset.RunConsoleCommand "Trace.Start" / "Trace.Stop"`). `PerformanceService` keeps
-exactly seven tools: `force_hitch`, `analyse`, `start_standalone`, `stop_standalone`,
+exactly six tools: `analyse`, `start_standalone`, `stop_standalone`,
 `get_standalone_status`, `set_background_throttling`, `get_background_throttling` — each returns a
 JSON string, so parse it and assert on fields. `frame_timing`, the budget gate, the trace-control
 tools, the HTML report and PIE start/stop on the performance service are **gone**; a prompt below
@@ -52,44 +52,18 @@ threads blew the 1 ms budget.
 
 ---
 
-## Hitch Validation — CPU paths (self-measured, single response)
+## Hitch Validation
 
-Force a 250 ms hitch on the game thread and validate the verdict from that same response. Do NOT
-follow up with a frame-timing read — the CPU stall blocks the game thread, so a follow-up read
-reliably lands on a clean frame and misses it. (Expected: `observed_peak_game_ms` ≈ 250 or more and
-`verdict_matched_expect=true`, in the `force_hitch` response itself.)
-
----
-
-Force a 250 ms hitch on the render thread and validate the same way. (Expected:
-`observed_peak_render_ms` ≈ 250 or more, `verdict_matched_expect=true`.)
-
----
-
-Force a 250 ms hitch on game AND render simultaneously and confirm the frame is reported contested
-rather than declaring a false single winner. (Expected: `contested=true`.)
-
----
-
-Try to force a 60000 ms hitch for 600 frames. Confirm the service clamps rather than hanging the
-editor. (Expected: milliseconds clamped to 5000; total synchronous stall capped around 10 s; the
-editor stays responsive afterwards.)
-
----
-
-## Hitch Validation — GPU path (async)
-
-Force a GPU hitch, then read frame timing on a following frame and compare against the expected
-GPU-bound result. This path is scene-dependent best-effort — if the verdict doesn't flip, report the
-observed GPU ms honestly rather than retrying more than once. (Expected: whatever the verdict,
-`r.ScreenPercentage` is auto-restored after the configured frames — verify it returned to its prior
-value.)
+Stall the game thread for 250 ms (`time.sleep(0.25)` inside `execute_python`, timing it with
+`time.perf_counter()`), then read the frame timing with `PerfToolset.StatsToolset.GetFrameTimings`.
+(Expected: the observed stall in the script is ≈ 250 ms or more, and the editor stays responsive
+afterwards.)
 
 ---
 
 ## Trace Capture & Analysis
 
-Start an Unreal Insights trace, drop a bookmark, wrap a forced 100 ms game-thread hitch between a
+Start an Unreal Insights trace, drop a bookmark, wrap a 100 ms game-thread stall (`time.sleep(0.1)` in `execute_python`) between a
 region start and end, then stop the trace. (Expected: the agent drives this with
 `ConsoleToolset.RunConsoleCommand` — `Trace.Start`, `Trace.Bookmark`, `Trace.Stop` and friends — since
 `start_trace` / `stop_trace` / `get_trace_status` / the region and bookmark tools no longer exist. It
@@ -99,7 +73,7 @@ should report the trace file path from the command output or the log.)
 
 Analyse the capture with source "both". Report the frame stats (avg/p95/worst), the worst frames, and
 any hitches found. (Expected: `unreal.PerformanceService.analyse("both", "")` — still a VibeUE Python
-call — and the forced 100 ms hitch shows up among the worst frames/hitches.)
+call — and the 100 ms stall shows up among the worst frames/hitches.)
 
 ---
 

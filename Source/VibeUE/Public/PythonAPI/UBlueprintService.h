@@ -232,60 +232,12 @@ public:
 		const FString& MacroName
 	);
 
-	// ============================================================================
-	// TIMELINES
-	//
-	// No engine toolset tool touches a UTimelineTemplate, so the whole timeline surface stays here.
-	// Component-level settings on the spawned UTimelineComponent are still ordinary properties:
-	// EditorToolset.ObjectToolset.SetProperties.
-	// ============================================================================
-
-	/**
-	 * Add a Timeline node to a graph (and the backing UTimelineTemplate on the blueprint).
-	 * Equivalent to the "Add Timeline..." action. The new node has exec inputs
-	 * (Play, PlayFromStart, Stop, Reverse, ReverseFromEnd, SetNewTime / NewTime),
-	 * exec outputs (Update, Finished), and a Direction output; track output pins are
-	 * added by add_timeline_float_track / etc.
-	 *
-	 * @param BlueprintPath - Full path to the blueprint
-	 * @param GraphName - Name of the graph to place the node in (e.g. "EventGraph")
-	 * @param TimelineName - Name for the timeline (also the component variable name). Must be unique.
-	 * @param Length - Timeline length in seconds (used when LengthMode is fixed-length)
-	 * @param bUseLastKeyFrame - If true, the timeline auto-sizes to the last keyframe instead of using Length
-	 * @param bAutoPlay - Whether the timeline auto-plays
-	 * @param bLoop - Whether the timeline loops
-	 * @param PosX - X position in the graph
-	 * @param PosY - Y position in the graph
-	 * @param bReplaceExisting - When a UTimelineTemplate with this name already exists (a deleted
-	 *                           Timeline node can leave its template behind), true removes it first
-	 *                           via remove_timeline and re-adds; false (default) refuses and returns
-	 *                           an "ERROR: ..." sentinel string naming the timeline.
-	 * @return Node ID (GUID) of the Timeline node on success; empty string on load/graph failure;
-	 *         a string starting with "ERROR:" when the name is taken and bReplaceExisting is false
-	 *
-	 * Example:
-	 *   node_id = unreal.BlueprintService.add_timeline("/Game/StateTree/BP_Cube", "EventGraph", "LookAtTimeline", 0.5)
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
-	static FString AddTimeline(
-		const FString& BlueprintPath,
-		const FString& GraphName,
-		const FString& TimelineName,
-		float Length = 5.0f,
-		bool bUseLastKeyFrame = false,
-		bool bAutoPlay = false,
-		bool bLoop = false,
-		float PosX = 0.0f,
-		float PosY = 0.0f,
-		bool bReplaceExisting = false
-	);
-
 	/**
 	 * Add a float interpolation track to an existing timeline. This creates an internal
 	 * UCurveFloat for the track and adds a matching float output pin to the Timeline node.
 	 *
 	 * @param BlueprintPath - Full path to the blueprint
-	 * @param TimelineName - Name of the timeline (as passed to add_timeline)
+	 * @param TimelineName - Name of the timeline (as passed to BlueprintEditorLibrary.add_timeline)
 	 * @param TrackName - Name of the new track (also the name of the output pin on the node)
 	 * @return True if the track was added
 	 *
@@ -598,21 +550,6 @@ public:
 
 
 
-
-	/**
-	 * Refresh the open Blueprint editor for a Blueprint so its SCS viewport re-runs the
-	 * construction script and its graphs redraw. Use after authoring changes that the open editor
-	 * does not reflect live. Returns False when the Blueprint has no editor open (there is nothing
-	 * to refresh — the on-disk asset is already up to date).
-	 *
-	 * @param BlueprintPath - Full path to the blueprint
-	 * @return True if an editor was open and was refreshed
-	 *
-	 * Example:
-	 *   unreal.BlueprintService.refresh_blueprint_editor("/Game/Props/BP_Refrigerator")
-	 */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
-	static bool RefreshBlueprintEditor(const FString& BlueprintPath);
 
 
 private:

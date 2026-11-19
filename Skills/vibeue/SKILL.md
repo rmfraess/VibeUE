@@ -67,7 +67,7 @@ pie = await call_tool("EditorToolset.EditorAppToolset.IsPIERunning")
 | `imports must be at the top level of the script` | An import inside a function / `if` / `try` | Move every import to the top |
 | `KeyError: 'returnValue'`, a KeyError listing fields | Unwrapping an envelope `call_tool` already removed, or a guessed field name | Use the value as returned; check field names with `get_symbol(name="<full tool name>")` |
 | `Toolset ... not found`, `ToolsetIsNotRegistered` | Short toolset name; or the Python toolset just after launch | Full name, e.g. `SceneCaptureToolset.SceneCaptureToolset`; after a launch, wait ~30 s and retry once (section 3) |
-| `get_symbol` rejects `class_name` / `method_filter` | Old VibeUE discovery shape | `get_symbol(name="LandscapeService")` or `get_symbol(name="LandscapeService.import_heightmap")`; `search_symbols(pattern="landscape.*layer")` |
+| `get_symbol` rejects `class_name` / `method_filter` | Old VibeUE discovery shape | `get_symbol(name="LandscapeService")` or `get_symbol(name="LandscapeService.<method>")`; `search_symbols(pattern="landscape.*layer")` |
 
 **Discover before you write.** `search_symbols(pattern, kinds, match, accepts, returns)` searches the
 registered tools AND the whole `unreal` module of this editor session; `get_symbol(name=...)` returns one
@@ -231,9 +231,9 @@ drops it.
 | Input in PIE (bounded press or hold) | `InputToolset.InputToolset` -> `ApplyInput` |
 
 VibeUE keeps only what those lack (`get_symbol(name="<Name>Service")` lists each service's methods):
-`PerformanceService` (`analyse`, `force_hitch`, standalone capture, `set_background_throttling`),
+`PerformanceService` (`analyse`, standalone capture, `set_background_throttling`),
 `WorkflowService.get_environment` (engine version, build configuration, toolchain, build staleness),
-`PIEActorService` (spawn into and call functions in a running PIE world), `InputService` holds,
+`PIEActorService` (spawn into a running PIE world), `InputService` holds,
 `FabPreviewService` (Fab listing pictures and installed packs as one numbered contact-sheet image), and the
 domain services the packs above document. The run journal, scenarios and bulk maintenance are gone:
 compose them from the tools above and keep your own record (`FileSystemToolset`).

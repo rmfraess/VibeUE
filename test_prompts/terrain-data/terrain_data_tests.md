@@ -9,8 +9,8 @@ Tests for the terrain_data tool — real-world heightmap generation, satellite i
 Before running any tests, clean the level completely:
 
 1. Load the `landscape` skill
-2. Use `LandscapeService.list_landscapes()` to find every landscape in the level
-3. Delete **all** of them with `LandscapeService.delete_landscape(label)` for each one
+2. Use `LandscapeEditorSubsystem.get_landscapes()` to find every landscape in the level
+3. Delete **all** of them with `LandscapeEditorSubsystem.delete_landscape(landscape)` for each one (load all World Partition proxies first)
 4. Confirm the level has zero landscapes remaining
 
 This ensures every test below creates its own fresh landscape from scratch.

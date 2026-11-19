@@ -175,4 +175,4 @@ Open a new World Partition level. Place three trees with add_foliage_instances: 
 
 ---
 
-Count those trees with get_instance_count, then remove them all with remove_all_foliage_of_type. (Expected: 3, then 3 removed and 0 left.)
+Count those trees (sum `get_instance_count()` over the `InstancedStaticMeshComponent`s of the `InstancedFoliageActor`s whose static mesh is the tree mesh), then remove them all with remove_all_foliage_of_type. (Expected: 3, then 3 removed and 0 left.)

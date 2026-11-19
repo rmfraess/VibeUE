@@ -55,8 +55,7 @@ result = S.materialize_fields_as_paint(
 
 **What it does:**
 1. Checks the target paint layer exists. If not, creates a `LandscapeLayerInfoObject`
-   via `ULandscapeMaterialService.create_layer_info_object()` and adds it with
-   `ULandscapeService.add_layer()`.
+   and adds it to the landscape.
 2. Walks `fields.field_mask`: for every cell == 1, computes the world XY and
    calls `ULandscapeService.paint_layer_at_location()`.
 

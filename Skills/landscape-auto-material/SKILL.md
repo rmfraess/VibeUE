@@ -120,7 +120,7 @@ tool.
 
 | Where | Role |
 |---------|------|
-| **LandscapeMaterialService** (`execute_python`) | `create_auto_material`, `find_landscape_textures`, layer blend/weight/coords/sample nodes, layer infos, landscape assignment |
+| **LandscapeMaterialService** (`execute_python`) | `create_auto_material` (material + layer infos + landscape assignment in one call) |
 | **RuntimeVirtualTextureService** (`execute_python`) | RVT assets, volumes, landscape assignment |
 | **MaterialNodeService** (`execute_python`) | one tool left: `create_collection_parameter` |
 | **`MaterialToolset`** (`call_tool`) | `CreateMaterial`, `CreateFunction`, `AddExpression`, `ConnectExpressions`, `ConnectToOutput`, `GetExpressions`, `GetExpressionInputs`, `LayoutExpressions`, `Recompile`, `GetStatistics` |
@@ -188,7 +188,7 @@ Read these sibling files directly (the engine AgentSkillToolset `GetSkills` is t
 | `material-functions.md` | Patterns for common material functions (Slope_Blend, Altitude_Blend, Layer_*, RVT) + EFunctionInputType reference table |
 | `architecture-details.md` | Deep dive on the auto-layer function chain, mask combination math, slope/altitude function creation, extension points |
 | `biomes-and-templates.md` | Biome comparison table, static-switch feature toggles, naming conventions, standard layer function template (inputs/outputs/catalog) |
-| `parameter-reference.md` | Full parameter catalog: layer textures, auto-blend, distance/LOD, color correction, feature toggles, displacement, RVT, FindLandscapeTextures suffix matching |
+| `parameter-reference.md` | Full parameter catalog: layer textures, auto-blend, distance/LOD, color correction, feature toggles, displacement, RVT, texture naming suffixes |
 | `rvt-setup.md` | RVT material types, sizing guidelines, inspection code, common RVT issues with causes/fixes |
 
 ---

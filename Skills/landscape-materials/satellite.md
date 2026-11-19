@@ -64,5 +64,5 @@ unreal.LandscapeService.set_weights_in_region("MyTerrain", "Grass", ...)
 1. **Always attach the satellite image** — without seeing it, you're guessing
 2. **PIL/Pillow is NOT available** in Unreal Python — don't try to read pixels programmatically
 3. **Use visual analysis + slope/height data** — combine what you see with terrain metrics
-4. **`import_weight_map`** can import 8-bit grayscale PNGs as per-layer weight masks if available
+4. **`LandscapeEditorSubsystem.import_weightmap_from_file(L, ls.get_active_edit_layer(L), unreal.Name(layer_name), path, False, False)`** can import 8-bit grayscale PNGs as per-layer weight masks if available
 5. **Describe what you see** in the satellite image before creating painting rules — this validates your analysis

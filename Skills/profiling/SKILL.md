@@ -50,7 +50,7 @@ not VibeUE's:
   `FileSystemToolset`, `RewindDebuggerToolset` — are **`call_tool` actions**. They carry no
   `PythonCallable`, so `unreal.PerfToolset` **does not exist**. Run `describe_toolset` on one for
   its exact action names and params.
-- **VibeUE's 7 surviving `PerformanceService` methods** are `unreal.PerformanceService.<method>()`
+- **VibeUE's 6 surviving `PerformanceService` methods** are `unreal.PerformanceService.<method>()`
   run through **`execute_python`**, and each returns a JSON string. Read the live signatures with
   `get_symbol(name="PerformanceService")`.
 
@@ -73,12 +73,11 @@ Also on Epic's side and worth reaching for:
 - **`RewindDebuggerToolset`** (10 tools) — loads a trace for **object / property / event**
   timelines. It does *not* give frame timings.
 
-### The 7 VibeUE methods that survive — and when to reach for them
+### The 6 VibeUE methods that survive — and when to reach for them
 
 | Method | Purpose | Why it is still here |
 |---|---|---|
 | `analyse(source="both", file="")` | Read a finished trace and/or log → frame stats, worst frames, hitches, notable log lines. Reports `complete` / `partial` / `failed`; partial is never top-level success. | Nothing in Epic's surface parses a `.utrace` for timings — `RewindDebuggerToolset` loads traces, but only for objects, properties and events. |
-| `force_hitch(thread="game", ms=250.0, frames=1)` | Deliberately stall a KNOWN thread (`"game"`/`"render"`/`"both"`/`"gpu"`) to prove your verdict logic fires. CPU paths are self-measuring — validate from the SAME response (`observed_peak_*_ms`, `verdict_matched_expect`); only the async `gpu` path is read back on a following frame. Clamped (≤5000 ms, ~10 s total). | No Epic tool and no console command stalls a named thread, and Epic's `execute_python` blocks `time.sleep` by design. |
 | `start_standalone(name=..., channels="")` | Launch a **separate** game process with one unique direct-to-file trace. First reply is `start_pending`; poll status for verified capture. | `EditorAppToolset.StartPIE` documents that out-of-process play modes (NewProcess, MobilePreview, VR, QuickLaunch) are **downgraded to in-viewport PIE**, so nothing in Epic launches, tracks or terminates a separate game process with a trace attached. |
 | `stop_standalone()` | Gracefully stop the exact tracked process and verify the exact trace finalized; forced/partial outcomes are explicit failures. | as above |
 | `get_standalone_status()` | Session ID, PID, map, exact trace/log destinations, process state, capture/finalization verification. | as above |
@@ -153,7 +152,7 @@ print(f"meets {TARGET_FPS:.0f} FPS:",
 
 Always state the bottleneck's ms next to the target budget so the gap is explicit, e.g. "game
 thread 24.8 ms vs 16.66 ms for 60 FPS → must cut 8.2 ms on the game thread". To prove your verdict
-logic works against a known ground truth, stall a thread on purpose with `force_hitch`.
+logic works against a known ground truth, stall the game thread on purpose (`time.sleep(0.25)` in `execute_python`, then read `PerfToolset.StatsToolset.GetFrameTimings`).
 
 ## ⏱️ Frame-time budgets — what a target FPS actually costs
 

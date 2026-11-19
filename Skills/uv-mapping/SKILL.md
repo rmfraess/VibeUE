@@ -36,7 +36,7 @@ the materials skill's `references/generated-organic-surfaces.md` and the
 asset-management skill's `references/mesh-reimport-materials.md`. Do not unwrap
 an approved mesh merely because its shading has a sharp band.
 
-`UVMappingService` provides inspection and selected UV editing for StaticMesh assets. Native StaticMeshEditorSubsystem and GeometryScript APIs cover other UV and lightmap operations. Save edited assets after a batch.
+`UVMappingService` provides selected UV editing and layout export for StaticMesh assets. Native StaticMeshEditorSubsystem and GeometryScript APIs cover inspection (`ModelingService.get_uv_stats`) and other UV and lightmap operations. Save edited assets after a batch.
 
 ## When NOT to Use This Service
 
@@ -53,11 +53,10 @@ These are **material-orientation problems**, not UV-layout problems. A single 2D
 
 `UVMappingService` is the right tool for:
 
-- Texel-density auditing
 - UV layout export for documentation
-- Selected channel editing, removal, and count changes
+- Selected region, island and polygon-group UV edits, and packing
 
-Use native StaticMeshEditorSubsystem / GeometryScript APIs for channel addition, copying, unwrapping, transforms and lightmap settings.
+Use native StaticMeshEditorSubsystem / GeometryScript APIs for channel addition, removal and count changes, copying, unwrapping, transforms and lightmap settings, and `ModelingService.get_uv_stats` for texel-density auditing.
 
 If the user asks to "fix UVs" on a basic shape with a tiling material, ask whether they want material-side or mesh-side first — defaulting to mesh-side will burn iterations.
 
@@ -65,7 +64,7 @@ If the user asks to "fix UVs" on a basic shape with a tiling material, ask wheth
 
 ### StaticMesh Only (Mostly)
 
-Detailed inspection and all mutating operations target `UStaticMesh`. SkeletalMesh meshes are accepted by `list_uv_channels` and `mesh_has_uv_channel` for read-only channel counts but **all other methods will fail** on skeletal meshes — the editing path goes through `FSkeletalMeshLODModel` and is not yet implemented. If you're prompted to UV-map a skeletal mesh, stop and tell the user.
+Detailed inspection and all mutating operations target `UStaticMesh`. SkeletalMesh meshes are **not supported** by any `UVMappingService` method — the editing path goes through `FSkeletalMeshLODModel` and is not yet implemented. If you're prompted to UV-map a skeletal mesh, stop and tell the user.
 
 ### Save After Edits
 
@@ -79,7 +78,29 @@ unreal.EditorAssetLibrary.save_asset("/Game/Meshes/SM_Wall")
 
 ### Health Check Before Editing
 
-Always run `get_uv_health` first. It is a single call that tells you channel count, lightmap config, overlap status, and texel density per channel. This prevents wasted work like generating lightmap UVs into an index that already has good UVs.
+Always inspect first. `ModelingService.get_uv_stats` reports per channel the island count, unset triangles, coverage, overlap and texel density; the lightmap config is the mesh's `light_map_coordinate_index` / `light_map_resolution` plus `StaticMeshEditorSubsystem.get_lod_build_settings`. This prevents wasted work like generating lightmap UVs into an index that already has good UVs. `uv_stats` below is reused by the workflows:
+
+```python
+import unreal
+
+def uv_stats(mesh_path, lod, ch):
+    svc = unreal.ModelingService
+    mesh = unreal.load_asset(mesh_path)
+    h = svc.create_mesh().handle
+    try:
+        unreal.GeometryScript_AssetUtils.copy_mesh_from_static_mesh(mesh, svc.get_dynamic_mesh(h), unreal.GeometryScriptCopyMeshFromAssetOptions(), unreal.GeometryScriptMeshReadLOD(lod_index=lod))
+        return svc.get_uv_stats(h, ch, 512)
+    finally:
+        svc.release_mesh(h)
+
+mesh = unreal.load_asset("/Game/Meshes/SM_Wall")
+sub = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+for lod in range(mesh.get_num_lods()):
+    for ch in range(sub.get_num_uv_channels(mesh, lod)):
+        print(lod, ch, uv_stats("/Game/Meshes/SM_Wall", lod, ch))
+lm = mesh.get_editor_property("light_map_coordinate_index"); res = mesh.get_editor_property("light_map_resolution")
+bs = sub.get_lod_build_settings(mesh, 0)
+```
 
 ### Lightmap Channel Convention
 
@@ -88,19 +109,19 @@ By UE convention:
 - **Channel 1** is the lightmap UV channel.
 - `LightMapCoordinateIndex` on the static mesh **must** point at the lightmap channel.
 
-Set `LightMapCoordinateIndex` explicitly when configuring native lightmap build settings. `remove_uv_channel` adjusts it if you remove a channel above or at the lightmap.
+Set `LightMapCoordinateIndex` explicitly when configuring native lightmap build settings. Re-check it after `StaticMeshEditorSubsystem.remove_uv_channel` on a channel above or at the lightmap.
 
 ### Channel 0 Cannot Be Removed
 
-`remove_uv_channel` rejects channel 0 — every static mesh must have at least one UV channel. For replacement, use native StaticMeshEditorSubsystem projection or GeometryScript UV copy with a mesh roundtrip.
+Never remove channel 0 (assert `ch != 0` before `StaticMeshEditorSubsystem.remove_uv_channel`) — every static mesh must have at least one UV channel. For replacement, use native StaticMeshEditorSubsystem projection or GeometryScript UV copy with a mesh roundtrip.
 
 ### MAX_MESH_TEXTURE_COORDS_MD = 8
 
-Static meshes support at most 8 UV channels; `set_uv_channel_count` rejects counts > 8. Native `StaticMeshEditorSubsystem.add_uv_channel` adds a channel.
+Static meshes support at most 8 UV channels. Native `StaticMeshEditorSubsystem.add_uv_channel` adds a channel (and returns False at the limit).
 
-### Overlap Detection Is Heuristic
+### Overlap Detection Is Raster-Based
 
-`OverlapPercent` uses an O(N²) AABB-overlap heuristic on triangle UV bounding boxes, capped at 5,000 triangles. Above the cap, the field returns `-1.0` to signal "skipped." It produces conservative false positives (touching but non-overlapping AABBs) — use it as a smoke test, not a precise measurement.
+`get_uv_stats(h, channel, 512)` rasterises the channel; `overlap_fraction` is measured on that raster (the last argument is its resolution), so use it as a smoke test and raise the resolution for fine overlaps.
 
 ### Pack Is Fit-To-Square, Not True Island Packing
 
@@ -206,11 +227,11 @@ unreal.UVMappingService.transform_u_vs_by_polygon_group(
 | WRONG | CORRECT |
 |-------|---------|
 | `result.success` returning False but no error string | Check `result.message` — every failure includes a reason |
-| `pack_uvs` | A trailing `UVs` splits: `pack_u_vs`. `UV` + a word does not: `get_uv_health`, `identify_uv_islands` |
+| `pack_uvs` | A trailing `UVs` splits: `pack_u_vs`. `UV` + a word does not: `identify_uv_islands`, `export_uv_layout_image` |
 | Transforming the lightmap channel | Avoid — transforms break the channel’s `[0,1]` packing. Use transforms on material UV channels only |
 | Forgetting to save after edits | Add `unreal.EditorAssetLibrary.save_asset(...)` after the batch |
 | Editing UVs on a skeletal mesh | Not supported — only StaticMesh works |
-| Setting `LightMapCoordinateIndex` past the channel count | Use `set_uv_channel_count` first, or native `StaticMeshEditorSubsystem.add_uv_channel` |
+| Setting `LightMapCoordinateIndex` past the channel count | Add channels first with native `StaticMeshEditorSubsystem.add_uv_channel` |
 
 ---
 
@@ -223,29 +244,16 @@ unreal.UVMappingService.transform_u_vs_by_polygon_group(
 | `mesh_path` | str | Echoes the input path |
 | `message` | str | Failure reason or success summary |
 
-### FUVChannelInfo (`list_uv_channels`, `get_uv_channel_info`)
-| Property | Type | Description |
-|---|---|---|
-| `lod_index` | int | LOD this channel belongs to |
-| `channel_index` | int | UV channel (0..7) |
-| `vertex_instance_count` | int | Number of vertex instances |
-| `triangle_count` | int | Number of triangles |
-| `min_u`, `min_v`, `max_u`, `max_v` | float | UV bounding box |
-| `overlap_percent` | float | % of triangles with overlapping UV AABB. -1 if mesh too large (>5000 tris) |
-| `in_unit_square_percent` | float | % of vertex UVs inside `[0,1]^2` |
-| `texel_density1k` | float | Avg texels/UE-unit at 1024px reference |
-
-### FUVHealthReport (`get_uv_health`)
-| Property | Type | Description |
-|---|---|---|
-| `mesh_path` | str | |
-| `lod_count` | int | |
-| `lightmap_coordinate_index` | int | The channel lightmaps sample at runtime |
-| `light_map_resolution` | int | Per-mesh lightmap texel size |
-| `generate_lightmap_u_vs` | bool | LOD 0 BuildSettings flag |
-| `channels` | list[FUVChannelInfo] | Per-LOD per-channel stats |
-| `lightmap_has_overlaps` | bool | True if the lightmap channel has any AABB overlap |
-| `warnings` | list[str] | Human-readable warnings |
+### `ModelingService.get_uv_stats(handle, channel, resolution)` fields
+| Property | Description |
+|---|---|
+| `num_islands` | Connected UV islands |
+| `num_unset_triangles` | Triangles without UVs in this channel |
+| `coverage` | UV coverage of the unit square |
+| `overlap_fraction` | Overlap, measured on the raster |
+| `texels_per_cm_at1_k` | Texel density at a 1024px reference |
+| `uv_bounds_min`, `uv_bounds_max` | UV bounding box |
+| `mesh_area`, `uv_area` | Surface area in world / UV space |
 
 Lightmap settings: use native `StaticMeshEditorSubsystem.get_lod_build_settings` and mesh lightmap properties.
 
@@ -260,9 +268,10 @@ import unreal
 
 mesh = "/Game/Meshes/SM_Wall"
 
-# 1. Health check
-ok, health = unreal.UVMappingService.get_uv_health(mesh)
-print(f"Channels found: {len(health.channels)}, lightmap idx: {health.lightmap_coordinate_index}")
+# 1. Health check (uv_stats from "Health Check Before Editing")
+m = unreal.load_asset(mesh)
+sub = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+print(f"Channels found: {sub.get_num_uv_channels(m, 0)}, lightmap idx: {m.get_editor_property('light_map_coordinate_index')}")
 
 # Configure lightmap generation using native StaticMeshEditorSubsystem
 # get_lod_build_settings / set_lod_build_settings and mesh lightmap properties.
@@ -271,8 +280,7 @@ print(f"Channels found: {len(health.channels)}, lightmap idx: {health.lightmap_c
 unreal.EditorAssetLibrary.save_asset(mesh)
 
 # 5. Verify
-ok, health = unreal.UVMappingService.get_uv_health(mesh)
-assert not health.lightmap_has_overlaps, "Lightmap still has overlaps after generation"
+assert uv_stats(mesh, 0, 1).overlap_fraction <= 0.0, "Lightmap still has overlaps after generation"
 ```
 
 ### Workflow: Add a Detail-Texture UV Channel and Tile It
@@ -282,7 +290,8 @@ import unreal
 
 mesh = "/Game/Meshes/SM_Wall"
 
-if not unreal.UVMappingService.mesh_has_uv_channel(mesh, 0, 2):
+sub = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
+if not 2 < sub.get_num_uv_channels(unreal.load_asset(mesh), 0):
     print("Channel 2 is absent")
 # Add a channel with native StaticMeshEditorSubsystem.add_uv_channel.
 # Copy and transform UVs with native GeometryScript_UVs and a static/dynamic mesh roundtrip.
@@ -330,14 +339,18 @@ import unreal
 
 # list_assets returns a flat list of OBJECT paths ("/Game/.../SM_Wall.SM_Wall") — strip the
 # suffix for VibeUE, and read the class off the asset registry rather than loading each mesh.
+sub = unreal.get_editor_subsystem(unreal.StaticMeshEditorSubsystem)
 for object_path in unreal.EditorAssetLibrary.list_assets("/Game/Meshes/Architecture"):
     data = unreal.EditorAssetLibrary.find_asset_data(object_path)
     if str(data.asset_class_path.asset_name) != "StaticMesh":
         continue
     path = object_path.rsplit(".", 1)[0]
 
-    ok, health = unreal.UVMappingService.get_uv_health(path)
-    if health.lightmap_has_overlaps or not health.generate_lightmap_u_vs:
+    m = unreal.load_asset(path)
+    lm = m.get_editor_property("light_map_coordinate_index")
+    bs = sub.get_lod_build_settings(m, 0)
+    if (lm >= sub.get_num_uv_channels(m, 0) or uv_stats(path, 0, lm).overlap_fraction > 0.0
+            or not bs.generate_lightmap_u_vs):   # uv_stats from "Health Check Before Editing"
         print(f"NEEDS LIGHTMAP REVIEW: {path}")
         # Configure generation with native StaticMeshEditorSubsystem build settings and mesh lightmap properties.
     else:
@@ -362,13 +375,11 @@ Power of two preferred:
 
 ## Verification After Edits
 
-For lightmap-related changes, **always re-run `get_uv_health`** after the save to verify:
+For lightmap-related changes, **always re-run `uv_stats`** after the save to verify:
 
 ```python
-ok, health = unreal.UVMappingService.get_uv_health(mesh)
-assert ok
-assert not health.lightmap_has_overlaps
-assert health.lightmap_coordinate_index == 1
+assert uv_stats(mesh, 0, 1).overlap_fraction <= 0.0
+assert unreal.load_asset(mesh).get_editor_property("light_map_coordinate_index") == 1
 ```
 
 For unwrap operations, export the layout PNG and visually inspect it (read the PNG back, or surface it through the engine's screenshot/image toolset) — the cheapest way to confirm the unwrap looks reasonable.

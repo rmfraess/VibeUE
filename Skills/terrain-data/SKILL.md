@@ -109,7 +109,7 @@ Response:
 }
 ```
 
-Use `suggestedXYScales["1009"]` (or whichever resolution you chose) as the X and Y scale when calling `create_landscape`. Use `suggestedZScale` for the Z scale.
+Use `suggestedXYScales["1009"]` (or whichever resolution you chose) as the X and Y scale when creating the landscape (`LandscapeEditorSubsystem.create_landscape`). Use `suggestedZScale` for the Z scale.
 
 ### Step 2 — Generate heightmap using suggested values
 
@@ -180,16 +180,12 @@ Use the `landscape` skill to import the heightmap file:
 
 Example:
 ```python
-result = unreal.LandscapeService.create_landscape(
-    location=unreal.Vector(0, 0, 0),
-    rotation=unreal.Rotator(0, 0, 0),
-    scale=unreal.Vector(1714, 1714, 741),  # XY from suggestedXYScales["1009"], Z from suggestedZScale
-    sections_per_component=2,
-    quads_per_section=63,
-    component_count_x=8,
-    component_count_y=8,
-    landscape_label="MyLandscape"
-)
+ls = unreal.get_editor_subsystem(unreal.LandscapeEditorSubsystem)
+sx, sy, sz = 1714, 1714, 741   # XY from suggestedXYScales["1009"], Z from suggestedZScale
+half = 8 * 2 * 63 / 2          # quads from the corner to the centre; create_landscape takes the CENTRE
+L = ls.create_landscape(unreal.Vector(half * sx, half * sy, 0), unreal.Rotator(0, 0, 0), unreal.Vector(sx, sy, sz),
+                        unreal.IntPoint(8, 8), 2, 63, None, 0)   # ncx/ncy, sections, quads, material, wp_grid_size
+L.set_actor_label("MyLandscape")
 ```
 
 ---

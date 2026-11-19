@@ -115,25 +115,23 @@ For an ini key with **no** registered settings section, edit the file:
 > memory, so a file edit applies on the next launch. If the value must take effect now, find a
 > registered section and use `ConfigSettingsToolset` instead.
 
-## PIE settings — the one VibeUE helper left
+## PIE settings
 
 `ULevelEditorPlaySettings` is reachable through `ConfigSettingsToolset`
-(`Editor / LevelEditor / PlayIn`), and that is what an agent should use.
-
-Two VibeUE functions survive as **Python-only helpers** (no longer MCP tools, so don't look for them
-in `list_toolsets`), because `vibeue.py`'s `GateSession` needs them from inside `execute_python`
-where Epic's toolsets are unreachable:
+(`Editor / LevelEditor / PlayIn`), and that is what an agent should use to write it. From inside
+`execute_python`, where Epic's toolsets are unreachable, read it with the editor subsystem and write
+it with `vibeue.exec_tool` (`vibeue.py`'s `GateSession` does exactly this):
 
 ```python
-import unreal
-s = unreal.EngineSettingsService.get_pie_settings()
-# set_pie_settings(net_mode, num_clients, run_under_one_process) — three positional args.
-# net_mode is one of "Standalone", "ListenServer", "Client" (alias "DedicatedServer");
-# anything else is refused. num_clients must be 1-10.
-unreal.EngineSettingsService.set_pie_settings("ListenServer", 2, True)
+import unreal, vibeue
+s = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).get_play_settings()
+net_mode = s.get_editor_property("play_net_mode")
+clients = s.get_editor_property("play_number_of_clients")
+one_proc = s.get_editor_property("run_under_one_process")
+vibeue.exec_tool("ConfigSettingsToolset", "SetSectionProperties", {
+    "containerName": "Editor", "categoryName": "LevelEditor", "sectionName": "PlayIn",
+    "propertiesJson": '{"PlayNetMode":"PIE_ListenServer","PlayNumberOfClients":2,"RunUnderOneProcess":true}'})
 ```
-
-They exist for that gate. For ordinary PIE configuration, use `ConfigSettingsToolset`.
 
 ## Why the old service is gone
 

@@ -1,7 +1,7 @@
 ---
 name: blueprint-graphs
 display_name: Blueprint Graph Editing
-description: Blueprint graph and node authoring is Epic's in UE 5.9 — `BlueprintToolsets.BlueprintDslToolset` is a whole-graph DSL (Docs/Schema, then Read → edit the text → Write or Edit against a revision token) and `BlueprintToolsets.BlueprintToolset` holds the ~77 per-node, pin, variable, function, event and layout tools. VibeUE keeps only Timelines, macro-graph creation (CreateMacroGraph) and read-only layout measurement (AnalyzeGraphLayout) plus RefreshBlueprintEditor. Use when the user asks to wire up Blueprint logic, add or connect nodes, add a loop/macro node, build an event graph, set up a timer/delay, broadcast a delegate, add or key a Timeline, or lay out and audit an existing graph.
+description: Blueprint graph and node authoring is Epic's in UE 5.9 — `BlueprintToolsets.BlueprintDslToolset` is a whole-graph DSL (Docs/Schema, then Read → edit the text → Write or Edit against a revision token) and `BlueprintToolsets.BlueprintToolset` holds the ~77 per-node, pin, variable, function, event and layout tools. VibeUE keeps only Timelines, macro-graph creation (CreateMacroGraph) and read-only layout measurement (AnalyzeGraphLayout). Use when the user asks to wire up Blueprint logic, add or connect nodes, add a loop/macro node, build an event graph, set up a timer/delay, broadcast a delegate, add or key a Timeline, or lay out and audit an existing graph.
 vibeue_classes:
   - BlueprintService
 unreal_classes:
@@ -38,7 +38,7 @@ related_skills:
 
 ## Who owns what in 5.9
 
-Graph authoring moved out of VibeUE wholesale. `BlueprintService` went from 96 AI tools to **19**.
+Graph authoring moved out of VibeUE wholesale. `BlueprintService` went from 96 AI tools to **17**.
 
 | Job | Tool |
 |---|---|
@@ -48,7 +48,7 @@ Graph authoring moved out of VibeUE wholesale. `BlueprintService` went from 96 A
 | **Measure** a layout you just wrote | `unreal.BlueprintService.analyze_graph_layout` (VibeUE — nothing in Epic reads a layout back) |
 | **Timelines** (node + `UTimelineTemplate` + tracks + keys) | `unreal.BlueprintService.*timeline*` (VibeUE — no engine tool touches a `UTimelineTemplate`) |
 | **Create a macro graph** on a Macro Library | `unreal.BlueprintService.create_macro_graph` (VibeUE — the DSL refuses macro libraries) |
-| Force an open Blueprint editor to redraw | `unreal.BlueprintService.refresh_blueprint_editor` (VibeUE) |
+| Force an open Blueprint editor to redraw | `unreal.BlueprintEditorLibrary.refresh_open_editors_for_blueprint(bp)` (compile first with `BlueprintToolset.CompileBlueprint` if nodes changed) |
 | What the user has selected / is looking at | `EditorToolset.EditorAppToolset.GetAssetEditorSelection`, `GetOpenAssets`, `OpenEditorForAsset` |
 
 ## Critical Rules
@@ -63,11 +63,11 @@ these are C++ toolsets, not Python ones. There is no lowercase `create` / `compi
 
 ### ⚠️ Call styles — do not mix these up
 
-**1. VibeUE's 19 survivors are Python**, inside `execute_python`:
+**1. VibeUE's 17 survivors are Python**, inside `execute_python`:
 
 ```python
 import unreal
-unreal.BlueprintService.add_timeline("/Game/BP/BP_Door", "EventGraph", "SwingTimeline", 1.0)
+unreal.BlueprintService.add_timeline_float_track("/Game/BP/BP_Door", "SwingTimeline", "Alpha")
 ```
 
 **2. Epic's toolsets are `call_tool`** — one tool per MCP round-trip:
@@ -407,8 +407,8 @@ the compile is clean. Never treat compile success alone as proof the graph match
 
 ## VibeUE's surviving graph tools
 
-All 19 are `unreal.BlueprintService.<snake_name>()` from inside `execute_python`. Sixteen are
-Timelines; the other three are below. **Nothing in Epic's toolsets replaces any of them.**
+All 17 are `unreal.BlueprintService.<snake_name>()` from inside `execute_python`. Fifteen are
+Timelines; the other two are below. **Nothing in Epic's toolsets replaces any of them.**
 
 ### `create_macro_graph(blueprint_path, macro_name)` → bool
 
@@ -468,17 +468,17 @@ The intended loop: author or arrange (`BlueprintDslToolset.Write`, or
 (`BlueprintToolset.ArrangeNodes` on just those nodes, or `SetNodePosition`) → re-check. Don't
 hand-place coordinates first. Details and metric meanings: `node-layout.md`.
 
-### `refresh_blueprint_editor(blueprint_path)` → bool
+### Redrawing an open Blueprint editor
 
-Forces the open Blueprint editor to re-run the construction script in its SCS viewport and redraw its
-graphs. Use it after authoring changes the open editor does not reflect live. Returns `False` when no
-editor is open for that Blueprint — which is not an error, there is simply nothing to refresh; the
-on-disk asset is already current.
+`unreal.BlueprintEditorLibrary.refresh_open_editors_for_blueprint(bp)` redraws the open Blueprint
+editor's graphs. Use it after authoring changes the open editor does not reflect live (compile first
+with `BlueprintToolset.CompileBlueprint` if nodes changed). With no editor open there is nothing to
+refresh; the on-disk asset is already current.
 
-### Timelines (16 tools)
+### Timelines (15 tools)
 
 A Timeline is a `UK2Node_Timeline` node **plus** a `UTimelineTemplate` on the Blueprint, and no
-engine tool touches a `UTimelineTemplate`. The full CRUD — `add_timeline`, `modify_timeline`,
+engine tool touches a `UTimelineTemplate`. The node itself comes from the engine's `unreal.BlueprintEditorLibrary.add_timeline`; the rest of the CRUD — `modify_timeline`,
 `remove_timeline`, `get_timelines`, the four `add_timeline_*_track`, the four `add_timeline_*_key`,
 `remove_timeline_key`, `remove_timeline_track`, `rename_timeline_track`,
 `clear_timeline_track_keys` — is documented with signatures, pin names and sentinels in

@@ -375,10 +375,10 @@ struct FVibeCOCompileResult
  * NodeGuid (NodeId), pins by PinName or display name. Every write saves the asset.
  *
  * Methods:
- * - is_mutable_available: whether the Mutable plugin is loaded
+ * (Mutable availability: PluginToolset.IsEnabled with pluginName Mutable, or hasattr(unreal, 'CustomizableObject'))
  * - get_object_info: parent/children, parameters, states, components, compile status
  * - get_graph / get_node: nodes, pins and connections
- * - discover_node_types / get_node_type_properties: node class catalog and class defaults
+ * - discover_node_types: node class catalog (class defaults: ObjectToolset.ListProperties / GetProperties on the class's Default__ object)
  * - add_node / remove_node / set_node_position / refresh_node: node edits
  * - connect_pins / disconnect_pins: wiring
  * - get_node_properties / set_node_property: node property read/write
@@ -397,7 +397,6 @@ public:
 	// ---- Availability & assets ----------------------------------------------------------------
 
 	/** True when the Mutable plugin (CustomizableObject + CustomizableObjectEditor modules) is loaded. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Mutable")
 	static bool IsMutableAvailable();
 
 	/**
@@ -424,10 +423,6 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Mutable")
 	static TArray<FVibeCONodeTypeInfo> DiscoverNodeTypes(const FString& Filter = TEXT(""),
 		bool bIncludeHidden = false);
-
-	/** Properties of a node class with their default values — what AddNode's PropertiesJson can set. */
-	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Mutable")
-	static TArray<FVibeCOPropertyInfo> GetNodeTypeProperties(const FString& NodeClass);
 
 	/** Properties of one node in the graph, with current values. */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Mutable")
