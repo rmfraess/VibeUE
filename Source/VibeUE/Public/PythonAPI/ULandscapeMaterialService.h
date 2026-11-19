@@ -289,21 +289,19 @@ public:
 	 * Set up a complete height/slope-driven layer blend in one call.
 	 * Maps to action="setup_height_slope_blend"
 	 *
-	 * Switches the specified layers in an existing LandscapeLayerBlend node to
-	 * LB_AlphaBlend mode, then creates height and/or slope mask networks and
-	 * connects them as the Alpha input for each layer.
-	 *
-	 * This replaces runtime weight-map painting for elevation/slope zones with a
-	 * fully procedural material solution — no painting tools needed.
+	 * Creates height and/or slope mask networks and uses each mask to lerp that
+	 * layer's input into the base layer's input. Wherever the base layer is painted,
+	 * the zone layers appear by elevation/slope with no extra painting; the zone
+	 * layers stay paintable too. Base and zone layers need their inputs connected.
 	 *
 	 * Layer zones:
-	 *   BaseLayerName  - Displays on low, flat terrain (no alpha mask; weight blend)
+	 *   BaseLayerName  - Displays on low, flat terrain
 	 *   HeightLayerName - Fades in above HeightThreshold (e.g., snow on peaks)
 	 *   SlopeLayerName  - Fades in above SlopeThreshold degrees (e.g., rock on cliffs)
 	 *
 	 * @param MaterialPath     - Full path to the material
 	 * @param BlendNodeId      - Existing LandscapeLayerBlend node to configure
-	 * @param BaseLayerName    - Layer for low/flat terrain (kept as LB_WeightBlend)
+	 * @param BaseLayerName    - Layer for low/flat terrain; the masks blend into its input
 	 * @param HeightLayerName  - Layer for high-altitude zones. Empty = skip.
 	 * @param SlopeLayerName   - Layer for steep-slope zones. Empty = skip.
 	 * @param HeightThreshold  - World Z where height layer begins to appear (world units)
@@ -329,13 +327,14 @@ public:
 	 * Create a complete landscape material with automatic layer blending.
 	 * Maps to action="create_auto_material"
 	 *
-	 * Creates a material with LandscapeLayerBlend, texture samplers,
-	 * and optional height/slope auto-blend masks. Also creates layer info
-	 * objects and assigns the material to the target landscape.
+	 * Creates a material with LandscapeLayerBlend nodes for base colour, normal and
+	 * roughness (the last two only if a layer has that texture), world-space tiled
+	 * texture samplers, and optional height/slope auto-blend masks. Also creates
+	 * layer info objects and assigns the material to the target landscape.
 	 *
 	 * Layer roles control auto-blend behavior:
 	 *  - "base"   — Default layer, shown on low/flat terrain
-	 *  - "slope"  — Shown on steep terrain via WorldAlignedNormal mask
+	 *  - "slope"  — Shown on steep terrain via a vertex-normal mask
 	 *  - "height" — Shown at high elevation via WorldPosition mask
 	 *  - "paint"  — Manual paint only (no auto-blending)
 	 *
@@ -344,6 +343,7 @@ public:
 	 * @param MaterialPath - Directory path where material will be created
 	 * @param LayerConfigs - Array of layer configurations
 	 * @param bAutoBlend - If true, wire height/slope masks for layers with those roles
+	 *                     (needs a "base" layer with a diffuse texture; paint the base layer)
 	 * @param HeightThreshold - World Z height where height layer begins
 	 * @param HeightBlend - Transition width for height blending
 	 * @param SlopeThreshold - Slope angle where slope layer begins (degrees)

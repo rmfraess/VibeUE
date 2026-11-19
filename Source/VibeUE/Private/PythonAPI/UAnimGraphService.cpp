@@ -270,7 +270,7 @@ TArray<FAnimStateMachineInfo> UAnimGraphService::ListStateMachines(const FString
 					int32 StateCount = 0;
 					for (UEdGraphNode* SMNode : SMGraph->Nodes)
 					{
-						if (Cast<UAnimStateNodeBase>(SMNode) && !Cast<UAnimStateEntryNode>(SMNode))
+						if (Cast<UAnimStateNodeBase>(SMNode) && !Cast<UAnimStateTransitionNode>(SMNode))
 						{
 							StateCount++;
 						}
@@ -318,7 +318,7 @@ TArray<FAnimStateInfo> UAnimGraphService::ListStatesInMachine(const FString& Ani
 		}
 
 		UAnimStateNodeBase* StateNode = Cast<UAnimStateNodeBase>(Node);
-		if (!StateNode)
+		if (!StateNode || Cast<UAnimStateTransitionNode>(Node)) // transitions derive from UAnimStateNodeBase
 		{
 			continue;
 		}

@@ -442,7 +442,7 @@ bool USkeletonService::SetBoneTransform(const FString& SkeletalMeshPath, const F
 	return Modifier->SetBoneTransform(FName(*BoneName), NewTransform, bMoveChildren);
 }
 
-bool USkeletonService::CommitBoneChanges(const FString& SkeletalMeshPath, bool bForce)
+bool USkeletonService::CommitBoneChanges(const FString& SkeletalMeshPath)
 {
 	USkeletonModifier* Modifier = GetSkeletonModifier(SkeletalMeshPath);
 	if (!Modifier)
@@ -451,32 +451,8 @@ bool USkeletonService::CommitBoneChanges(const FString& SkeletalMeshPath, bool b
 		return false;
 	}
 
-	bool bSuccess = false;
-
-	if (bForce)
-	{
-		// Force commit - use a workaround for hierarchy-breaking changes
-		// The regular CommitSkeletonToSkeletalMesh shows a dialog when the skeleton
-		// hierarchy becomes incompatible. For automated/silent operations, we
-		// attempt the commit but if it fails or blocks, we log a warning.
-		//
-		// NOTE: Unreal's SkeletonModifier.PreCommitSkeleton() shows a modal dialog
-		// when the parent chain check fails. This is by design to protect shared
-		// skeletons. When bForce=true, we still call the normal commit but with
-		// the understanding that for true hierarchy-breaking reparent operations,
-		// user interaction may still be required.
-		
-		UE_LOG(LogTemp, Warning, TEXT("USkeletonService::CommitBoneChanges: Force mode requested. "
-			"Note: Hierarchy-breaking changes may still require user confirmation due to "
-			"Unreal Engine's skeleton compatibility checks."));
-		
-		bSuccess = Modifier->CommitSkeletonToSkeletalMesh();
-	}
-	else
-	{
-		// Normal commit - may show dialog for hierarchy conflicts
-		bSuccess = Modifier->CommitSkeletonToSkeletalMesh();
-	}
+	// May show the engine's hierarchy-compatibility dialog; the engine offers no way to skip it.
+	const bool bSuccess = Modifier->CommitSkeletonToSkeletalMesh();
 
 	if (bSuccess)
 	{

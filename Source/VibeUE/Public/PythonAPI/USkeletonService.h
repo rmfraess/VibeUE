@@ -473,19 +473,15 @@ public:
 	 * This must be called after add/remove/rename/reparent operations.
 	 *
 	 * @param SkeletalMeshPath - Path to the Skeletal Mesh
-	 * @param bForce - If true, bypasses the confirmation dialog for hierarchy changes
-	 *                 and automatically uses FullMerge mode. Use for silent/automated operations.
 	 * @return True if changes were committed successfully
 	 *
 	 * Example:
 	 *   unreal.SkeletonService.add_bone(...)
 	 *   unreal.SkeletonService.add_bone(...)
 	 *   unreal.SkeletonService.commit_bone_changes("/Game/SKM_Mannequin")
-	 *   # For automated/silent operations:
-	 *   unreal.SkeletonService.commit_bone_changes("/Game/SKM_Mannequin", True)
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Skeleton|Modification")
-	static bool CommitBoneChanges(const FString& SkeletalMeshPath, bool bForce = false);
+	static bool CommitBoneChanges(const FString& SkeletalMeshPath);
 
 
 	// ============================================================================
