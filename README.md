@@ -69,6 +69,11 @@ VibeUE **complements** them — it focuses on the domains and depth the engine d
   toolchain in one authoritative call.
 - **Performance & profiling** — the parts Epic's 5.9 profiling toolsets still don't cover: see below.
 - **Web research** — search / fetch / geocode for in-context research and terrain workflows.
+- **Fab, seen** — `FabPreviewService` shows Fab content as real images next to Epic's `FabToolset`:
+  `ListingImageSheet` tiles the pictures of a whole search page into one numbered contact sheet (and flags
+  the blurred placeholders Fab serves for delisted listings), `PackSheet` shows what an installed pack
+  holds, with its asset count by class and size on disk (a blank saved thumbnail is rendered again, not
+  trusted), and `RefreshThumbnails` re-renders and saves the blank ones. See `Skills/fab-content/`.
 
 It deliberately **does not duplicate** the engine's general tools (basic asset/actor/blueprint/material
 CRUD, screenshots, logs, PIE) — agents use Unreal's native toolsets for those.
@@ -122,7 +127,7 @@ VibeUE plugs into three native UE 5.9+ systems:
    the endpoint, both things the engine has no tool for: `deep_research` and `terrain_data`. Python
    execution and API discovery are engine-native in 5.9 (`editor_toolset.toolsets.python_scripting.PythonScriptingTools`:
    `execute_python`, `read_me`, `search_symbols`, `get_symbol`), so VibeUE no longer ships its own.
-3. **Skills** (`AgentSkillToolset`) — 33 markdown skill packs under `Skills/` (counting the `vibeue` index), discovered natively by
+3. **Skills** (`AgentSkillToolset`) — 34 markdown skill packs under `Skills/` (counting the `vibeue` index), discovered natively by
    5.9 (`<Plugin>/Skills/**/SKILL.md`), listed by `ListSkills` and loaded lazily via `GetSkills`,
    alongside the engine's own skills.
 
@@ -163,7 +168,12 @@ Build with the project script:
 Plugins/VibeUE/BuildAndLaunchGame.ps1                  # builds + launches the editor
 Plugins/VibeUE/BuildAndLaunchGame.ps1 -StrictRebuild   # full recompile (warnings-as-errors)
 Plugins/VibeUE/BuildAndLaunchGame.ps1 -Map /Game/Maps/MyMap   # open a specific map (issue #554)
+Plugins/VibeUE/BuildAndLaunchGame.ps1 -AllUnrealProcesses      # also close other projects' editors (old behaviour)
 ```
+The Windows script closes only the editors of THIS project (their command line names its `.uproject`); an
+editor of another project on the same machine keeps running. Because UBT's Live Coding guard is keyed on the
+engine's `UnrealEditor.exe`, not the project, the script then builds with `-NoHotReloadFromIDE` so that
+editor's Live Coding session does not fail the build ("Unable to build while Live Coding is active").
 On Linux or macOS, use the platform-detecting shell script:
 ```bash
 Plugins/VibeUE/BuildAndLaunchGame.sh --engine /path/to/UE5
