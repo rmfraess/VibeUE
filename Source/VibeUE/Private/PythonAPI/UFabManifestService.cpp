@@ -162,7 +162,7 @@ FString UFabManifestService::InspectOwnedManifest(const FString& ListingId, cons
 	if (Token.IsEmpty())
 	{
 		return ErrJson(TEXT("MANIFEST_RESOLUTION_FAILED"),
-			TEXT("Fab is not signed in. After an editor start Fab restores its sign-in on the first Fab call, which this blocking call cannot drive: run FabToolset.SearchFabMyLibrary once, then retry."));
+			TEXT("Fab is not signed in. After an editor start Fab restores its sign-in on the first Fab call, which this blocking call cannot drive: run FabToolset.FabToolset.SearchFabMyLibrary once, then retry."));
 	}
 	const TSharedRef<FFetchState, ESPMode::ThreadSafe> Info = FetchUrl(InfoUrl, Token);
 	if (!Info->bDone || Info->Code == 0)

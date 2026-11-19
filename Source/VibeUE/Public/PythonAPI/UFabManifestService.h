@@ -25,9 +25,9 @@ public:
 	 * Resolve the Unreal Engine format of one owned listing, download only its BuildPatch manifest, and
 	 * return sanitized JSON: product_id, listing_id, artifact_id, sizes and files[] (path, size_bytes,
 	 * type_hint). Never starts an install or requests payload chunks. File type hints are filename
-	 * heuristics, not Asset Registry evidence. Call FabToolset.SearchFabMyLibrary first in each editor
+	 * heuristics, not Asset Registry evidence. Call FabToolset.FabToolset.SearchFabMyLibrary first in each editor
 	 * session: it restores the Fab sign-in, which this blocking call cannot do and times out without.
-	 * @param ListingId     listingId from FabToolset.SearchFabMyLibrary.
+	 * @param ListingId     listingId from FabToolset.FabToolset.SearchFabMyLibrary.
 	 * @param EngineVersion A version the listing offers, "UE_5.7" or "5.7": the engineVersion of its
 	 *                      unreal-engine installOptions entry. Empty = the running engine.
 	 * @param MaxFiles      Maximum file rows to return; 0 = all files.

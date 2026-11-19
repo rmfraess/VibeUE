@@ -2,7 +2,7 @@
 
 """Run inside Unreal Python to export sanitized owned-manifest inspection results in bounded batches.
 
-Input is the editor's own Fab library: the `results` of FabToolset.SearchFabMyLibrary
+Input is the editor's own Fab library: the `results` of FabToolset.FabToolset.SearchFabMyLibrary
 (assetFormats="unreal-engine", every page), saved as a JSON list or as {"results": [...]}.
 """
 
