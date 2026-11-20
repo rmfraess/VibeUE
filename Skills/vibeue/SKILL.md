@@ -183,8 +183,10 @@ stall grows.
 ## 4. Levels: resident maps and unsaved changes
 
 A map loaded as an **asset** (`unreal.load_asset` on a map, a Save-As, a Level Instance) stays resident,
-and the engine's check on the NEXT level load is fatal (`World Memory Leaks`). Nothing in process releases
-it: restart the editor. Read map metadata through the asset registry instead
+and the engine's check on the NEXT level load is fatal (`World Memory Leaks`). `collect_garbage()` alone
+does not release it; `unreal.EditorLoadingAndSavingUtils.unload_packages([unreal.find_package(path)])` does,
+once no Python variable holds it (`vibeue.python_globals_holding(path)`, `vibeue.release_globals(names)`);
+failing that, restart the editor. Read map metadata through the asset registry instead
 (`unreal.AssetRegistryHelpers.get_asset_registry().get_assets_by_path("/Game/Maps", recursive=True)`).
 
 Renaming or copying a map leaves it resident too (verified 5.9): `EditorAssetLibrary.rename_asset`,
@@ -192,6 +194,10 @@ Renaming or copying a map leaves it resident too (verified 5.9): `EditorAssetLib
 a copy with `EditorLoadingAndSavingUtils.save_map(world, new_path)`, quit with nothing dirty, and relaunch
 on it. A map rename can also fail with `False` when a class default object soft-references the map (an
 auto-cancelled confirmation); then rename it by hand in the Content Browser and verify by script.
+
+A host editor that releases such maps itself before every map load says so with the console variable
+`VibeUE.HostReleasesResidentMaps` (off by default; `unreal.PythonTools.host_releases_resident_maps()` reads
+it). `safe_load_level` then skips its two resident-map refusals and checks only that the target exists.
 
 Change level with **`vibeue.safe_load_level(path)`**:
 

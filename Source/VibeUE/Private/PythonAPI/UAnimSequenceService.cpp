@@ -1,6 +1,7 @@
 // Copyright Buckley Builds LLC 2026 All Rights Reserved.
 
 #include "PythonAPI/UAnimSequenceService.h"
+#include "Utils/VibeUEToolError.h"
 #include "PythonAPI/USkeletonService.h"
 
 #include "Animation/AnimSequence.h"
@@ -3006,3 +3007,163 @@ TArray<FAnimationPoseCaptureResult> UAnimSequenceService::CaptureAnimationSequen
 
 	return Results;
 }
+
+// =================================================================================================
+// Reflected forms (Python and MCP) of the functions that hand their result back through a reference.
+// Epic's ToolsetRegistry publishes an output reference parameter as a required INPUT of the MCP tool
+// and returns only the return value, so each of these returns its result instead, and fails the way
+// Epic's own toolsets do: with a script error (a Python exception, an MCP tool error). Issue #687.
+// =================================================================================================
+
+FTransform UAnimSequenceService::GetRootMotionAtTime(const FString& AnimPath, float Time)
+{
+	FTransform Result = FTransform::Identity;
+	const VibeUE::FToolFailureLog FailureLog;
+	if (!GetRootMotionAtTime(AnimPath, Time, Result))
+	{
+		VibeUE::RaiseToolError(TEXT("GetRootMotionAtTime"), FString::Printf(TEXT("root motion could not be read from '%s'"), *AnimPath), FailureLog);
+	}
+	return Result;
+}
+
+FTransform UAnimSequenceService::GetTotalRootMotion(const FString& AnimPath)
+{
+	FTransform Result = FTransform::Identity;
+	const VibeUE::FToolFailureLog FailureLog;
+	if (!GetTotalRootMotion(AnimPath, Result))
+	{
+		VibeUE::RaiseToolError(TEXT("GetTotalRootMotion"), FString::Printf(TEXT("root motion could not be read from '%s'"), *AnimPath), FailureLog);
+	}
+	return Result;
+}
+
+FAnimNotifyInfo UAnimSequenceService::GetNotifyInfo(const FString& AnimPath, int32 NotifyIndex)
+{
+	FAnimNotifyInfo Result;
+	const VibeUE::FToolFailureLog FailureLog;
+	if (!GetNotifyInfo(AnimPath, NotifyIndex, Result))
+	{
+		VibeUE::RaiseToolError(TEXT("GetNotifyInfo"), FString::Printf(TEXT("notify %d was not found in '%s'"), NotifyIndex, *AnimPath), FailureLog);
+	}
+	return Result;
+}
+
+FAnimCompressionInfo UAnimSequenceService::GetCompressionInfo(const FString& AnimPath)
+{
+	FAnimCompressionInfo Result;
+	const VibeUE::FToolFailureLog FailureLog;
+	if (!GetCompressionInfo(AnimPath, Result))
+	{
+		VibeUE::RaiseToolError(TEXT("GetCompressionInfo"), FString::Printf(TEXT("no AnimSequence could be loaded from '%s'"), *AnimPath), FailureLog);
+	}
+	return Result;
+}
+
+FAnimationEditResult UAnimSequenceService::PreviewBoneRotation(const FString& AnimPath, const FString& BoneName, const FRotator& RotationDelta, const FString& Space, int32 PreviewFrame)
+{
+	FAnimationEditResult Result;
+	const VibeUE::FToolFailureLog FailureLog;
+	if (!PreviewBoneRotation(AnimPath, BoneName, RotationDelta, Space, PreviewFrame, Result))
+	{
+		Result.bSuccess = false;
+	}
+	if (!Result.bSuccess && Result.ErrorMessage.IsEmpty())
+	{
+		Result.ErrorMessage = VibeUE::DescribeToolFailure(TEXT("PreviewBoneRotation"), TEXT("the edit was not applied"), FailureLog);
+	}
+	return Result;
+}
+
+FAnimationEditResult UAnimSequenceService::PreviewPoseDelta(const FString& AnimPath, const TArray<FBoneDelta>& BoneDeltas, const FString& Space, int32 PreviewFrame)
+{
+	FAnimationEditResult Result;
+	const VibeUE::FToolFailureLog FailureLog;
+	if (!PreviewPoseDelta(AnimPath, BoneDeltas, Space, PreviewFrame, Result))
+	{
+		Result.bSuccess = false;
+	}
+	if (!Result.bSuccess && Result.ErrorMessage.IsEmpty())
+	{
+		Result.ErrorMessage = VibeUE::DescribeToolFailure(TEXT("PreviewPoseDelta"), TEXT("the edit was not applied"), FailureLog);
+	}
+	return Result;
+}
+
+FAnimationPreviewState UAnimSequenceService::GetPreviewState(const FString& AnimPath)
+{
+	FAnimationPreviewState Result;
+	GetPreviewState(AnimPath, Result);
+	return Result;
+}
+
+FPoseValidationResult UAnimSequenceService::ValidatePose(const FString& AnimPath, bool bUseLearnedConstraints)
+{
+	FPoseValidationResult Result;
+	const VibeUE::FToolFailureLog FailureLog;
+	if (!ValidatePose(AnimPath, bUseLearnedConstraints, Result))
+	{
+		VibeUE::RaiseToolError(TEXT("ValidatePose"), FString::Printf(TEXT("the animation '%s' or its skeleton could not be loaded"), *AnimPath), FailureLog);
+	}
+	return Result;
+}
+
+FAnimationEditResult UAnimSequenceService::BakePreviewToKeyframes(const FString& AnimPath, int32 StartFrame, int32 EndFrame, const FString& InterpMode)
+{
+	FAnimationEditResult Result;
+	const VibeUE::FToolFailureLog FailureLog;
+	if (!BakePreviewToKeyframes(AnimPath, StartFrame, EndFrame, InterpMode, Result))
+	{
+		Result.bSuccess = false;
+	}
+	if (!Result.bSuccess && Result.ErrorMessage.IsEmpty())
+	{
+		Result.ErrorMessage = VibeUE::DescribeToolFailure(TEXT("BakePreviewToKeyframes"), TEXT("the edit was not applied"), FailureLog);
+	}
+	return Result;
+}
+
+FAnimationEditResult UAnimSequenceService::ApplyBoneRotation(const FString& AnimPath, const FString& BoneName, const FRotator& Rotation, const FString& Space, int32 StartFrame, int32 EndFrame, bool bIsDelta)
+{
+	FAnimationEditResult Result;
+	const VibeUE::FToolFailureLog FailureLog;
+	if (!ApplyBoneRotation(AnimPath, BoneName, Rotation, Space, StartFrame, EndFrame, bIsDelta, Result))
+	{
+		Result.bSuccess = false;
+	}
+	if (!Result.bSuccess && Result.ErrorMessage.IsEmpty())
+	{
+		Result.ErrorMessage = VibeUE::DescribeToolFailure(TEXT("ApplyBoneRotation"), TEXT("the edit was not applied"), FailureLog);
+	}
+	return Result;
+}
+
+FAnimationEditResult UAnimSequenceService::CopyPose(const FString& SrcAnimPath, int32 SrcFrame, const FString& DstAnimPath, int32 DstFrame, const TArray<FString>& BoneFilter)
+{
+	FAnimationEditResult Result;
+	const VibeUE::FToolFailureLog FailureLog;
+	if (!CopyPose(SrcAnimPath, SrcFrame, DstAnimPath, DstFrame, BoneFilter, Result))
+	{
+		Result.bSuccess = false;
+	}
+	if (!Result.bSuccess && Result.ErrorMessage.IsEmpty())
+	{
+		Result.ErrorMessage = VibeUE::DescribeToolFailure(TEXT("CopyPose"), TEXT("the edit was not applied"), FailureLog);
+	}
+	return Result;
+}
+
+FAnimationEditResult UAnimSequenceService::MirrorPose(const FString& AnimPath, int32 Frame, const FString& MirrorAxis)
+{
+	FAnimationEditResult Result;
+	const VibeUE::FToolFailureLog FailureLog;
+	if (!MirrorPose(AnimPath, Frame, MirrorAxis, Result))
+	{
+		Result.bSuccess = false;
+	}
+	if (!Result.bSuccess && Result.ErrorMessage.IsEmpty())
+	{
+		Result.ErrorMessage = VibeUE::DescribeToolFailure(TEXT("MirrorPose"), TEXT("the edit was not applied"), FailureLog);
+	}
+	return Result;
+}
+

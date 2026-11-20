@@ -265,18 +265,20 @@ public:
 	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
 	 * @param StateMachineName - Name of the state machine
 	 * @param StateName - Name of the state
-	 * @param OutInfo - Output state info
-	 * @return True if the state was found
+	 * @return State info. Raises a script error (a Python exception, an MCP tool error) when it cannot be read
 	 *
 	 * Example:
 	 *   info = unreal.AnimGraphService.get_state_info("/Game/ABP_Character", "Locomotion", "Idle")
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Introspection")
-	static bool GetStateInfo(
+	static FAnimStateInfo GetStateInfo(
 		const FString& AnimBlueprintPath,
 		const FString& StateMachineName,
-		const FString& StateName,
-		FAnimStateInfo& OutInfo);
+		const FString& StateName);
+
+	/** C++ form of GetStateInfo: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool GetStateInfo(const FString& AnimBlueprintPath, const FString& StateMachineName, const FString& StateName, FAnimStateInfo& OutInfo);
 
 	// ============================================================================
 	// ANIMGRAPH NODE CREATION

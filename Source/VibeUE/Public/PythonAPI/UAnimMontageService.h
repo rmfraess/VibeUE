@@ -314,14 +314,14 @@ public:
 	 *
 	 * @param MontagePath - Path to montage
 	 * @param SectionName - Name of the section
-	 * @param OutInfo - Output section info
-	 * @return True if section was found
+	 * @return Section info. Raises a script error (a Python exception, an MCP tool error) when it cannot be read
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Montage|Sections")
-	static bool GetSectionInfo(
-		const FString& MontagePath,
-		const FString& SectionName,
-		FMontageSectionInfo& OutInfo);
+	static FMontageSectionInfo GetSectionInfo(const FString& MontagePath, const FString& SectionName);
+
+	/** C++ form of GetSectionInfo: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool GetSectionInfo(const FString& MontagePath, const FString& SectionName, FMontageSectionInfo& OutInfo);
 
 	/**
 	 * Get section index at a specific time.
@@ -716,14 +716,14 @@ public:
 	 *
 	 * @param MontagePath - Path to montage
 	 * @param Time - Time in seconds
-	 * @param OutTransform - Output root motion transform
-	 * @return True if successful
+	 * @return Root motion transform. Raises a script error (a Python exception, an MCP tool error) when it cannot be read
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Montage|RootMotion")
-	static bool GetRootMotionAtTime(
-		const FString& MontagePath,
-		float Time,
-		FTransform& OutTransform);
+	static FTransform GetRootMotionAtTime(const FString& MontagePath, float Time);
+
+	/** C++ form of GetRootMotionAtTime: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool GetRootMotionAtTime(const FString& MontagePath, float Time, FTransform& OutTransform);
 
 private:
 	// ============================================================================

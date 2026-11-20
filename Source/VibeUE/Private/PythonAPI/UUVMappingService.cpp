@@ -1,6 +1,7 @@
 // Copyright Buckley Builds LLC 2026 All Rights Reserved.
 
 #include "PythonAPI/UUVMappingService.h"
+#include "Utils/VibeUEToolError.h"
 
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"

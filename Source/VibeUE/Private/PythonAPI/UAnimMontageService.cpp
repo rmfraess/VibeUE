@@ -1,6 +1,7 @@
 // Copyright Buckley Builds LLC 2026 All Rights Reserved.
 
 #include "PythonAPI/UAnimMontageService.h"
+#include "Utils/VibeUEToolError.h"
 
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimSequence.h"
@@ -950,3 +951,31 @@ bool UAnimMontageService::GetRootMotionAtTime(
 	return true;
 }
 
+// =================================================================================================
+// Reflected forms (Python and MCP) of the functions that hand their result back through a reference.
+// Epic's ToolsetRegistry publishes an output reference parameter as a required INPUT of the MCP tool
+// and returns only the return value, so each of these returns its result instead, and fails the way
+// Epic's own toolsets do: with a script error (a Python exception, an MCP tool error). Issue #687.
+// =================================================================================================
+
+FMontageSectionInfo UAnimMontageService::GetSectionInfo(const FString& MontagePath, const FString& SectionName)
+{
+	FMontageSectionInfo Result;
+	const VibeUE::FToolFailureLog FailureLog;
+	if (!GetSectionInfo(MontagePath, SectionName, Result))
+	{
+		VibeUE::RaiseToolError(TEXT("GetSectionInfo"), FString::Printf(TEXT("section '%s' was not found in '%s'"), *SectionName, *MontagePath), FailureLog);
+	}
+	return Result;
+}
+
+FTransform UAnimMontageService::GetRootMotionAtTime(const FString& MontagePath, float Time)
+{
+	FTransform Result = FTransform::Identity;
+	const VibeUE::FToolFailureLog FailureLog;
+	if (!GetRootMotionAtTime(MontagePath, Time, Result))
+	{
+		VibeUE::RaiseToolError(TEXT("GetRootMotionAtTime"), FString::Printf(TEXT("root motion could not be read from '%s'"), *MontagePath), FailureLog);
+	}
+	return Result;
+}

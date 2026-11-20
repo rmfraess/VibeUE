@@ -531,26 +531,27 @@ public:
 	 *
 	 * @param AnimPath - Path to the animation asset
 	 * @param Time - Time in seconds
-	 * @param OutTransform - Output root motion transform
-	 * @return True if successful
+	 * @return Root motion transform. Raises a script error (a Python exception, an MCP tool error) when it cannot be read
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Pose")
-	static bool GetRootMotionAtTime(
-		const FString& AnimPath,
-		float Time,
-		FTransform& OutTransform);
+	static FTransform GetRootMotionAtTime(const FString& AnimPath, float Time);
+
+	/** C++ form of GetRootMotionAtTime: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool GetRootMotionAtTime(const FString& AnimPath, float Time, FTransform& OutTransform);
 
 	/**
 	 * Get total root motion transform for the entire animation.
 	 *
 	 * @param AnimPath - Path to the animation asset
-	 * @param OutTransform - Output total root motion transform
-	 * @return True if successful
+	 * @return Total root motion transform. Raises a script error (a Python exception, an MCP tool error) when it cannot be read
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Pose")
-	static bool GetTotalRootMotion(
-		const FString& AnimPath,
-		FTransform& OutTransform);
+	static FTransform GetTotalRootMotion(const FString& AnimPath);
+
+	/** C++ form of GetTotalRootMotion: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool GetTotalRootMotion(const FString& AnimPath, FTransform& OutTransform);
 
 	/**
 	 * Get all keyframes for a curve.
@@ -582,14 +583,14 @@ public:
 	 *
 	 * @param AnimPath - Path to the animation asset
 	 * @param NotifyIndex - Index of the notify
-	 * @param OutInfo - Output notify info
-	 * @return True if notify was found
+	 * @return Notify info. Raises a script error (a Python exception, an MCP tool error) when it cannot be read
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Notifies")
-	static bool GetNotifyInfo(
-		const FString& AnimPath,
-		int32 NotifyIndex,
-		FAnimNotifyInfo& OutInfo);
+	static FAnimNotifyInfo GetNotifyInfo(const FString& AnimPath, int32 NotifyIndex);
+
+	/** C++ form of GetNotifyInfo: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool GetNotifyInfo(const FString& AnimPath, int32 NotifyIndex, FAnimNotifyInfo& OutInfo);
 
 	/**
 	 * Add an instant notify (point in time).
@@ -802,13 +803,14 @@ public:
 	 * Get compression information for an animation.
 	 *
 	 * @param AnimPath - Path to the animation asset
-	 * @param OutInfo - Output compression info
-	 * @return True if successful
+	 * @return Compression info. Raises a script error (a Python exception, an MCP tool error) when it cannot be read
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Compression")
-	static bool GetCompressionInfo(
-		const FString& AnimPath,
-		FAnimCompressionInfo& OutInfo);
+	static FAnimCompressionInfo GetCompressionInfo(const FString& AnimPath);
+
+	/** C++ form of GetCompressionInfo: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool GetCompressionInfo(const FString& AnimPath, FAnimCompressionInfo& OutInfo);
 
 	// ============================================================================
 	// PREVIEW EDITING (Inspect → Preview → Validate → Bake workflow)
@@ -824,8 +826,7 @@ public:
 	 * @param RotationDelta - Rotation delta (Euler degrees)
 	 * @param Space - Coordinate space: "local", "component", or "world"
 	 * @param PreviewFrame - Frame to preview at (default: current frame)
-	 * @param OutResult - Result with applied changes and any clamping
-	 * @return Always true so Python gets the result struct; check OutResult.bSuccess
+	 * @return The edit result: check bSuccess; on failure ErrorMessage says why
 	 *
 	 * Example:
 	 *   # Preview rotating the upper arm 30 degrees
@@ -840,13 +841,16 @@ public:
 	 *       print("Rotation was clamped to constraints")
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Preview")
-	static bool PreviewBoneRotation(
+	static FAnimationEditResult PreviewBoneRotation(
 		const FString& AnimPath,
 		const FString& BoneName,
 		const FRotator& RotationDelta,
 		const FString& Space,
-		int32 PreviewFrame,
-		FAnimationEditResult& OutResult);
+		int32 PreviewFrame);
+
+	/** C++ form of PreviewBoneRotation: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool PreviewBoneRotation(const FString& AnimPath, const FString& BoneName, const FRotator& RotationDelta, const FString& Space, int32 PreviewFrame, FAnimationEditResult& OutResult);
 
 	/**
 	 * Preview rotation deltas for multiple bones at once.
@@ -856,8 +860,7 @@ public:
 	 * @param BoneDeltas - Array of bone deltas to apply
 	 * @param Space - Coordinate space: "local", "component", or "world"
 	 * @param PreviewFrame - Frame to preview at
-	 * @param OutResult - Result with applied changes
-	 * @return Always true so Python gets the result struct; check OutResult.bSuccess
+	 * @return The edit result: check bSuccess; on failure ErrorMessage says why
 	 *
 	 * Example:
 	 *   deltas = [
@@ -868,12 +871,15 @@ public:
 	 *   result = unreal.AnimSequenceService.preview_pose_delta("/Game/Anims/AS_Idle", deltas, "local", 0)
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Preview")
-	static bool PreviewPoseDelta(
+	static FAnimationEditResult PreviewPoseDelta(
 		const FString& AnimPath,
 		const TArray<FBoneDelta>& BoneDeltas,
 		const FString& Space,
-		int32 PreviewFrame,
-		FAnimationEditResult& OutResult);
+		int32 PreviewFrame);
+
+	/** C++ form of PreviewPoseDelta: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool PreviewPoseDelta(const FString& AnimPath, const TArray<FBoneDelta>& BoneDeltas, const FString& Space, int32 PreviewFrame, FAnimationEditResult& OutResult);
 
 	/**
 	 * Cancel all pending preview edits without baking to keyframes.
@@ -892,8 +898,7 @@ public:
 	 * Get the current state of an animation preview session.
 	 *
 	 * @param AnimPath - Path to the animation asset
-	 * @param OutState - Current preview state
-	 * @return True if state was retrieved
+	 * @return The preview state; bIsActive is false when no preview is open for the animation
 	 *
 	 * Example:
 	 *   state = unreal.AnimSequenceService.get_preview_state("/Game/Anims/AS_Idle")
@@ -901,9 +906,11 @@ public:
 	 *       print(f"Previewing {state.pending_edit_count} edits")
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Preview")
-	static bool GetPreviewState(
-		const FString& AnimPath,
-		FAnimationPreviewState& OutState);
+	static FAnimationPreviewState GetPreviewState(const FString& AnimPath);
+
+	/** C++ form of GetPreviewState: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool GetPreviewState(const FString& AnimPath, FAnimationPreviewState& OutState);
 
 	/**
 	 * Validate the current preview pose against bone constraints.
@@ -911,8 +918,7 @@ public:
 	 *
 	 * @param AnimPath - Path to the animation asset
 	 * @param bUseLearnedConstraints - Use learned constraints instead of manual
-	 * @param OutResult - Validation result with violations and suggestions
-	 * @return True if validation ran; OutResult.bIsValid is false (with a message) when no preview is active
+	 * @return Validation result with violations and suggestions. Raises a script error (a Python exception, an MCP tool error) when it cannot be read
 	 *
 	 * Example:
 	 *   result = unreal.AnimSequenceService.validate_pose("/Game/Anims/AS_Idle", True)
@@ -921,10 +927,11 @@ public:
 	 *           print(f"Violation: {violation}")
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Preview")
-	static bool ValidatePose(
-		const FString& AnimPath,
-		bool bUseLearnedConstraints,
-		FPoseValidationResult& OutResult);
+	static FPoseValidationResult ValidatePose(const FString& AnimPath, bool bUseLearnedConstraints);
+
+	/** C++ form of ValidatePose: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool ValidatePose(const FString& AnimPath, bool bUseLearnedConstraints, FPoseValidationResult& OutResult);
 
 	/**
 	 * Bake all pending preview edits to keyframes in the animation.
@@ -934,8 +941,7 @@ public:
 	 * @param StartFrame - Start frame of range to bake (0 = start of animation)
 	 * @param EndFrame - End frame of range to bake (-1 = end of animation)
 	 * @param InterpMode - Interpolation mode: "linear", "cubic", "auto"
-	 * @param OutResult - Result with baked frame range and any issues
-	 * @return True if bake was successful
+	 * @return The edit result: check bSuccess; on failure ErrorMessage says why
 	 *
 	 * Example:
 	 *   # Bake preview to all frames with cubic interpolation
@@ -948,12 +954,15 @@ public:
 	 *       print(f"Baked frames {result.start_frame} to {result.end_frame}")
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Preview")
-	static bool BakePreviewToKeyframes(
+	static FAnimationEditResult BakePreviewToKeyframes(
 		const FString& AnimPath,
 		int32 StartFrame,
 		int32 EndFrame,
-		const FString& InterpMode,
-		FAnimationEditResult& OutResult);
+		const FString& InterpMode);
+
+	/** C++ form of BakePreviewToKeyframes: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool BakePreviewToKeyframes(const FString& AnimPath, int32 StartFrame, int32 EndFrame, const FString& InterpMode, FAnimationEditResult& OutResult);
 
 	/**
 	 * Apply a bone rotation directly to keyframes without preview.
@@ -966,8 +975,7 @@ public:
 	 * @param StartFrame - Start frame of range
 	 * @param EndFrame - End frame of range (-1 = end of animation)
 	 * @param bIsDelta - If true, rotation is added to existing; if false, it replaces
-	 * @param OutResult - Result with applied changes
-	 * @return True if rotation was applied successfully
+	 * @return The edit result: check bSuccess; on failure ErrorMessage says why
 	 *
 	 * Example:
 	 *   # Add 15 degree rotation to frames 0-30
@@ -981,15 +989,18 @@ public:
 	 *   )
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Preview")
-	static bool ApplyBoneRotation(
+	static FAnimationEditResult ApplyBoneRotation(
 		const FString& AnimPath,
 		const FString& BoneName,
 		const FRotator& Rotation,
 		const FString& Space,
 		int32 StartFrame,
 		int32 EndFrame,
-		bool bIsDelta,
-		FAnimationEditResult& OutResult);
+		bool bIsDelta);
+
+	/** C++ form of ApplyBoneRotation: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool ApplyBoneRotation(const FString& AnimPath, const FString& BoneName, const FRotator& Rotation, const FString& Space, int32 StartFrame, int32 EndFrame, bool bIsDelta, FAnimationEditResult& OutResult);
 
 	// ============================================================================
 	// POSE UTILITIES
@@ -1003,8 +1014,7 @@ public:
 	 * @param DstAnimPath - Destination animation path
 	 * @param DstFrame - Destination frame number
 	 * @param BoneFilter - Optional list of bone names to copy (empty = all bones)
-	 * @param OutResult - Result with copied bones
-	 * @return True if pose was copied successfully
+	 * @return The edit result: check bSuccess; on failure ErrorMessage says why
 	 *
 	 * Example:
 	 *   # Copy frame 0 from idle to frame 15 of walk
@@ -1015,13 +1025,16 @@ public:
 	 *   )
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Pose")
-	static bool CopyPose(
+	static FAnimationEditResult CopyPose(
 		const FString& SrcAnimPath,
 		int32 SrcFrame,
 		const FString& DstAnimPath,
 		int32 DstFrame,
-		const TArray<FString>& BoneFilter,
-		FAnimationEditResult& OutResult);
+		const TArray<FString>& BoneFilter);
+
+	/** C++ form of CopyPose: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool CopyPose(const FString& SrcAnimPath, int32 SrcFrame, const FString& DstAnimPath, int32 DstFrame, const TArray<FString>& BoneFilter, FAnimationEditResult& OutResult);
 
 	/**
 	 * Mirror a pose across the character's symmetry axis.
@@ -1030,19 +1043,18 @@ public:
 	 * @param AnimPath - Path to the animation asset
 	 * @param Frame - Frame to mirror
 	 * @param MirrorAxis - Axis to mirror across: "X", "Y", or "Z" (default: "X")
-	 * @param OutResult - Result with mirrored bones
-	 * @return True if pose was mirrored successfully
+	 * @return The edit result: check bSuccess; on failure ErrorMessage says why
 	 *
 	 * Example:
 	 *   result = unreal.AnimSequenceService.mirror_pose("/Game/Anims/AS_Wave", 15, "X")
 	 *   print(f"Mirrored {len(result.modified_bones)} bones")
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Pose")
-	static bool MirrorPose(
-		const FString& AnimPath,
-		int32 Frame,
-		const FString& MirrorAxis,
-		FAnimationEditResult& OutResult);
+	static FAnimationEditResult MirrorPose(const FString& AnimPath, int32 Frame, const FString& MirrorAxis);
+
+	/** C++ form of MirrorPose: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool MirrorPose(const FString& AnimPath, int32 Frame, const FString& MirrorAxis, FAnimationEditResult& OutResult);
 
 	// ============================================================================
 	// POSE AUTHORING (component-space targets instead of raw local keys)
