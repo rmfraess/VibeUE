@@ -513,8 +513,9 @@ The mesh /Game/Meshes/SM_RuinPiece imported with garbage UVs. Rescue:
 For every StaticMesh under /Game/Meshes, run a quick UV stats check (`ModelingService.get_uv_stats`).
 For any mesh whose lightmap channel has overlap_fraction > 0 OR whose
 bGenerateLightmapUVs is false, fix it:
-- generate_lightmap_uvs (0 → 1, spacing 1%)
-- set_lightmap_settings (coord=1, source=0, res=128, generate=true)
+- turn on the mesh's lightmap UV generation (source channel 0, destination 1, min lightmap
+  resolution 128, lightmap coordinate index 1) through its build settings
+  (`StaticMeshEditorSubsystem` / `ObjectToolset`)
 - save.
 At the end, report which meshes were fixed vs which were already clean.
 ```

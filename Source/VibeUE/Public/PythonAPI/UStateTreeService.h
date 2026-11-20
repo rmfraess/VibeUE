@@ -379,10 +379,6 @@ struct FVibeUEStateTreeBindingInfo
  * the full per-tool migration table.
  *
  * What is left is what none of those can reach:
- *  - all 24 property Bind* / Unbind* tools. Their engine counterpart, UStateTreeEditorData::
- *    SetBinding / ClearBinding, is PythonCallable native API, not an AI toolset tool.
- *  - CreateStateTree. Epic deliberately omits asset creation: UStateTreeFactory::SetSchemaClass is
- *    not a UFUNCTION, and its toolset v1 wraps only existing K2 APIs.
  *  - node-TYPE discovery: GetAvailableTaskTypes / GetAvailableConditionTypes /
  *    GetAvailableConsiderationTypes / GetAvailableEvaluatorTypes. Epic's adders take a
  *    UScriptStruct and nothing in the engine surface enumerates those (SearchSubclasses is
@@ -394,8 +390,7 @@ struct FVibeUEStateTreeBindingInfo
  *    SetComponentParameterOverride. FInstancedPropertyBag's schema is C++-mutable only, and the
  *    override needs property-bag descriptor GUIDs nothing else exposes.
  *  - the not-path-addressable set (task enable/completion toggles are native in 5.9:
- *    unreal.StateTreeEditingSubsystem): AddTransitionCondition, GetTransitionConditionPropertyNames and
- *    SetTransitionConditionPropertyValue all live inside an FInstancedStruct or behind an
+ *    unreal.StateTreeEditingSubsystem): AddTransitionCondition lives inside an FInstancedStruct or behind an
  *    Instanced object reference, which ToolsetPropertyPath will not cross; SetStateExpanded
  *    (bExpanded has neither CPF_Edit nor CPF_BlueprintVisible, so the toolset refuses it both ways
  *    and ListProperties cannot even see it); SelectState (SelectAssetEditorObjects raises for a

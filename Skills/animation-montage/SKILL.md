@@ -145,8 +145,9 @@ import json
 OT = "EditorToolset.ObjectToolset."
 m = {"refPath": "/Game/Montages/AM_Attack.AM_Attack"}     # object path: name repeated after the dot
 
-# Set blend out
-AnimMontageService.set_blend_out(montage_path, time, option) -> bool
+# Set blend out (property paths, as for any ObjectToolset write)
+await call_tool(OT + "SetProperties", instance=m,
+                values=json.dumps({"BlendOut.BlendTime": 0.25, "BlendOutTriggerTime": -1.0}))
 ```
 Read blend settings and set the blend-out trigger time with `EditorToolset.ObjectToolset.GetProperties` / `SetProperties`.
 

@@ -88,7 +88,7 @@ f = unreal.DataAssetFactory()
 f.set_editor_property("data_asset_class", unreal.PrimaryDataAsset)
 a = unreal.AssetToolsHelpers.get_asset_tools().create_asset("DA_DirtyProbe", P, unreal.PrimaryDataAsset, f)
 delta = vibeue.dirty_delta(before)
-listed = [str(p) for p in unreal.PythonTools.get_dirty_packages()]
+listed = [p.get_name() for p in unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages()]
 unreal.EditorAssetLibrary.delete_directory(P)
 {"delta": delta, "probe_listed": any(p.startswith(P) for p in listed),
  "cleaned": not unreal.EditorAssetLibrary.does_directory_exist(P)}

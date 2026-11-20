@@ -19,7 +19,7 @@ def _targets(actor):
 
 def _replace_and_undo(world, parent, label, source, destination, proxies):
     service = unreal.LandscapeService
-    before = [(str(layer.layer_name), layer.layer_info_path) for layer in service.list_layers(label)]
+    before = [(str(layer.layer_name), layer.layer_info_path) for layer in service.get_landscape_info(label).layers]
     proxy_before = {actor.get_path_name(): _targets(actor) for actor in proxies}
     recorded = False
     try:
@@ -27,14 +27,14 @@ def _replace_and_undo(world, parent, label, source, destination, proxies):
             recorded = bool(parent.modify(False))
             assert recorded, "could not establish the test transaction"
             result = service.replace_layer_info(label, source, destination)
-            during = [(str(layer.layer_name), layer.layer_info_path) for layer in service.list_layers(label)]
+            during = [(str(layer.layer_name), layer.layer_info_path) for layer in service.get_landscape_info(label).layers]
             proxy_during = {actor.get_path_name(): _targets(actor) for actor in proxies}
             dirty = ([package.get_name() for package in unreal.EditorLoadingAndSavingUtils.get_dirty_map_packages()],
                      [package.get_name() for package in unreal.EditorLoadingAndSavingUtils.get_dirty_content_packages()])
     finally:
         if recorded:
             unreal.SystemLibrary.execute_console_command(world, "TRANSACTION UNDO")
-    assert [(str(layer.layer_name), layer.layer_info_path) for layer in service.list_layers(label)] == before, "Undo did not restore parent target"
+    assert [(str(layer.layer_name), layer.layer_info_path) for layer in service.get_landscape_info(label).layers] == before, "Undo did not restore parent target"
     assert {actor.get_path_name(): _targets(actor) for actor in proxies} == proxy_before, "Undo did not restore proxy targets"
     return result, before, during, proxy_before, proxy_during, dirty
 

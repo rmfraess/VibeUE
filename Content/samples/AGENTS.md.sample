@@ -45,7 +45,7 @@ There are two ways to act on the editor. Pick the cheap one:
 - **`execute_python` — your workhorse.** Engine-native
   (`editor_toolset.toolsets.python_scripting.PythonScriptingTools`). Runs an arbitrary Python script in the editor in **one
   round-trip**, on the game thread, with top-level `await`. Every VibeUE service is exposed to
-  Python (`unreal.StateTreeService.create_state_tree(...)`) and sits next to the whole native `unreal.*`
+  Python (`unreal.LandscapeService.get_landscape_info(...)`) and sits next to the whole native `unreal.*`
   API in the same script. **Batch aggressively** — do a whole multi-step task (create + edit +
   compile + verify) in a single call, and `print()` only what you need back (print goes to the
   Output Log; the script's final expression is what comes back).
