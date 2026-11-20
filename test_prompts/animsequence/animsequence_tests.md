@@ -101,7 +101,7 @@ as the class so the custom name displays in the editor.
 **NOTE:** Requires a concrete AnimNotifyState subclass — the base `/Script/Engine.AnimNotifyState` is
 abstract and cannot be instantiated. If the project has `AnimNotifyState_Trail` or similar, use it;
 otherwise skip or create a custom notify state class first. Example: add a trail notify state using
-`/Script/Engine.AnimNotifyState_Trail` starting at 0.1s lasting 0.3s.
+`/Script/Engine.AnimNotifyState_DisableRootMotion` starting at 0.1s lasting 0.3s.
 
 ## 3.04 - Add Multiple Notifies
 Add footstep notifies at: 0.0s (left foot), 0.5s (right foot), 1.0s (left foot).

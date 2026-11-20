@@ -1257,7 +1257,7 @@ private:
 public:
 	// Restored from upstream: the native replacement does not do all of this (cut audit).
 	/**
-	 * Add a single key to a curve.
+	 * Add a single key to an existing float curve (create it first with unreal.AnimationLibrary.add_curve).
 	 *
 	 * @param AnimPath - Path to the animation asset
 	 * @param CurveName - Name of the curve
@@ -1276,7 +1276,7 @@ public:
 	 * Add a notify state (duration-based).
 	 *
 	 * @param AnimPath - Full path to an AnimSequence asset (montages must use AnimMontageService)
-	 * @param NotifyStateClass - Full path to a concrete class (e.g., "/Script/Engine.AnimNotifyState_Trail")
+	 * @param NotifyStateClass - Full path to a concrete class (e.g., "/Script/Engine.AnimNotifyState_DisableRootMotion")
 	 * @param StartTime - Start time in seconds
 	 * @param Duration - Duration in seconds
 	 * @param NotifyName - Optional name for the notify
@@ -1305,12 +1305,12 @@ public:
 		float Time);
 
 	/**
-	 * Remove a notify track from an animation.
-	 * Moves all notifies on this track to track 0, then decrements
-	 * track indices for notifies on higher tracks.
+	 * Remove a notify track from an animation, keeping its contents.
+	 * Moves the track's notifies and sync markers to track 0 (the native
+	 * RemoveAnimationNotifyTrack deletes them), then removes the track.
 	 *
 	 * @param AnimPath - Path to the animation asset
-	 * @param TrackIndex - Index of the track to remove
+	 * @param TrackIndex - Index of the track to remove; the last remaining track cannot be removed
 	 * @return True if successful
 	 */
 	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|NotifyTracks")

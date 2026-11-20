@@ -473,7 +473,7 @@ public:
 	 * Create a LandscapeLayerBlend node in a material.
 	 * Maps to action="create_layer_blend_node"
 	 *
-	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeLayerBlend"}) instead; kept because it returns the VibeUE blend-node ID that the kept AddLayerToBlendNode / RemoveLayerFromBlendNode / GetLayerBlendInfo / ConnectToLayerInput / SetupLayerTextures tools take, and the landscape-materials workflows chain on it.
+	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeLayerBlend"}) instead; kept because it returns the VibeUE blend-node ID that RemoveLayerFromBlendNode takes; add or read layers with ObjectToolset on the node's Layers property.
 	 *
 	 * @param MaterialPath - Full path to the material
 	 * @param PosX - X position in the material graph
@@ -490,7 +490,7 @@ public:
 	 * Create a LandscapeLayerCoords expression for UV mapping.
 	 * Maps to action="create_layer_coords_node"
 	 *
-	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeLayerCoords"}) then EditorToolset.ObjectToolset.SetProperties instead; kept because it returns the VibeUE node ID that ConnectToLayerInput and the other kept node-id tools consume.
+	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeLayerCoords"}) then EditorToolset.ObjectToolset.SetProperties instead; kept because one call creates and configures the node for the landscape-materials workflows; the returned ID is VibeUE-internal, so wire the node with MaterialToolset.ConnectExpressions.
 	 *
 	 * @param MaterialPath - Full path to the material
 	 * @param MappingScale - UV tiling scale (default 0.01 = tile every 100 units)
@@ -512,7 +512,7 @@ public:
 	 * Unlike LandscapeLayerBlend which blends multiple layers, LayerSample outputs
 	 * the raw weight (0-1) of a single layer. Useful for masking and procedural effects.
 	 *
-	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeLayerSample"}) then EditorToolset.ObjectToolset.SetProperties instead; kept because it returns the VibeUE node ID that ConnectToLayerInput and the other kept node-id tools consume.
+	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeLayerSample"}) then EditorToolset.ObjectToolset.SetProperties instead; kept because one call creates and configures the node for the landscape-materials workflows; the returned ID is VibeUE-internal, so wire the node with MaterialToolset.ConnectExpressions.
 	 *
 	 * @param MaterialPath - Full path to the material
 	 * @param LayerName - Name of the landscape layer to sample
@@ -537,7 +537,7 @@ public:
 	 * Each entry in GrassTypeNames maps a display name to a grass type asset path.
 	 * The node will have one input per grass type for driving spawn density.
 	 *
-	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeGrassOutput"}) then EditorToolset.ObjectToolset.SetProperties instead; kept because it returns the VibeUE node ID that ConnectToLayerInput and the other kept node-id tools consume.
+	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeGrassOutput"}) then EditorToolset.ObjectToolset.SetProperties instead; kept because one call creates and configures the node for the landscape-materials workflows; the returned ID is VibeUE-internal, so wire the node with MaterialToolset.ConnectExpressions.
 	 *
 	 * @param MaterialPath - Full path to the material
 	 * @param GrassTypeNames - Map of input name -> LandscapeGrassType asset path
@@ -560,7 +560,7 @@ public:
 	 * Create a LandscapeLayerWeight expression (alternative to LandscapeLayerBlend).
 	 * Maps to action="create_layer_weight_node"
 	 *
-	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeLayerWeight"}) then EditorToolset.ObjectToolset.SetProperties instead; kept because it returns the VibeUE node ID that ConnectToLayerInput and the other kept node-id tools consume.
+	 * Demoted (not an AI tool): use EditorToolset.MaterialToolset.AddExpression (expressionClass={"refPath": "/Script/Landscape.MaterialExpressionLandscapeLayerWeight"}) then EditorToolset.ObjectToolset.SetProperties instead; kept because one call creates and configures the node for the landscape-materials workflows; the returned ID is VibeUE-internal, so wire the node with MaterialToolset.ConnectExpressions.
 	 *
 	 * @param MaterialPath - Full path to the material
 	 * @param LayerName - Layer name for this weight node
@@ -576,5 +576,29 @@ public:
 		float PreviewWeight = 1.0f,
 		int32 PosX = -400,
 		int32 PosY = 0);
+
+public:
+	// Restored from upstream: the native replacement does not do all of this (cut audit).
+	/**
+	 * Connect an expression output to a specific layer input on a blend node.
+	 * Maps to action="connect_to_layer_input"
+	 *
+	 * @param MaterialPath - Full path to the material
+	 * @param SourceExpressionId - Source expression ID
+	 * @param SourceOutput - Output name (empty for first output)
+	 * @param BlendNodeId - Blend node ID
+	 * @param LayerName - Layer name to connect to
+	 * @param InputType - "Layer" (the layer's color input) or "Height" (only LB_HeightBlend layers
+	 *                   have one; "Alpha" is an alias). Height/slope masks go to a height-blend layer's Height.
+	 * @return True if connection was made
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|LandscapeMaterial")
+	static bool ConnectToLayerInput(
+		const FString& MaterialPath,
+		const FString& SourceExpressionId,
+		const FString& SourceOutput,
+		const FString& BlendNodeId,
+		const FString& LayerName,
+		const FString& InputType = TEXT("Layer"));
 
 };

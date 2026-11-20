@@ -3337,9 +3337,10 @@ bool UAnimSequenceService::RemoveNotifyTrack(
 		return false;
 	}
 
-	if (TrackIndex < 0)
+	// Same rule as Persona's delete-track: the index must exist and one track must remain.
+	if (!AnimSeq->AnimNotifyTracks.IsValidIndex(TrackIndex) || AnimSeq->AnimNotifyTracks.Num() < 2)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("UAnimSequenceService::RemoveNotifyTrack: Invalid track index: %d"), TrackIndex);
+		UE_LOG(LogTemp, Warning, TEXT("UAnimSequenceService::RemoveNotifyTrack: Invalid track index %d (%d tracks; the last track cannot be removed)"), TrackIndex, AnimSeq->AnimNotifyTracks.Num());
 		return false;
 	}
 
@@ -3347,7 +3348,7 @@ bool UAnimSequenceService::RemoveNotifyTrack(
 
 	bool bFoundNotifiesOnTrack = false;
 
-	// Move any notifies on this track to track 0 (the first track)
+	// Unlike the native RemoveAnimationNotifyTrack, keep the track's notifies and sync markers: move them to track 0
 	for (FAnimNotifyEvent& Notify : AnimSeq->Notifies)
 	{
 		if (Notify.TrackIndex == TrackIndex)
@@ -3357,11 +3358,24 @@ bool UAnimSequenceService::RemoveNotifyTrack(
 		}
 		else if (Notify.TrackIndex > TrackIndex)
 		{
-			// Decrement track indices for notifies on higher tracks
 			Notify.TrackIndex--;
 		}
 	}
+	for (FAnimSyncMarker& Marker : AnimSeq->AuthoredSyncMarkers)
+	{
+		if (Marker.TrackIndex == TrackIndex)
+		{
+			Marker.TrackIndex = 0;
+			bFoundNotifiesOnTrack = true;
+		}
+		else if (Marker.TrackIndex > TrackIndex)
+		{
+			Marker.TrackIndex--;
+		}
+	}
 
+	AnimSeq->AnimNotifyTracks.RemoveAt(TrackIndex);
+	AnimSeq->RefreshCacheData();
 	AnimSeq->MarkPackageDirty();
 
 	UE_LOG(LogTemp, Log, TEXT("UAnimSequenceService::RemoveNotifyTrack: Removed track %d, moved %s notifies to track 0"), 

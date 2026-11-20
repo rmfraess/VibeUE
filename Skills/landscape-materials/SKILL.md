@@ -84,7 +84,10 @@ call_tool MaterialToolset.GetPropertyInput    {"material": {"refPath": "<materia
 - **Layer info assets and landscape assignment** — Python, via `unreal.LandscapeEditorSubsystem`
   (`create_target_layer_info`, `add_target_layer`, `set_target_layer_info`) in `execute_python`.
 - **LandscapeMaterialService** (`execute_python`) — `create_auto_material`: the whole production
-  material in one call (see `landscape-auto-material`).
+  material in one call (see `landscape-auto-material`). Also `create_height_mask_node` /
+  `create_slope_mask_node` (a whole mask network), `connect_to_layer_input` (a mask into a
+  height-blend layer's `Height` pin) and `remove_layer_from_blend_node` (keeps the other layers'
+  wiring). They take this service's node IDs (`create_layer_blend_node`), not ObjectToolset paths.
 - **MaterialNodeService** (`execute_python`) — one tool left: `create_collection_parameter`.
 - **`MaterialService` is deleted.** Every call that used to go there is now one of the two rows
   above — mind the style: VibeUE is Python, Epic is `call_tool`.

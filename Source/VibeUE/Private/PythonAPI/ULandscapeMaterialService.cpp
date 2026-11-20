@@ -1586,3 +1586,85 @@ FString ULandscapeMaterialService::CreateLayerWeightNode(
 	UE_LOG(LogTemp, Log, TEXT("ULandscapeMaterialService::CreateLayerWeightNode: Created for layer '%s'"), *LayerName);
 	return NodeId;
 }
+
+// Restored from upstream: the native replacement does not do all of this (cut audit).
+bool ULandscapeMaterialService::ConnectToLayerInput(
+	const FString& MaterialPath,
+	const FString& SourceExpressionId,
+	const FString& SourceOutput,
+	const FString& BlendNodeId,
+	const FString& LayerName,
+	const FString& InputType)
+{
+	UMaterial* Material = LoadMaterialAsset(MaterialPath);
+	if (!Material)
+	{
+		return false;
+	}
+
+	UMaterialExpression* SourceExpr = FindExpressionById(Material, SourceExpressionId);
+	if (!SourceExpr)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ULandscapeMaterialService::ConnectToLayerInput: Source expression '%s' not found"), *SourceExpressionId);
+		return false;
+	}
+
+	UMaterialExpressionLandscapeLayerBlend* BlendNode = FindLayerBlendNode(Material, BlendNodeId);
+	if (!BlendNode)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ULandscapeMaterialService::ConnectToLayerInput: Blend node '%s' not found"), *BlendNodeId);
+		return false;
+	}
+
+	// Find the layer index
+	int32 LayerIndex = INDEX_NONE;
+	for (int32 i = 0; i < BlendNode->Layers.Num(); i++)
+	{
+		if (BlendNode->Layers[i].LayerName.ToString().Equals(LayerName, ESearchCase::IgnoreCase))
+		{
+			LayerIndex = i;
+			break;
+		}
+	}
+
+	if (LayerIndex == INDEX_NONE)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ULandscapeMaterialService::ConnectToLayerInput: Layer '%s' not found in blend node"), *LayerName);
+		return false;
+	}
+
+	// Determine the source output index
+	int32 SourceOutputIndex = 0;
+	if (!SourceOutput.IsEmpty())
+	{
+		TArray<FExpressionOutput>& Outputs = SourceExpr->GetOutputs();
+		for (int32 i = 0; i < Outputs.Num(); i++)
+		{
+			if (Outputs[i].OutputName.ToString().Equals(SourceOutput, ESearchCase::IgnoreCase))
+			{
+				SourceOutputIndex = i;
+				break;
+			}
+		}
+	}
+
+	// Only LB_HeightBlend layers have a Height pin (UMaterialExpressionLandscapeLayerBlend::GetInput); "Alpha" is an alias.
+	FLayerBlendInput& Layer = BlendNode->Layers[LayerIndex];
+	const bool bHeight = InputType.Equals(TEXT("Height"), ESearchCase::IgnoreCase) || InputType.Equals(TEXT("Alpha"), ESearchCase::IgnoreCase);
+	if (bHeight && Layer.BlendType != LB_HeightBlend)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ULandscapeMaterialService::ConnectToLayerInput: Layer '%s' is not LB_HeightBlend, so it has no %s input"), *LayerName, *InputType);
+		return false;
+	}
+
+	FScopedTransaction Transaction(NSLOCTEXT("LandscapeMaterialService", "ConnectToLayer", "Connect to Layer Input"));
+	Material->Modify();
+	BlendNode->Modify();
+
+	(bHeight ? Layer.HeightInput : Layer.LayerInput).Connect(SourceOutputIndex, SourceExpr);
+	RefreshMaterialGraph(Material);
+
+	UE_LOG(LogTemp, Log, TEXT("ULandscapeMaterialService::ConnectToLayerInput: Connected to layer '%s' %s input"),
+		*LayerName, *InputType);
+	return true;
+}

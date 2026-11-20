@@ -68,7 +68,7 @@ lib.add_float_curve_key(anim, "jaw_open", 0.5, 1.0)
 - ❌ Using custom notify class + custom name - editor shows class name, not your custom name
 - ✅ Use `/Script/Engine.AnimNotify` with a custom name for named instant notifies (creates skeleton notify)
 - ✅ Use concrete subclasses like `/Script/Engine.AnimNotify_PlaySound` for functional notifies
-- ✅ Use concrete subclasses like `/Script/Engine.AnimNotifyState_Trail` for state notifies
+- ✅ Use concrete subclasses like `/Script/Engine.AnimNotifyState_DisableRootMotion` for state notifies
 
 > ### 🛑 Notify indices are NOT stable — never cache them across mutations
 >
@@ -197,7 +197,7 @@ if info:
 9. **Reference Pose**: `create_anim_sequence` with an empty bone-track list creates a static reference-pose clip
 10. **Notify Class Paths**: `add_notify` requires a FULL class path; native state-notify creation takes a concrete class:
    - Instant notify: `/Script/Engine.AnimNotify`
-   - State notify: a concrete subclass such as `/Script/Engine.AnimNotifyState_Trail` (the base
+   - State notify: a concrete subclass such as `/Script/Engine.AnimNotifyState_DisableRootMotion` (the base
      `/Script/Engine.AnimNotifyState` is abstract and is rejected)
    - Sound notify: `/Script/Engine.AnimNotify_PlaySound`
    - Custom: `/Script/YourModule.YourNotifyClass`
