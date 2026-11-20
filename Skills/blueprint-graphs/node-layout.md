@@ -74,7 +74,7 @@ Neither needs the Blueprint editor to be open.
 
 ## What `analyze_graph_layout` returns
 
-`analyze_graph_layout(blueprint_path, graph_name)` → `(report_json, error)`. The JSON carries:
+`analyze_graph_layout(blueprint_path, graph_name)` → the report JSON (raises if the graph is not found). The JSON carries:
 
 | Field | Meaning |
 |---|---|

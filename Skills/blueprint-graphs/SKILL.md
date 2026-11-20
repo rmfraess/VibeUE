@@ -449,7 +449,7 @@ Standard macros (`ForEachLoop`, `ForLoop`, `WhileLoop`, `DoOnce`, `DoN`, `Gate`,
 is one node with both `Is Valid` and `Is Not Valid` exec outputs; there is no separate
 `IsNotValid` macro.
 
-### `analyze_graph_layout(blueprint_path, graph_name)` → (report_json, error)
+### `analyze_graph_layout(blueprint_path, graph_name)` → report_json (raises if the graph is not found)
 
 Measures a graph's current layout **without changing it**. Epic's layout tools only *write* a
 layout; nothing there reads one back, which is why this is still VibeUE's. The bool return is folded

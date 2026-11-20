@@ -53,6 +53,7 @@ namespace VibeUE
 		{
 			return;
 		}
+		FScopeLock Lock(&Mutex);
 		if (Lines.Num() >= ToolErrorPrivate::MaxLines)
 		{
 			++Dropped;
@@ -68,6 +69,7 @@ namespace VibeUE
 
 	FString FToolFailureLog::Describe() const
 	{
+		FScopeLock Lock(&Mutex);
 		FString Text = FString::Join(Lines, TEXT("; "));
 		if (Dropped > 0)
 		{
