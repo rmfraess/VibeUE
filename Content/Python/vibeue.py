@@ -620,7 +620,7 @@ def safe_load_level(level_path, *, allow_resident_target=False, discard_temp=Fal
     # each refusal says how to release the map, not only to restart
     release = ("Release a map first: drop the Python variables that hold it (vibeue.python_globals_holding, "
                "vibeue.release_globals), then unreal.EditorLoadingAndSavingUtils.unload_packages("
-               "[unreal.find_package(path)]); or restart the editor.")
+               "[unreal.find_package(path.split('.')[0])]) for each resident path; or restart the editor.")
     if others:
         raise LevelLoadRefused(
             "safe_load_level: refusing to load '{}': {} map(s) other than the open level are resident "

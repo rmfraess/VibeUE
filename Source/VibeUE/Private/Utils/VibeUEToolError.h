@@ -15,6 +15,7 @@
 
 #include "CoreMinimal.h"
 #include "Misc/OutputDevice.h"
+#include "HAL/CriticalSection.h"
 
 namespace VibeUE
 {
@@ -33,6 +34,8 @@ namespace VibeUE
 		FToolFailureLog& operator=(const FToolFailureLog&) = delete;
 
 		virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const FName& Category) override;
+		// Unbuffered: the redirector calls it on the logging thread, so the game thread's lines are here before Describe().
+		virtual bool CanBeUsedOnMultipleThreads() const override { return true; }
 
 		/** The collected lines joined with "; " (the first few only); empty when nothing was logged. */
 		FString Describe() const;
@@ -40,6 +43,7 @@ namespace VibeUE
 	private:
 		TArray<FString> Lines;
 		int32 Dropped = 0;
+		mutable FCriticalSection Mutex;
 	};
 
 	/** "<Tool>: <Reason>", followed by what the log said while the tool ran, when it said anything. */

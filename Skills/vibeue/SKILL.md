@@ -184,7 +184,7 @@ stall grows.
 
 A map loaded as an **asset** (`unreal.load_asset` on a map, a Save-As, a Level Instance) stays resident,
 and the engine's check on the NEXT level load is fatal (`World Memory Leaks`). `collect_garbage()` alone
-does not release it; `unreal.EditorLoadingAndSavingUtils.unload_packages([unreal.find_package(path)])` does,
+does not release it; `unreal.EditorLoadingAndSavingUtils.unload_packages([unreal.find_package(path.split('.')[0])])` does,
 once no Python variable holds it (`vibeue.python_globals_holding(path)`, `vibeue.release_globals(names)`);
 failing that, restart the editor. Read map metadata through the asset registry instead
 (`unreal.AssetRegistryHelpers.get_asset_registry().get_assets_by_path("/Game/Maps", recursive=True)`).
