@@ -750,4 +750,81 @@ private:
 
 	/** Fill montage info struct from montage */
 	static void FillMontageInfo(class UAnimMontage* Montage, FMontageInfo& OutInfo);
+public:
+	// Restored from upstream: the native replacement does not do all of this (cut audit).
+	/**
+	 * Add an instant notify (point in time) to the montage.
+	 *
+	 * @param MontagePath - Path to montage
+	 * @param NotifyClass - Full class path (e.g., "/Script/Engine.AnimNotify")
+	 * @param TriggerTime - Time in seconds when notify triggers
+	 * @param NotifyName - Optional name for the notify
+	 * @return Index of the new notify, or -1 on failure
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Montage|Notifies")
+	static int32 AddNotify(
+		const FString& MontagePath,
+		const FString& NotifyClass,
+		float TriggerTime,
+		const FString& NotifyName = TEXT(""));
+
+	/**
+	 * Add a notify state (duration-based) to the montage.
+	 *
+	 * @param MontagePath - Path to montage
+	 * @param NotifyStateClass - Full class path (e.g., "/Script/Engine.AnimNotifyState")
+	 * @param StartTime - Start time in seconds
+	 * @param Duration - Duration in seconds
+	 * @param NotifyName - Optional name for the notify
+	 * @return Index of the new notify, or -1 on failure
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Montage|Notifies")
+	static int32 AddNotifyState(
+		const FString& MontagePath,
+		const FString& NotifyStateClass,
+		float StartTime,
+		float Duration,
+		const FString& NotifyName = TEXT(""));
+
+	/**
+	 * Create an empty montage for a skeleton.
+	 *
+	 * @param SkeletonPath - Skeleton the montage is for
+	 * @param DestPath - Folder to create montage in
+	 * @param MontageName - Name for the new montage asset
+	 * @return Path to created montage, or empty string on failure
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Montage|Creation")
+	static FString CreateEmptyMontage(
+		const FString& SkeletonPath,
+		const FString& DestPath,
+		const FString& MontageName);
+
+	/**
+	 * Create a new montage from an existing animation sequence.
+	 *
+	 * @param AnimSequencePath - Source animation to base montage on
+	 * @param DestPath - Folder to create montage in
+	 * @param MontageName - Name for the new montage asset
+	 * @return Path to created montage, or empty string on failure
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Montage|Creation")
+	static FString CreateMontageFromAnimation(
+		const FString& AnimSequencePath,
+		const FString& DestPath,
+		const FString& MontageName);
+
+public:
+	// Restored from upstream: the native replacement does not do all of this (cut audit).
+	/**
+	 * Open a montage in the Animation Editor.
+	 *
+	 * Demoted (not an AI tool): use EditorToolset.EditorAppToolset.OpenEditorForAsset instead; kept because JumpToSection, SetPreviewTime and PlayPreview call it.
+	 *
+	 * @param MontagePath - Path to montage
+	 * @return True if editor opened successfully
+	 */
+	UFUNCTION(BlueprintCallable, Category = "VibeUE|Animation|Montage|Editor")
+	static bool OpenMontageEditor(const FString& MontagePath);
+
 };

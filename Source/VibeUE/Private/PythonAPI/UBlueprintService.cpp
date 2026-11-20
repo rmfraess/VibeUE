@@ -4284,3 +4284,43 @@ FString UBlueprintService::AnalyzeGraphLayout(const FString& BlueprintPath, cons
 	}
 	return Result;
 }
+
+// Restored from upstream: the native replacement does not do all of this (cut audit).
+bool UBlueprintService::RefreshBlueprintEditor(const FString& BlueprintPath)
+{
+	UBlueprint* Blueprint = LoadBlueprint(BlueprintPath);
+	if (!Blueprint)
+	{
+		UE_LOG(LogTemp, Error, TEXT("RefreshBlueprintEditor: Failed to load blueprint: %s"), *BlueprintPath);
+		return false;
+	}
+
+	UAssetEditorSubsystem* AssetEditorSubsystem = GEditor ? GEditor->GetEditorSubsystem<UAssetEditorSubsystem>() : nullptr;
+	if (!AssetEditorSubsystem)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("RefreshBlueprintEditor: AssetEditorSubsystem not available"));
+		return false;
+	}
+
+	IAssetEditorInstance* EditorInstance = AssetEditorSubsystem->FindEditorForAsset(Blueprint, /*bFocusIfOpen=*/false);
+	if (!EditorInstance)
+	{
+		UE_LOG(LogTemp, Log, TEXT("RefreshBlueprintEditor: Blueprint '%s' has no editor open — nothing to refresh"), *BlueprintPath);
+		return false;
+	}
+
+	// Rebuild node state on the Blueprint itself, then ask the open editor to redraw so the SCS
+	// viewport re-runs the construction script.
+	FBlueprintEditorUtils::RefreshAllNodes(Blueprint);
+
+	if (EditorInstance->GetEditorName() == FName(TEXT("BlueprintEditor"))
+		|| EditorInstance->GetEditorName() == FName(TEXT("WidgetBlueprintEditor"))
+		|| EditorInstance->GetEditorName() == FName(TEXT("AnimationBlueprintEditor")))
+	{
+		FBlueprintEditor* BlueprintEditor = static_cast<FBlueprintEditor*>(EditorInstance);
+		BlueprintEditor->RefreshEditors();
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("RefreshBlueprintEditor: refreshed open editor for '%s'"), *BlueprintPath);
+	return true;
+}

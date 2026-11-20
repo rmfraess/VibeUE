@@ -66,10 +66,10 @@ half the other lacks. The table in "What moved to the engine" says which is whic
 | `get_viewport_type()` | `SceneCaptureToolset.ListEditorViewports` (each entry's `DisplayName` is built from that client's viewport type) or `SceneCaptureToolset.GetActiveEditorView` → `Camera.ProjectionMode` | `call_tool` |
 | `get_fov()` | `SceneCaptureToolset.GetActiveEditorView` → `Camera.FOV`. **Asymmetric on purpose:** the *getter* is Epic's, while the *setter* is `LevelEditorSubsystem.set_level_viewport_fov` (see below). | `call_tool` to read, `execute_python` to write |
 | `set_view_mode(mode)` | `EditorAppToolset.SetViewportViewMode` — takes the full `EViewModeIndex`, so it is strictly broader than VibeUE's 9 strings. **Asymmetric the other way:** `get_view_mode()` stays VibeUE's because Epic ships the setter with no reader. | `call_tool` to write, `execute_python` to read |
-| `set_fov(degrees)` | `les = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)`, then `les.set_level_viewport_fov(75.0, les.get_active_viewport_config_key())` and `les.editor_invalidate_viewports()`. ⚠️ PERSISTS into the user's editor settings | `execute_python` |
+| `set_fov(degrees)` | **Kept**: `ViewportService.set_fov` sets both FOVs and redraws (the native `les.set_level_viewport_fov` sets `ViewFOV` only). ⚠️ PERSISTS into the user's editor settings: snapshot and restore. | `execute_python` / `call_tool` |
 | `set_game_view(enable)` | `les.editor_set_game_view(True, les.get_active_viewport_config_key())` — toggles Game View (hides editor icons) | `execute_python` |
 | `set_allow_cinematic_control(allow)` | `les.set_allows_cinematic_control(False, les.get_active_viewport_config_key())` — lets Sequencer control the viewport camera | `execute_python` |
-| `set_realtime(enable)` | `les.editor_set_viewport_realtime(True, les.get_active_viewport_config_key())` — `True` removes the override, `False` adds a realtime-off override | `execute_python` |
+| `set_realtime(enable)` | **Kept**: `ViewportService.set_realtime` can force realtime on; the native `les.editor_set_viewport_realtime` only adds or removes an override. | `execute_python` / `call_tool` |
 | `set_exposure_game_settings()` | It was only an in-plugin duplicate of `set_exposure(False)`. Use that, or `EditorAppToolset.SetShowFlag("EyeAdaptation", true)` to put auto exposure back. | `execute_python` / `call_tool` |
 
 Earlier moves still in force: `ViewportService` has no `set_camera_location` /

@@ -241,7 +241,28 @@ VibeUE keeps only what those lack (`get_symbol(name="<Name>Service")` lists each
 `WorkflowService.get_environment` (engine version, build configuration, toolchain, build staleness),
 `PIEActorService` (spawn into a running PIE world), `InputService` holds,
 `FabPreviewService` (Fab listing pictures and installed packs as one numbered contact-sheet image), and the
-domain services the packs above document. The run journal, scenarios and bulk maintenance are gone:
+domain services the packs above document.
+
+**Kept because the engine replacement does less** (a cut audit found a gap; prefer these over the
+native recipe): AnimSequence `add_curve_key`, `add_notify_state`, `add_sync_marker`, `remove_notify_track`;
+AnimMontage `add_notify`, `add_notify_state`, `create_empty_montage`, `create_montage_from_animation`,
+`open_montage_editor` (the native notify writers do not mark the asset dirty, need an existing track, and
+`create_asset` on an existing name opens a modal); AnimGraph `disconnect_anim_node`, `get_preview_mesh`,
+`get_used_anim_sequences`, `open_anim_graph`, `set_blend_space_asset`, `set_sequence_player_asset`;
+Skeleton `get_skeleton_info`; Blackboard `rename_blackboard_key`; Blueprint `refresh_blueprint_editor`;
+EnvQuery `repair_graph_from_options`; Input `create_action`, `create_mapping_context`, `add_key_mapping`,
+`remove_mapping`, `add_action_trigger`, `remove_modifier`, `remove_trigger`, `start_injection`,
+`stop_injection` (native `map_key` does not mark dirty, `unmap_key` reorders indices); `TransactionService`
+(all); SoundCue `move_node`, `get_sound_wave_info`; EngineSettings `get_pie_settings` / `set_pie_settings`;
+Viewport `set_fov`, `set_realtime`; PIEActor `resolve_world`, `call_function`, `console_command`;
+Performance `force_hitch`; NiagaraScratchPad `list_scratch_modules`, `get_compile_messages`; Landscape
+`import_heightmap`, `ensure_spline_edit_layer`, `get_height_at_location`, `get_slope_at_location`,
+`get_normal_at_location`, `get_heightmap_dimensions`, `set_landscape_material`; LandscapeMaterial
+`assign_material_to_landscape` (persists paint layers), `create_landscape_material`, the layer node
+creators, `create_height_mask_node`, `create_slope_mask_node`, `remove_layer_from_blend_node`,
+`find_landscape_textures`; AssetDiscovery `import_asset`.
+
+The run journal, scenarios and bulk maintenance are gone:
 compose them from the tools above and keep your own record (`FileSystemToolset`).
 
 ## 6. `vibeue` helpers (`import vibeue`)

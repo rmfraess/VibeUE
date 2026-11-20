@@ -5601,3 +5601,428 @@ FLandscapeInfo_Custom ULandscapeService::GetLandscapeInfo(const FString& Landsca
 	}
 	return Result;
 }
+
+// Restored from upstream: the native replacement does not do all of this (cut audit).
+FHeightmapImportResult ULandscapeService::ImportHeightmap(
+	const FString& LandscapeNameOrLabel,
+	const FString& FilePath)
+{
+	FHeightmapImportResult Result;
+
+	bool bUnavailable = false;
+	ALandscape* Landscape = FindLandscapeByIdentifier(LandscapeNameOrLabel, &bUnavailable);
+	if (bUnavailable)
+	{
+		Result.ErrorMessage = FString::Printf(TEXT("Landscape identifier '%s' is ambiguous or in an inactive level"), *LandscapeNameOrLabel);
+		return Result;
+	}
+	if (!Landscape)
+	{
+		const FHeightmapDimensions Dims = GetHeightmapDimensions(FilePath);
+		if (!Dims.bSuccess || Dims.Width <= 1 || Dims.Height <= 1)
+		{
+			Result.ErrorMessage = FString::Printf(
+				TEXT("Landscape '%s' not found, and failed to read heightmap dimensions from '%s': %s"),
+				*LandscapeNameOrLabel,
+				*FilePath,
+				*Dims.ErrorMessage);
+			UE_LOG(LogTemp, Warning, TEXT("ULandscapeService::ImportHeightmap: %s"), *Result.ErrorMessage);
+			return Result;
+		}
+
+		struct FAutoCreateCandidate
+		{
+			int32 CountX = 0;
+			int32 CountY = 0;
+			int32 Quads = 0;
+			int32 Sections = 0;
+			int32 TotalComponents = TNumericLimits<int32>::Max();
+		};
+
+		FAutoCreateCandidate Best;
+		const TArray<int32> ValidQuads = { 7, 15, 31, 63, 127, 255 };
+		const TArray<int32> ValidSections = { 1, 2 };
+
+		for (const int32 Sections : ValidSections)
+		{
+			for (const int32 Quads : ValidQuads)
+			{
+				const int32 ComponentQuads = Quads * Sections;
+				if ((Dims.Width - 1) % ComponentQuads != 0 || (Dims.Height - 1) % ComponentQuads != 0)
+				{
+					continue;
+				}
+
+				const int32 CountX = (Dims.Width - 1) / ComponentQuads;
+				const int32 CountY = (Dims.Height - 1) / ComponentQuads;
+				if (CountX < 1 || CountX > 256 || CountY < 1 || CountY > 256)
+				{
+					continue;
+				}
+
+				const int32 TotalComponents = CountX * CountY;
+				if (TotalComponents < Best.TotalComponents)
+				{
+					Best.CountX = CountX;
+					Best.CountY = CountY;
+					Best.Quads = Quads;
+					Best.Sections = Sections;
+					Best.TotalComponents = TotalComponents;
+				}
+			}
+		}
+
+		if (Best.TotalComponents == TNumericLimits<int32>::Max())
+		{
+			Result.ErrorMessage = FString::Printf(
+				TEXT("Landscape '%s' not found and heightmap resolution %dx%d has no valid UE landscape config. Resize the heightmap first."),
+				*LandscapeNameOrLabel,
+				Dims.Width,
+				Dims.Height);
+			UE_LOG(LogTemp, Warning, TEXT("ULandscapeService::ImportHeightmap: %s"), *Result.ErrorMessage);
+			return Result;
+		}
+
+		const FLandscapeCreateResult CreateResult = CreateLandscape(
+			FVector::ZeroVector,
+			FRotator::ZeroRotator,
+			FVector(100.0f, 100.0f, 100.0f),
+			Best.Sections,
+			Best.Quads,
+			Best.CountX,
+			Best.CountY,
+			LandscapeNameOrLabel);
+
+		if (!CreateResult.bSuccess)
+		{
+			Result.ErrorMessage = FString::Printf(
+				TEXT("Landscape '%s' not found and auto-create failed for %dx%d heightmap: %s"),
+				*LandscapeNameOrLabel,
+				Dims.Width,
+				Dims.Height,
+				*CreateResult.ErrorMessage);
+			UE_LOG(LogTemp, Warning, TEXT("ULandscapeService::ImportHeightmap: %s"), *Result.ErrorMessage);
+			return Result;
+		}
+
+		Landscape = FindLandscapeByIdentifier(LandscapeNameOrLabel);
+		if (!Landscape)
+		{
+			Result.ErrorMessage = FString::Printf(
+				TEXT("Landscape '%s' auto-created but could not be resolved for import"),
+				*LandscapeNameOrLabel);
+			UE_LOG(LogTemp, Warning, TEXT("ULandscapeService::ImportHeightmap: %s"), *Result.ErrorMessage);
+			return Result;
+		}
+
+		UE_LOG(LogTemp, Log,
+			TEXT("ULandscapeService::ImportHeightmap: Auto-created missing landscape '%s' (%dx%d, components=%dx%d, quads=%d, sections=%d, scale=100)") ,
+			*LandscapeNameOrLabel,
+			Dims.Width,
+			Dims.Height,
+			Best.CountX,
+			Best.CountY,
+			Best.Quads,
+			Best.Sections);
+	}
+
+	ULandscapeInfo* LandscapeInfo = Landscape->GetLandscapeInfo();
+	if (!LandscapeInfo)
+	{
+		Result.ErrorMessage = FString::Printf(TEXT("No landscape info for '%s'"), *LandscapeNameOrLabel);
+		UE_LOG(LogTemp, Error, TEXT("ULandscapeService::ImportHeightmap: %s"), *Result.ErrorMessage);
+		return Result;
+	}
+
+	// Get landscape extent
+	int32 MinX, MinY, MaxX, MaxY;
+	if (!LandscapeInfo->GetLandscapeExtent(MinX, MinY, MaxX, MaxY))
+	{
+		Result.ErrorMessage = TEXT("Failed to get landscape extent");
+		UE_LOG(LogTemp, Error, TEXT("ULandscapeService::ImportHeightmap: %s"), *Result.ErrorMessage);
+		return Result;
+	}
+
+	int32 SizeX = MaxX - MinX + 1;
+	int32 SizeY = MaxY - MinY + 1;
+	int32 ExpectedBytes = SizeX * SizeY * sizeof(uint16);
+	Result.Resolution = FString::Printf(TEXT("%dx%d"), SizeX, SizeY);
+
+	// Load file data through Unreal's native Landscape file format importer
+	// (same import stack used by Landscape UI for PNG/RAW format handling).
+	TArray<uint16> ImportedHeightData;
+	const FString Extension = FPaths::GetExtension(FilePath, false).ToLower();
+	ILandscapeEditorModule& LandscapeEditorModule = FModuleManager::LoadModuleChecked<ILandscapeEditorModule>(TEXT("LandscapeEditor"));
+	const ILandscapeHeightmapFileFormat* HeightmapFormat = LandscapeEditorModule.GetHeightmapFormatByExtension(*FString::Printf(TEXT(".%s"), *Extension));
+
+	if (HeightmapFormat)
+	{
+		const FLandscapeImportData<uint16> ImportData = HeightmapFormat->Import(*FilePath, FLandscapeFileResolution(SizeX, SizeY));
+		if (ImportData.ResultCode == ELandscapeImportResult::Error)
+		{
+			Result.ErrorMessage = FString::Printf(TEXT("Native import failed for '%s': %s"),
+				*FilePath, *ImportData.ErrorMessage.ToString());
+			UE_LOG(LogTemp, Error, TEXT("ULandscapeService::ImportHeightmap: %s"), *Result.ErrorMessage);
+			return Result;
+		}
+
+		if (ImportData.Data.Num() != SizeX * SizeY)
+		{
+			Result.ErrorMessage = FString::Printf(TEXT("Heightmap size mismatch: landscape is %dx%d (%d samples) but file has %d samples. "
+				"The heightmap file resolution must exactly match the landscape resolution."),
+				SizeX, SizeY, SizeX * SizeY, ImportData.Data.Num());
+			UE_LOG(LogTemp, Error, TEXT("ULandscapeService::ImportHeightmap: %s"), *Result.ErrorMessage);
+			return Result;
+		}
+
+		ImportedHeightData = ImportData.Data;
+	}
+	else
+	{
+		TArray<uint8> FileData;
+		if (!FFileHelper::LoadFileToArray(FileData, *FilePath))
+		{
+			Result.ErrorMessage = FString::Printf(TEXT("Failed to load RAW file '%s'"), *FilePath);
+			UE_LOG(LogTemp, Error, TEXT("ULandscapeService::ImportHeightmap: %s"), *Result.ErrorMessage);
+			return Result;
+		}
+
+		if (FileData.Num() != ExpectedBytes)
+		{
+			Result.ErrorMessage = FString::Printf(TEXT("RAW file size mismatch: expected %d bytes for %dx%d landscape, got %d bytes. "
+				"The heightmap file resolution must exactly match the landscape resolution."),
+				ExpectedBytes, SizeX, SizeY, FileData.Num());
+			UE_LOG(LogTemp, Error, TEXT("ULandscapeService::ImportHeightmap: %s"), *Result.ErrorMessage);
+			return Result;
+		}
+
+		ImportedHeightData.SetNumUninitialized(SizeX * SizeY);
+		FMemory::Memcpy(ImportedHeightData.GetData(), FileData.GetData(), ExpectedBytes);
+	}
+
+	// Write the uint16 data directly to the landscape via FHeightmapAccessor,
+	// matching the exact path used by the Landscape editor UI Import button
+	// (FEdModeLandscape::ImportHeightData → FHeightmapAccessor<false>::SetData).
+	// We intentionally do NOT convert uint16→float→uint16 through SetHeightInRegion
+	// because the round-trip introduces floating-point precision errors.
+	{
+		FScopedTransaction Transaction(NSLOCTEXT("LandscapeService", "ImportHeightmap", "Import Heightmap"));
+
+		const FGuid EditLayerGuid = ResolveEditLayerGuid(Landscape);
+
+		FScopedSetLandscapeEditingLayer EditLayerScope(
+			Landscape,
+			EditLayerGuid,
+			[Landscape]()
+			{
+				if (Landscape)
+				{
+					Landscape->RequestLayersContentUpdate(ELandscapeLayerUpdateMode::Update_Heightmap_All);
+				}
+			});
+
+		FHeightmapAccessor<false> HeightmapAccessor(LandscapeInfo);
+		HeightmapAccessor.SetData(MinX, MinY, MaxX, MaxY, ImportedHeightData.GetData());
+		HeightmapAccessor.Flush();
+	}
+
+	// Only update heightmap — do NOT call ForceLayersFullUpdate() which would
+	// also resolve weightmap layers and potentially zero out paint weights.
+	Landscape->RequestLayersContentUpdate(ELandscapeLayerUpdateMode::Update_Heightmap_All);
+	UpdateLandscapeAfterHeightEdit(Landscape);
+
+	Result.bSuccess = true;
+	UE_LOG(LogTemp, Log, TEXT("ULandscapeService::ImportHeightmap: Imported %s heightmap to '%s' (%dx%d)"),
+		*Extension.ToUpper(), *LandscapeNameOrLabel, SizeX, SizeY);
+	return Result;
+}
+
+int32 ULandscapeService::EnsureSplineEditLayer(const FString& LandscapeNameOrLabel, FName LayerName)
+{
+	if (!IsInGameThread() || !GEditor || GEditor->PlayWorld) { return INDEX_NONE; }
+	ALandscape* Landscape = FindLandscapeByIdentifier(LandscapeNameOrLabel);
+	if (!Landscape || Landscape->IsTemplate() || !Landscape->GetWorld()
+		|| Landscape->GetWorld()->WorldType != EWorldType::Editor)
+	{
+		return INDEX_NONE;
+	}
+	if (const ULandscapeEditLayerBase* Existing = Landscape->FindEditLayerOfTypeConst(ULandscapeEditLayerSplines::StaticClass()))
+	{
+		return Landscape->GetLayerIndex(Existing->GetGuid());
+	}
+	if (LayerName.IsNone()) { LayerName = TEXT("Splines"); }
+	if (Landscape->GetLayerIndex(LayerName) != INDEX_NONE || Landscape->IsMaxLayersReached()) { return INDEX_NONE; }
+	FScopedTransaction Transaction(NSLOCTEXT("LandscapeService", "EnsureSplineEditLayer", "Create Spline Edit Layer"));
+	return Landscape->CreateLayer(LayerName, ULandscapeEditLayerSplines::StaticClass());
+}
+
+FLandscapeHeightSample ULandscapeService::GetHeightAtLocation(
+	const FString& LandscapeNameOrLabel,
+	float WorldX, float WorldY)
+{
+	FLandscapeHeightSample Sample;
+
+	ALandscape* Landscape = FindLandscapeByIdentifier(LandscapeNameOrLabel);
+	if (!Landscape)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ULandscapeService::GetHeightAtLocation: Landscape identifier '%s' could not be resolved"), *LandscapeNameOrLabel);
+		return Sample;
+	}
+
+	ULandscapeInfo* LandscapeInfo = Landscape->GetLandscapeInfo();
+	if (!LandscapeInfo)
+	{
+		return Sample;
+	}
+
+	// Primary method: Read directly from heightmap data via FLandscapeEditDataInterface.
+	// This is more reliable than line traces, which depend on collision being rebuilt.
+	FVector LandscapeLocation = Landscape->GetActorLocation();
+	FVector LandscapeScale = Landscape->GetActorScale3D();
+
+	// Convert world coords to landscape-local vertex coords
+	float LocalX = (WorldX - LandscapeLocation.X) / LandscapeScale.X;
+	float LocalY = (WorldY - LandscapeLocation.Y) / LandscapeScale.Y;
+
+	// Get the 4 surrounding vertices for bilinear interpolation
+	int32 X0 = FMath::FloorToInt(LocalX);
+	int32 Y0 = FMath::FloorToInt(LocalY);
+	int32 X1 = X0 + 1;
+	int32 Y1 = Y0 + 1;
+
+	// Clamp to landscape extent
+	int32 LandMinX, LandMinY, LandMaxX, LandMaxY;
+	if (LandscapeInfo->GetLandscapeExtent(LandMinX, LandMinY, LandMaxX, LandMaxY))
+	{
+		X0 = FMath::Clamp(X0, LandMinX, LandMaxX);
+		Y0 = FMath::Clamp(Y0, LandMinY, LandMaxY);
+		X1 = FMath::Clamp(X1, LandMinX, LandMaxX);
+		Y1 = FMath::Clamp(Y1, LandMinY, LandMaxY);
+
+		// Read the 2x2 region
+		int32 SizeX = X1 - X0 + 1;
+		int32 SizeY = Y1 - Y0 + 1;
+		TArray<uint16> HeightData;
+		HeightData.SetNumUninitialized(SizeX * SizeY);
+
+		FLandscapeEditDataInterface LandscapeEdit(LandscapeInfo);
+		LandscapeEdit.GetHeightData(X0, Y0, X1, Y1, HeightData.GetData(), 0);
+
+		// Bilinear interpolation
+		float FracX = LocalX - FMath::FloorToFloat(LocalX);
+		float FracY = LocalY - FMath::FloorToFloat(LocalY);
+
+		float H00 = static_cast<float>(HeightData[0]);
+		float H10 = (SizeX > 1) ? static_cast<float>(HeightData[1]) : H00;
+		float H01 = (SizeY > 1) ? static_cast<float>(HeightData[SizeX]) : H00;
+		float H11 = (SizeX > 1 && SizeY > 1) ? static_cast<float>(HeightData[SizeX + 1]) : H00;
+
+		float InterpolatedHeight = FMath::Lerp(
+			FMath::Lerp(H00, H10, FracX),
+			FMath::Lerp(H01, H11, FracX),
+			FracY);
+
+		// Convert uint16 height to world-space Z
+		// UE mapping: WorldZ = LandscapeZ + (HeightValue - 32768) * LANDSCAPE_ZSCALE * ActorScale.Z
+		float WorldZ = LandscapeLocation.Z + (InterpolatedHeight - 32768.0f) * LANDSCAPE_ZSCALE * LandscapeScale.Z;
+
+		Sample.Height = WorldZ;
+		Sample.WorldLocation = FVector(WorldX, WorldY, WorldZ);
+		Sample.bValid = true;
+	}
+
+	// Fallback: try the landscape's built-in height query
+	if (!Sample.bValid)
+	{
+		TOptional<float> Height = Landscape->GetHeightAtLocation(FVector(WorldX, WorldY, 0.0f));
+		if (Height.IsSet())
+		{
+			Sample.Height = Height.GetValue();
+			Sample.WorldLocation = FVector(WorldX, WorldY, Height.GetValue());
+			Sample.bValid = true;
+		}
+	}
+
+	return Sample;
+}
+
+float ULandscapeService::GetSlopeAtLocation(
+	const FString& LandscapeNameOrLabel,
+	float WorldX,
+	float WorldY)
+{
+	ALandscape* Landscape = FindLandscapeByIdentifier(LandscapeNameOrLabel);
+	if (!Landscape) return -1.0f;
+
+	ULandscapeInfo* LInfo = Landscape->GetLandscapeInfo();
+	if (!LInfo) return -1.0f;
+
+	FVector LocXY  = Landscape->GetActorLocation();
+	FVector ScaleV = Landscape->GetActorScale3D();
+
+	int32 VX = FMath::RoundToInt((WorldX - LocXY.X) / ScaleV.X);
+	int32 VY = FMath::RoundToInt((WorldY - LocXY.Y) / ScaleV.Y);
+
+	// Read 3x3 patch
+	int32 LandMinX, LandMinY, LandMaxX, LandMaxY;
+	if (!LInfo->GetLandscapeExtent(LandMinX, LandMinY, LandMaxX, LandMaxY)) return -1.0f;
+
+	int32 MinX = FMath::Max(LandMinX, VX - 1);
+	int32 MinY = FMath::Max(LandMinY, VY - 1);
+	int32 MaxX = FMath::Min(LandMaxX, VX + 1);
+	int32 MaxY = FMath::Min(LandMaxY, VY + 1);
+
+	int32 SzX = MaxX - MinX + 1;
+	int32 SzY = MaxY - MinY + 1;
+
+	TArray<uint16> HeightData;
+	HeightData.SetNumUninitialized(SzX * SzY);
+
+	{
+		FLandscapeEditDataInterface Edit(LInfo);
+		Edit.GetHeightData(MinX, MinY, MaxX, MaxY, HeightData.GetData(), 0);
+	}
+
+	int32 CX = VX - MinX;
+	int32 CY = VY - MinY;
+	return LandscapeServiceV3::SlopeDegrees(HeightData, CX, CY, SzX, SzY, ScaleV.X, ScaleV.Y, ScaleV.Z);
+}
+
+FVector ULandscapeService::GetNormalAtLocation(
+	const FString& LandscapeNameOrLabel,
+	float WorldX,
+	float WorldY)
+{
+	ALandscape* Landscape = FindLandscapeByIdentifier(LandscapeNameOrLabel);
+	if (!Landscape) return FVector::ZeroVector;
+
+	ULandscapeInfo* LInfo = Landscape->GetLandscapeInfo();
+	if (!LInfo) return FVector::ZeroVector;
+
+	FVector LocXY  = Landscape->GetActorLocation();
+	FVector ScaleV = Landscape->GetActorScale3D();
+
+	int32 VX = FMath::RoundToInt((WorldX - LocXY.X) / ScaleV.X);
+	int32 VY = FMath::RoundToInt((WorldY - LocXY.Y) / ScaleV.Y);
+
+	int32 LandMinX, LandMinY, LandMaxX, LandMaxY;
+	if (!LInfo->GetLandscapeExtent(LandMinX, LandMinY, LandMaxX, LandMaxY)) return FVector::ZeroVector;
+
+	int32 MinX = FMath::Max(LandMinX, VX - 1);
+	int32 MinY = FMath::Max(LandMinY, VY - 1);
+	int32 MaxX = FMath::Min(LandMaxX, VX + 1);
+	int32 MaxY = FMath::Min(LandMaxY, VY + 1);
+	int32 SzX  = MaxX - MinX + 1;
+	int32 SzY  = MaxY - MinY + 1;
+
+	TArray<uint16> HeightData;
+	HeightData.SetNumUninitialized(SzX * SzY);
+	{
+		FLandscapeEditDataInterface Edit(LInfo);
+		Edit.GetHeightData(MinX, MinY, MaxX, MaxY, HeightData.GetData(), 0);
+	}
+
+	int32 CX = VX - MinX;
+	int32 CY = VY - MinY;
+	return LandscapeServiceV3::SurfaceNormal(HeightData, CX, CY, SzX, SzY, ScaleV.X, ScaleV.Y, ScaleV.Z);
+}

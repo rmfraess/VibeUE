@@ -773,4 +773,385 @@ void UInputService::ShutdownInjectionHooks()
 	}
 }
 
+// Restored from upstream: the native replacement does not do all of this (cut audit).
+FString UInputService::AddActionTrigger(
+	const FString& ActionPath,
+	const FString& TriggerType,
+	const FString& PropertiesJson)
+{
+	// An Input Action's own triggers apply to every mapping of the action.
+	auto Fail = [](const TCHAR* Code, const FString& Message)
+	{
+		TSharedRef<FJsonObject> Obj = MakeShared<FJsonObject>();
+		Obj->SetBoolField(TEXT("success"), false);
+		Obj->SetStringField(TEXT("error_code"), Code);
+		Obj->SetStringField(TEXT("error_message"), Message);
+		FString Out;
+		const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+		FJsonSerializer::Serialize(Obj, Writer);
+		return Out;
+	};
 
+	// UEditorAssetLibrary::LoadAsset refuses during PIE, which would otherwise surface as ACTION_NOT_FOUND
+	// for an action that exists. Same refusal and code as BlueprintService's LoadBlueprint.
+	if (GEditor && GEditor->PlayWorld)
+	{
+		return Fail(TEXT("PIE_ACTIVE"), FString::Printf(TEXT("add_action_trigger refused '%s' — a Play-In-Editor session is running; stop PIE before editing Input Action assets."), *ActionPath));
+	}
+
+	UInputAction* Action = LoadInputAction(ActionPath);
+	if (!Action)
+	{
+		return Fail(TEXT("ACTION_NOT_FOUND"), FString::Printf(TEXT("Input Action not found: %s"), *ActionPath));
+	}
+	UClass* TriggerClass = VibeUEInputTriggers::FindTriggerClass(TriggerType);
+	if (!TriggerClass)
+	{
+		return Fail(TEXT("TRIGGER_TYPE_NOT_FOUND"), FString::Printf(TEXT("Trigger type not found: %s (see get_available_trigger_types)"), *TriggerType));
+	}
+
+	UInputTrigger* NewTrigger = NewObject<UInputTrigger>(Action, TriggerClass, NAME_None, RF_Transactional);
+	FString PropertyError;
+	if (!NewTrigger || !VibeUEInputTriggers::ApplyPropertiesJson(NewTrigger, PropertiesJson, PropertyError))
+	{
+		return Fail(TEXT("BAD_PROPERTIES"), PropertyError);
+	}
+
+	Action->Modify();
+	const int32 TriggerIndex = Action->Triggers.Add(NewTrigger);
+	// As an edit in the editor would: Enhanced Input's Blueprint nodes listen for OnTriggersChanged.
+	FProperty* TriggersProperty = FindFProperty<FProperty>(UInputAction::StaticClass(), GET_MEMBER_NAME_CHECKED(UInputAction, Triggers));
+	FPropertyChangedEvent ChangedEvent(TriggersProperty, EPropertyChangeType::ArrayAdd);
+	Action->PostEditChangeProperty(ChangedEvent);
+	Action->GetOutermost()->MarkPackageDirty();
+
+	TSharedRef<FJsonObject> R = MakeShared<FJsonObject>();
+	R->SetBoolField(TEXT("success"), true);
+	R->SetStringField(TEXT("action"), Action->GetName());
+	R->SetStringField(TEXT("trigger"), TriggerClass->GetName());
+	R->SetNumberField(TEXT("trigger_index"), TriggerIndex);
+	R->SetStringField(TEXT("note"), TEXT("The asset is modified, not saved. A running PIE session keeps its copy of the triggers: restart PIE to see the change."));
+	FString Out;
+	const TSharedRef<TJsonWriter<>> Writer = TJsonWriterFactory<>::Create(&Out);
+	FJsonSerializer::Serialize(R, Writer);
+	return Out;
+}
+
+bool UInputService::AddKeyMapping(
+	const FString& ContextPath,
+	const FString& ActionPath,
+	const FString& KeyName)
+{
+	UInputMappingContext* MappingContext = LoadMappingContext(ContextPath);
+	if (!MappingContext)
+	{
+		return false;
+	}
+
+	UInputAction* InputAction = LoadInputAction(ActionPath);
+	if (!InputAction)
+	{
+		return false;
+	}
+
+	FKey Key = FindKeyByName(KeyName);
+	if (!Key.IsValid())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInputService::AddKeyMapping: Invalid key name: %s"), *KeyName);
+		return false;
+	}
+
+	MappingContext->Modify();
+	
+	FEnhancedActionKeyMapping NewMapping;
+	NewMapping.Action = InputAction;
+	NewMapping.Key = Key;
+	
+	MappingContext->MapKey(InputAction, Key);
+
+	// Save
+	UPackage* Package = MappingContext->GetOutermost();
+	if (Package)
+	{
+		Package->MarkPackageDirty();
+	}
+
+	return true;
+}
+
+FInputCreateResult UInputService::CreateAction(
+	const FString& ActionName,
+	const FString& AssetPath,
+	const FString& ValueType)
+{
+	FInputCreateResult Result;
+
+	FString BasePath;
+	if (!NormalizeCreateFolder(AssetPath, BasePath, Result.ErrorMessage))
+	{
+		return Result;
+	}
+
+	FString FullPath = BasePath / ActionName;
+	if (!VibeUEInputCreate::CheckNewAssetTarget(ActionName, FullPath, Result.ErrorMessage))
+	{
+		return Result;
+	}
+
+	// Check if already exists
+	if (UEditorAssetLibrary::DoesAssetExist(FullPath))
+	{
+		Result.ErrorMessage = FString::Printf(TEXT("Input Action '%s' already exists"), *FullPath);
+		return Result;
+	}
+	
+	// Create the asset
+	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+	UInputAction* NewAction = Cast<UInputAction>(AssetTools.CreateAsset(ActionName, BasePath, UInputAction::StaticClass(), nullptr));
+	
+	if (!NewAction)
+	{
+		Result.ErrorMessage = TEXT("Failed to create Input Action asset");
+		return Result;
+	}
+	
+	// Set value type
+	if (ValueType.Equals(TEXT("Boolean"), ESearchCase::IgnoreCase) || ValueType.Equals(TEXT("Digital"), ESearchCase::IgnoreCase))
+	{
+		NewAction->ValueType = EInputActionValueType::Boolean;
+	}
+	else if (ValueType.Equals(TEXT("Axis1D"), ESearchCase::IgnoreCase))
+	{
+		NewAction->ValueType = EInputActionValueType::Axis1D;
+	}
+	else if (ValueType.Equals(TEXT("Axis2D"), ESearchCase::IgnoreCase))
+	{
+		NewAction->ValueType = EInputActionValueType::Axis2D;
+	}
+	else if (ValueType.Equals(TEXT("Axis3D"), ESearchCase::IgnoreCase))
+	{
+		NewAction->ValueType = EInputActionValueType::Axis3D;
+	}
+	
+	// Save the asset
+	Result.bSuccess = UEditorAssetLibrary::SaveAsset(FullPath, false);
+	if (!Result.bSuccess)
+	{
+		Result.ErrorMessage = FString::Printf(TEXT("Failed to save asset '%s'"), *FullPath);
+		return Result;
+	}
+
+	Result.AssetPath = FullPath + TEXT(".") + ActionName;
+	
+	return Result;
+}
+
+FInputCreateResult UInputService::CreateMappingContext(
+	const FString& ContextName,
+	const FString& AssetPath,
+	int32 Priority)
+{
+	FInputCreateResult Result;
+
+	FString BasePath;
+	if (!NormalizeCreateFolder(AssetPath, BasePath, Result.ErrorMessage))
+	{
+		return Result;
+	}
+
+	FString FullPath = BasePath / ContextName;
+	if (!VibeUEInputCreate::CheckNewAssetTarget(ContextName, FullPath, Result.ErrorMessage))
+	{
+		return Result;
+	}
+
+	// Check if already exists
+	if (UEditorAssetLibrary::DoesAssetExist(FullPath))
+	{
+		Result.ErrorMessage = FString::Printf(TEXT("Mapping Context '%s' already exists"), *FullPath);
+		return Result;
+	}
+	
+	// Create the asset
+	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+	UInputMappingContext* NewContext = Cast<UInputMappingContext>(AssetTools.CreateAsset(ContextName, BasePath, UInputMappingContext::StaticClass(), nullptr));
+	
+	if (!NewContext)
+	{
+		Result.ErrorMessage = TEXT("Failed to create Mapping Context asset");
+		return Result;
+	}
+	
+	// Save the asset
+	Result.bSuccess = UEditorAssetLibrary::SaveAsset(FullPath, false);
+	if (!Result.bSuccess)
+	{
+		Result.ErrorMessage = FString::Printf(TEXT("Failed to save asset '%s'"), *FullPath);
+		return Result;
+	}
+
+	Result.AssetPath = FullPath + TEXT(".") + ContextName;
+	
+	return Result;
+}
+
+bool UInputService::RemoveMapping(const FString& ContextPath, int32 MappingIndex)
+{
+	UInputMappingContext* MappingContext = LoadMappingContext(ContextPath);
+	if (!MappingContext)
+	{
+		return false;
+	}
+
+	const TArray<FEnhancedActionKeyMapping>& Mappings = MappingContext->GetMappings();
+	if (MappingIndex < 0 || MappingIndex >= Mappings.Num())
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UInputService::RemoveMapping: Invalid mapping index: %d"), MappingIndex);
+		return false;
+	}
+
+	MappingContext->Modify();
+	MappingContext->UnmapKey(Mappings[MappingIndex].Action, Mappings[MappingIndex].Key);
+
+	// Save
+	UPackage* Package = MappingContext->GetOutermost();
+	if (Package)
+	{
+		Package->MarkPackageDirty();
+	}
+
+	return true;
+}
+
+bool UInputService::RemoveModifier(
+	const FString& ContextPath,
+	int32 MappingIndex,
+	int32 ModifierIndex)
+{
+	UInputMappingContext* MappingContext = LoadMappingContext(ContextPath);
+	if (!MappingContext)
+	{
+		return false;
+	}
+
+	TArray<FEnhancedActionKeyMapping>& Mappings = const_cast<TArray<FEnhancedActionKeyMapping>&>(MappingContext->GetMappings());
+	if (MappingIndex < 0 || MappingIndex >= Mappings.Num())
+	{
+		return false;
+	}
+
+	if (ModifierIndex < 0 || ModifierIndex >= Mappings[MappingIndex].Modifiers.Num())
+	{
+		return false;
+	}
+
+	MappingContext->Modify();
+	Mappings[MappingIndex].Modifiers.RemoveAt(ModifierIndex);
+
+	// Save
+	UPackage* Package = MappingContext->GetOutermost();
+	if (Package)
+	{
+		Package->MarkPackageDirty();
+	}
+
+	return true;
+}
+
+bool UInputService::RemoveTrigger(
+	const FString& ContextPath,
+	int32 MappingIndex,
+	int32 TriggerIndex)
+{
+	UInputMappingContext* MappingContext = LoadMappingContext(ContextPath);
+	if (!MappingContext)
+	{
+		return false;
+	}
+
+	TArray<FEnhancedActionKeyMapping>& Mappings = const_cast<TArray<FEnhancedActionKeyMapping>&>(MappingContext->GetMappings());
+	if (MappingIndex < 0 || MappingIndex >= Mappings.Num())
+	{
+		return false;
+	}
+
+	if (TriggerIndex < 0 || TriggerIndex >= Mappings[MappingIndex].Triggers.Num())
+	{
+		return false;
+	}
+
+	MappingContext->Modify();
+	Mappings[MappingIndex].Triggers.RemoveAt(TriggerIndex);
+
+	// Save
+	UPackage* Package = MappingContext->GetOutermost();
+	if (Package)
+	{
+		Package->MarkPackageDirty();
+	}
+
+	return true;
+}
+
+FString UInputService::StartInjection(const FString& ActionPath, float X, float Y, float Z, int32 PieInstance)
+{
+	// An indefinite hold: continuous injection with no release ticker. ApplyInput covers every hold of
+	// known length, so the only thing left to add is one whose end the caller decides later.
+	FString Code, Message;
+	int32 UsedInstance = PieInstance;
+	UEnhancedInputLocalPlayerSubsystem* Subsystem = VibeUEInputInjection::ResolvePieSubsystem(PieInstance, UsedInstance, Code, Message);
+	if (!Subsystem)
+	{
+		return InjectionErrorJson(Code, Message);
+	}
+	const UInputAction* Action = VibeUEInputInjection::LoadActionForPie(ActionPath);
+	if (!Action)
+	{
+		return InjectionErrorJson(TEXT("ACTION_NOT_FOUND"), FString::Printf(TEXT("Input Action not found: %s"), *ActionPath));
+	}
+
+	const FString Id = VibeUEInputInjection::HoldId(Action, UsedInstance);
+	VibeUEInputInjection::ReleaseHeld(Id); // a second call restarts the hold rather than stacking
+
+	Subsystem->StartContinuousInputInjectionForAction(Action, VibeUEInputInjection::MakeValue(Action, X, Y, Z), TArray<UInputModifier*>(), TArray<UInputTrigger*>());
+
+	VibeUEInputInjection::FHeldInjection Held;
+	Held.Subsystem = Subsystem;
+	Held.Action = Action;
+	// Release stays default-constructed: there is no timer. ReleaseHeld checks IsValid() before
+	// removing a ticker, so an untimed hold releases cleanly through the same path.
+	VibeUEInputInjection::GHeldInjections.Add(Id, Held);
+	VibeUEInputInjection::UpdateThrottleScope();
+
+	TSharedRef<FJsonObject> R = MakeShared<FJsonObject>();
+	R->SetStringField(TEXT("action"), Action->GetName());
+	R->SetStringField(TEXT("value_type"), UEnum::GetValueAsString(Action->ValueType));
+	R->SetNumberField(TEXT("pie_instance"), UsedInstance);
+	R->SetStringField(TEXT("note"), TEXT("Held from the next input tick until stop_injection releases it. Read game state in later calls. Ending PIE drops the hold."));
+	return InjectionOkJson(R);
+}
+
+FString UInputService::StopInjection(const FString& ActionPath, int32 PieInstance)
+{
+	// The hold is found the way start_injection filed it: by the action object and the PIE instance -1
+	// resolves to, so any spelling of the path that names the same action finds it.
+	bool bWasActive = false;
+	int32 UsedInstance = PieInstance;
+	if (VibeUEInputInjection::GHeldInjections.Num() > 0)
+	{
+		if (PieInstance < 0 && GEngine)
+		{
+			VibeUEInputInjection::FindPieWorld(PieInstance, UsedInstance);
+		}
+		// A held action is in memory; a quiet load finds it without warning about one that does not exist.
+		if (const UInputAction* Action = VibeUEInputInjection::LoadActionForPie(ActionPath, LOAD_NoWarn | LOAD_Quiet))
+		{
+			bWasActive = VibeUEInputInjection::ReleaseHeld(VibeUEInputInjection::HoldId(Action, UsedInstance));
+		}
+	}
+	TSharedRef<FJsonObject> R = MakeShared<FJsonObject>();
+	R->SetStringField(TEXT("action"), ActionPath);
+	R->SetBoolField(TEXT("was_active"), bWasActive);
+	R->SetNumberField(TEXT("pie_instance"), UsedInstance);
+	return InjectionOkJson(R);
+}

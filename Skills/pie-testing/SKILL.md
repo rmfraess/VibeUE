@@ -228,7 +228,7 @@ are `call_tool`; VibeUE services are `unreal.<Service>.<method>()` inside `execu
 | `wait` | a later tool call, or a top-level `await asyncio.sleep(...)` in one `execute_python` script |
 | `assert_log` | `call_tool` → `ConsoleToolset.LogsToolset.GetLogEntries` (it requires a `pattern`). Read the log before the run and compare, since nothing scopes it to your run now |
 | `capture_game` | `call_tool` → `SceneCaptureToolset.SceneCaptureToolset.CaptureGameViewport`, or `await vibeue.capture_game(path)` in a script |
-| `console_command` | `call_tool` → `ConsoleToolset.ConsoleToolset.RunConsoleCommand`, or `unreal.SystemLibrary.execute_console_command(world, cmd)` when it must run in one specific PIE world (e.g. `unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_game_world()`) |
+| `console_command` | `PIEActorService.ConsoleCommand` (runs in the chosen PIE world, returns the captured output), or `call_tool` → `ConsoleToolset.ConsoleToolset.RunConsoleCommand` when output and world do not matter |
 | `python_assert` / `python_assert_number` | your own comparison inside Epic's `execute_python`: read the live value, compare it, and print expected *and* actual as the evidence |
 | `preflight: {save_dirty_assets, compile_blueprints}` | `unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)`, and `BlueprintToolsets.BlueprintToolset.CompileBlueprint` via `call_tool`, **before** you start PIE |
 | `dependencies` freshness hashing | nothing — no tool hashes inputs or reports `stale`. Save, compile, re-run after changes |

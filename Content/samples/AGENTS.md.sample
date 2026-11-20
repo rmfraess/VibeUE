@@ -113,12 +113,15 @@ standalone capture, background throttling), **PIEActor**
 
 **Deleted services — do not call them, and do not expect a VibeUE equivalent:** `MaterialService`
 (→ Epic `MaterialToolset` / `MaterialInstanceToolset` / `ObjectToolset` / `AssetToolset`),
-`ProjectSettingsService` and `EngineSettingsService` (→ Epic `ConfigSettingsToolset`), `TransactionService`
-(→ `UndoHistoryToolset` to read; undo/redo with console `TRANSACTION UNDO` / `TRANSACTION REDO` as their own
-calls, not inside `execute_python`, whose open transaction blocks undo), `SoundCueService`
-(→ `unreal.SoundCueEditorSubsystem` + `ObjectToolset`), `FabService`, `NiagaraService`
+`ProjectSettingsService` (→ Epic `ConfigSettingsToolset`), `FabService`, `NiagaraService`
 (→ Epic `NiagaraToolsets`), `MetaSoundService` (→ Epic `MetaSoundToolset`) and `EnumStructService`
 (→ Epic `UserDefinedEnumToolset` / `UserDefinedStructToolset`).
+
+**Kept because the engine replacement does less:** `TransactionService` (undo/redo/can-undo as MCP tools;
+call them as their own tool calls, not inside `execute_python`, whose open transaction blocks undo),
+`SoundCueService` (`move_node`, `get_sound_wave_info`; build cues with `unreal.SoundCueEditorSubsystem`) and
+`EngineSettingsService` (`get_pie_settings` / `set_pie_settings`, Python only). The `vibeue` skill lists
+every tool kept for this reason.
 
 Several services are now **one or two tools each**, because 5.9 absorbed the rest. Reach for the
 engine toolset first and use these only for the named delta:
@@ -315,7 +318,7 @@ call_tool ConsoleToolset.RunConsoleCommand {"command": "Trace.Stop"}
 import unreal
 # Still VibeUE's: analysing a capture and standalone capture.
 print(unreal.PerformanceService.analyse("both", ""))       # frame stats + worst frames + log hitches
-# To validate a verdict, stall the game thread on purpose (time.sleep(0.25)), then read GetFrameTimings.
+# To validate a verdict, stall a thread on purpose (unreal.PerformanceService.force_hitch("game", 250, 1)), then read GetFrameTimings.
 ```
 Load the `profiling` and `frame-rate` skills for the full drill-down.
 

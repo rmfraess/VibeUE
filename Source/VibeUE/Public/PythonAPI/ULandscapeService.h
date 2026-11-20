@@ -913,6 +913,7 @@ public:
 	 * @param FilePath - Absolute path to the heightmap file (PNG or RAW)
 	 * @return Dimensions with width, height, bit depth
 	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Landscape")
 	static FHeightmapDimensions GetHeightmapDimensions(const FString& FilePath);
 
 	/**
@@ -1189,6 +1190,7 @@ public:
 	 * @param MaterialPath - Full path to the material asset
 	 * @return True if material was assigned
 	 */
+	UFUNCTION(BlueprintCallable, Category ="VibeUE|Landscape")
 	static bool SetLandscapeMaterial(
 		const FString& LandscapeNameOrLabel,
 		const FString& MaterialPath);
@@ -1982,4 +1984,78 @@ private:
 	static void BeginLandscapeWriteCapture(class ALandscapeProxy* Landscape);
 	/** Re-check the snapshot after the write, populate GLastLandscapeWriteReport and log the honest line. */
 	static void FinalizeLandscapeWriteCapture(class ALandscapeProxy* Landscape);
+public:
+	// Restored from upstream: the native replacement does not do all of this (cut audit).
+	/**
+	 * Import a heightmap from a 16-bit PNG (preferred) or RAW file.
+	 * Maps to action="import_heightmap"
+	 *
+	 * If the target landscape does not exist, this function will auto-create one
+	 * at world origin with scale (100,100,100), using a valid component/quads/
+	 * sections configuration that exactly matches the heightmap resolution.
+	 *
+	 * Resolution must still match exactly. This function does NOT resample; use
+	 * ResizeHeightmap first when needed.
+	 *
+	 * @param LandscapeNameOrLabel - Name or label of the landscape
+	 * @param FilePath - Absolute path to the heightmap file
+	 * @return Result with success status, resolution, and error message if failed
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Landscape")
+	static FHeightmapImportResult ImportHeightmap(
+		const FString& LandscapeNameOrLabel,
+		const FString& FilePath);
+
+	/** Ensure one native specialized Spline Edit Layer on this Landscape; return its index or -1.
+	 * Reuses an existing spline layer without renaming it. Rejects a conflicting ordinary layer
+	 * name, missing target, layer-count limit, or PIE. Preserves base data and active edit layer.
+	 * Creation is undoable; merging is deferred. Does not save or stamp the base layer.
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category ="VibeUE|Landscape|Splines")
+	static int32 EnsureSplineEditLayer(const FString& LandscapeNameOrLabel, FName LayerName = TEXT("Splines"));
+
+	/**
+	 * Get the height at a specific world XY location.
+	 * Maps to action="get_height_at_location"
+	 *
+	 * @param LandscapeNameOrLabel - Name or label of the landscape
+	 * @param WorldX - World X coordinate
+	 * @param WorldY - World Y coordinate
+	 * @return Height sample with value and validity
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Landscape")
+	static FLandscapeHeightSample GetHeightAtLocation(
+		const FString& LandscapeNameOrLabel,
+		float WorldX, float WorldY);
+
+	/**
+	 * Get the slope angle in degrees at a world location.
+	 * Maps to action="get_slope_at_location"
+	 *
+	 * @param LandscapeNameOrLabel - Landscape to query
+	 * @param WorldX               - World X coordinate
+	 * @param WorldY               - World Y coordinate
+	 * @return Slope in degrees (0=flat, 90=vertical). Returns -1.0 on failure.
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Landscape")
+	static float GetSlopeAtLocation(
+		const FString& LandscapeNameOrLabel,
+		float WorldX,
+		float WorldY);
+
+	/**
+	 * Get the terrain surface normal at a world location.
+	 * Maps to action="get_normal_at_location"
+	 *
+	 * @param LandscapeNameOrLabel - Landscape to query
+	 * @param WorldX               - World X coordinate
+	 * @param WorldY               - World Y coordinate
+	 * @return Unit normal vector (ZeroVector on failure)
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category ="VibeUE|Landscape")
+	static FVector GetNormalAtLocation(
+		const FString& LandscapeNameOrLabel,
+		float WorldX,
+		float WorldY);
+
 };

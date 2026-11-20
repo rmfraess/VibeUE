@@ -195,4 +195,38 @@ public:
 	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
 	static bool ReimportAsset(const FString& AssetPath, const FString& NewSourcePath, FString& OutSourceFileUsed, FString& OutError);
 
+public:
+	// Restored from upstream: the native replacement does not do all of this (cut audit).
+	/**
+	 * Import a file from disk into the Content Browser and save it: an image as a Texture2D, a mesh (FBX, OBJ, glTF, ...)
+	 * or any other format the editor's importers take as its asset. An existing asset of the same name is replaced,
+	 * and so is any same-named asset in DestinationFolder that a multi-asset file brings along (an FBX's materials and
+	 * textures), without a prompt: import such files into a folder of their own.
+	 *
+	 * Images use the texture factory's direct binary path (FactoryCreateBinary). Every other format goes
+	 * through AssetTools' AssetImportTask, automated and synchronous. Its wait pumps the game thread's task queue,
+	 * which asserts (RecursionGuard) only when the caller is itself a game-thread task; tool calls and
+	 * execute_python_code are not, and a call from inside such a task is refused with a message.
+	 *
+	 * Image formats: png, jpg, jpeg, bmp, tga, dds, exr, hdr, tiff, tif, psd, pcx.
+	 *
+	 * @param SourceFilePath    - Absolute path to the file on disk
+	 * @param DestinationFolder - Content Browser folder (e.g. "/Game/UI/Textures")
+	 * @param AssetName         - Optional asset name; if empty, derived from the file name
+	 * @param OutError          - Receives a human-readable error message on failure
+	 * @return The created asset's object path (e.g. "/Game/UI/Textures/T_Foo.T_Foo"), or empty on failure. For a file
+	 *         that brings several assets, the main one: the mesh over its materials, textures, skeleton and physics
+	 *         asset (named AssetName when the importer used it; otherwise the importer's name is in the path)
+	 *
+	 * Example:
+	 *   path, err = unreal.AssetDiscoveryService.import_asset("C:/Images/rocks.jpg", "/Game/UI/Textures", "T_Rocks")
+	 *   path, err = unreal.AssetDiscoveryService.import_asset("C:/Art/crate.fbx", "/Game/Props", "SM_Crate")
+	 */
+	UFUNCTION(BlueprintCallable, Category = "VibeUE|Assets")
+	static FString ImportAsset(
+		const FString& SourceFilePath,
+		const FString& DestinationFolder,
+		const FString& AssetName,
+		FString& OutError);
+
 };

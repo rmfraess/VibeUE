@@ -54,7 +54,7 @@ threads blew the 1 ms budget.
 
 ## Hitch Validation
 
-Stall the game thread for 250 ms (`time.sleep(0.25)` inside `execute_python`, timing it with
+Stall the game thread for 250 ms (`PerformanceService.ForceHitch` with thread `game`, 250 ms, timing it with
 `time.perf_counter()`), then read the frame timing with `PerfToolset.StatsToolset.GetFrameTimings`.
 (Expected: the observed stall in the script is ≈ 250 ms or more, and the editor stays responsive
 afterwards.)
@@ -63,7 +63,7 @@ afterwards.)
 
 ## Trace Capture & Analysis
 
-Start an Unreal Insights trace, drop a bookmark, wrap a 100 ms game-thread stall (`time.sleep(0.1)` in `execute_python`) between a
+Start an Unreal Insights trace, drop a bookmark, wrap a 100 ms game-thread stall (`PerformanceService.ForceHitch` with thread `game`, 100 ms) between a
 region start and end, then stop the trace. (Expected: the agent drives this with
 `ConsoleToolset.RunConsoleCommand` — `Trace.Start`, `Trace.Bookmark`, `Trace.Stop` and friends — since
 `start_trace` / `stop_trace` / `get_trace_status` / the region and bookmark tools no longer exist. It

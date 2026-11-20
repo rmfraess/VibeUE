@@ -1061,3 +1061,36 @@ FString UViewportService::SetEditorWindowState(const FString& State)
 		bWasMinimized ? TEXT("true") : TEXT("false"), bIsMinimized ? TEXT("true") : TEXT("false"));
 	return ToJsonString(Obj);
 }
+
+// Restored from upstream: the native replacement does not do all of this (cut audit).
+bool UViewportService::SetFOV(float FOVDegrees)
+{
+	FLevelEditorViewportClient* Client = GetActiveViewportClient();
+	if (!Client)
+	{
+		UE_LOG(LogViewportService, Warning, TEXT("SetFOV: No active viewport client"));
+		return false;
+	}
+
+	FOVDegrees = FMath::Clamp(FOVDegrees, 5.0f, 170.0f);
+	Client->ViewFOV = FOVDegrees;
+	Client->FOVAngle = FOVDegrees;
+	ForceViewportRedraw();
+	UE_LOG(LogViewportService, Log, TEXT("SetFOV: Set to %.1f degrees"), FOVDegrees);
+	return true;
+}
+
+bool UViewportService::SetRealtime(bool bRealtime)
+{
+	FLevelEditorViewportClient* Client = GetActiveViewportClient();
+	if (!Client)
+	{
+		UE_LOG(LogViewportService, Warning, TEXT("SetRealtime: No active viewport client"));
+		return false;
+	}
+
+	Client->SetRealtime(bRealtime);
+	ForceViewportRedraw();
+	UE_LOG(LogViewportService, Log, TEXT("SetRealtime: %s"), bRealtime ? TEXT("true") : TEXT("false"));
+	return true;
+}

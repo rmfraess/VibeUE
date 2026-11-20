@@ -979,3 +979,261 @@ FTransform UAnimMontageService::GetRootMotionAtTime(const FString& MontagePath, 
 	}
 	return Result;
 }
+
+// Restored from upstream: the native replacement does not do all of this (cut audit).
+int32 UAnimMontageService::AddNotify(
+	const FString& MontagePath,
+	const FString& NotifyClass,
+	float TriggerTime,
+	const FString& NotifyName)
+{
+	UAnimMontage* Montage = LoadMontage(MontagePath);
+	if (!Montage) return -1;
+
+	if (TriggerTime < 0.0f || TriggerTime > Montage->GetPlayLength())
+	{
+		UE_LOG(LogTemp, Error, TEXT("UAnimMontageService::AddNotify: TriggerTime %.2f is out of range"), TriggerTime);
+		return -1;
+	}
+
+	// Load notify class
+	UClass* NotifyUClass = FindObject<UClass>(nullptr, *NotifyClass);
+	if (!NotifyUClass)
+	{
+		NotifyUClass = LoadObject<UClass>(nullptr, *NotifyClass);
+	}
+
+	if (!NotifyUClass || !NotifyUClass->IsChildOf(UAnimNotify::StaticClass()))
+	{
+		UE_LOG(LogTemp, Error, TEXT("UAnimMontageService::AddNotify: Invalid notify class '%s'"), *NotifyClass);
+		return -1;
+	}
+
+	CloseMontageEditorForSafeEdit(Montage);
+	Montage->Modify();
+
+	// Create new notify
+	FAnimNotifyEvent& NewNotify = Montage->Notifies.AddDefaulted_GetRef();
+	NewNotify.NotifyName = NotifyName.IsEmpty() ? FName(*NotifyUClass->GetName()) : FName(*NotifyName);
+
+	// Create the notify object
+	UAnimNotify* NotifyObj = NewObject<UAnimNotify>(Montage, NotifyUClass, NAME_None, RF_Transactional);
+	NewNotify.Notify = NotifyObj;
+
+	// Set time
+	NewNotify.Link(Montage, TriggerTime);
+	NewNotify.TriggerTimeOffset = 0.0f;
+	NewNotify.TrackIndex = 0;
+
+	MarkMontageModified(Montage);
+
+	return Montage->Notifies.Num() - 1;
+}
+
+int32 UAnimMontageService::AddNotifyState(
+	const FString& MontagePath,
+	const FString& NotifyStateClass,
+	float StartTime,
+	float Duration,
+	const FString& NotifyName)
+{
+	UAnimMontage* Montage = LoadMontage(MontagePath);
+	if (!Montage) return -1;
+
+	if (StartTime < 0.0f || StartTime > Montage->GetPlayLength())
+	{
+		UE_LOG(LogTemp, Error, TEXT("UAnimMontageService::AddNotifyState: StartTime %.2f is out of range"), StartTime);
+		return -1;
+	}
+
+	// Load notify state class
+	UClass* NotifyUClass = FindObject<UClass>(nullptr, *NotifyStateClass);
+	if (!NotifyUClass)
+	{
+		NotifyUClass = LoadObject<UClass>(nullptr, *NotifyStateClass);
+	}
+
+	if (!NotifyUClass || !NotifyUClass->IsChildOf(UAnimNotifyState::StaticClass()))
+	{
+		UE_LOG(LogTemp, Error, TEXT("UAnimMontageService::AddNotifyState: Invalid notify state class '%s'"), *NotifyStateClass);
+		return -1;
+	}
+
+	CloseMontageEditorForSafeEdit(Montage);
+	Montage->Modify();
+
+	// Create new notify
+	FAnimNotifyEvent& NewNotify = Montage->Notifies.AddDefaulted_GetRef();
+	NewNotify.NotifyName = NotifyName.IsEmpty() ? FName(*NotifyUClass->GetName()) : FName(*NotifyName);
+
+	// Create the notify state object
+	UAnimNotifyState* NotifyStateObj = NewObject<UAnimNotifyState>(Montage, NotifyUClass, NAME_None, RF_Transactional);
+	NewNotify.NotifyStateClass = NotifyStateObj;
+
+	// Set time and duration
+	NewNotify.Link(Montage, StartTime);
+	NewNotify.SetDuration(Duration);
+	NewNotify.TriggerTimeOffset = 0.0f;
+	NewNotify.TrackIndex = 0;
+
+	MarkMontageModified(Montage);
+
+	return Montage->Notifies.Num() - 1;
+}
+
+FString UAnimMontageService::CreateEmptyMontage(
+	const FString& SkeletonPath,
+	const FString& DestPath,
+	const FString& MontageName)
+{
+	// Load skeleton
+	USkeleton* Skeleton = Cast<USkeleton>(UEditorAssetLibrary::LoadAsset(SkeletonPath));
+	if (!Skeleton)
+	{
+		UE_LOG(LogTemp, Error, TEXT("UAnimMontageService::CreateEmptyMontage: Failed to load skeleton '%s'"),
+			*SkeletonPath);
+		return FString();
+	}
+
+	// Construct full asset path
+	FString FullPath = DestPath;
+	if (!FullPath.EndsWith(TEXT("/")))
+	{
+		FullPath += TEXT("/");
+	}
+	FullPath += MontageName;
+
+	// Check if asset already exists
+	if (UEditorAssetLibrary::DoesAssetExist(FullPath))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UAnimMontageService::CreateEmptyMontage: Asset already exists: %s"), *FullPath);
+		return FString();
+	}
+
+	// Create factory
+	UAnimMontageFactory* Factory = NewObject<UAnimMontageFactory>();
+	Factory->TargetSkeleton = Skeleton;
+
+	// Create the montage
+	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+	UAnimMontage* NewMontage = Cast<UAnimMontage>(
+		AssetTools.CreateAsset(MontageName, DestPath, UAnimMontage::StaticClass(), Factory)
+	);
+
+	if (!NewMontage)
+	{
+		UE_LOG(LogTemp, Error, TEXT("UAnimMontageService::CreateEmptyMontage: Failed to create montage"));
+		return FString();
+	}
+
+	// Ensure we have at least one slot track
+	if (NewMontage->SlotAnimTracks.Num() == 0)
+	{
+		FSlotAnimationTrack& Track = NewMontage->SlotAnimTracks.AddDefaulted_GetRef();
+		Track.SlotName = FName("DefaultSlot");
+	}
+
+	// Ensure we have at least one section
+	if (NewMontage->CompositeSections.Num() == 0)
+	{
+		NewMontage->AddAnimCompositeSection(FName("Default"), 0.0f);
+	}
+
+	NewMontage->BlendIn.SetBlendTime(0.25f);
+	NewMontage->BlendOut.SetBlendTime(0.25f);
+
+	NewMontage->MarkPackageDirty();
+	if (!UEditorAssetLibrary::SaveAsset(FullPath))
+	{
+		UE_LOG(LogTemp, Error, TEXT("UAnimMontageService::CreateEmptyMontage: Failed to save asset: %s"), *FullPath);
+		return FString();
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("UAnimMontageService::CreateEmptyMontage: Created montage: %s"), *FullPath);
+	return FullPath;
+}
+
+FString UAnimMontageService::CreateMontageFromAnimation(
+	const FString& AnimSequencePath,
+	const FString& DestPath,
+	const FString& MontageName)
+{
+	// Load animation sequence
+	UAnimSequence* AnimSeq = Cast<UAnimSequence>(UEditorAssetLibrary::LoadAsset(AnimSequencePath));
+	if (!AnimSeq)
+	{
+		UE_LOG(LogTemp, Error, TEXT("UAnimMontageService::CreateMontageFromAnimation: Failed to load animation '%s'"),
+			*AnimSequencePath);
+		return FString();
+	}
+
+	// Get skeleton
+	USkeleton* Skeleton = AnimSeq->GetSkeleton();
+	if (!Skeleton)
+	{
+		UE_LOG(LogTemp, Error, TEXT("UAnimMontageService::CreateMontageFromAnimation: Animation has no skeleton"));
+		return FString();
+	}
+
+	// Construct full asset path
+	FString FullPath = DestPath;
+	if (!FullPath.EndsWith(TEXT("/")))
+	{
+		FullPath += TEXT("/");
+	}
+	FullPath += MontageName;
+
+	// Check if asset already exists
+	if (UEditorAssetLibrary::DoesAssetExist(FullPath))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UAnimMontageService::CreateMontageFromAnimation: Asset already exists: %s"), *FullPath);
+		return FString();
+	}
+
+	// Create factory
+	UAnimMontageFactory* Factory = NewObject<UAnimMontageFactory>();
+	Factory->TargetSkeleton = Skeleton;
+	Factory->SourceAnimation = AnimSeq;
+
+	// Create the montage
+	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+	UAnimMontage* NewMontage = Cast<UAnimMontage>(
+		AssetTools.CreateAsset(MontageName, DestPath, UAnimMontage::StaticClass(), Factory)
+	);
+
+	if (!NewMontage)
+	{
+		UE_LOG(LogTemp, Error, TEXT("UAnimMontageService::CreateMontageFromAnimation: Failed to create montage"));
+		return FString();
+	}
+
+	// Set default blend settings
+	NewMontage->BlendIn.SetBlendTime(0.25f);
+	NewMontage->BlendOut.SetBlendTime(0.25f);
+	NewMontage->BlendOutTriggerTime = -1.0f;
+
+	NewMontage->MarkPackageDirty();
+	if (!UEditorAssetLibrary::SaveAsset(FullPath))
+	{
+		UE_LOG(LogTemp, Error, TEXT("UAnimMontageService::CreateMontageFromAnimation: Failed to save asset: %s"), *FullPath);
+		return FString();
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("UAnimMontageService::CreateMontageFromAnimation: Created montage: %s"), *FullPath);
+	return FullPath;
+}
+
+// Restored from upstream: the native replacement does not do all of this (cut audit).
+bool UAnimMontageService::OpenMontageEditor(const FString& MontagePath)
+{
+	UAnimMontage* Montage = LoadMontage(MontagePath);
+	if (!Montage) return false;
+
+	if (GEditor)
+	{
+		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(Montage);
+		return true;
+	}
+
+	return false;
+}

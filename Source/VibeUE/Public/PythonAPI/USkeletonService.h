@@ -780,4 +780,22 @@ private:
 
 	/** Map of active skeleton modifiers by mesh path - using TStrongObjectPtr for GC safety */
 	static TMap<FString, TStrongObjectPtr<class USkeletonModifier>> ActiveModifiers;
+public:
+	// Restored from upstream: the native replacement does not do all of this (cut audit).
+	/**
+	 * Get detailed information about a Skeleton asset.
+	 *
+	 * @param SkeletonPath - Full path to the Skeleton asset
+	 * @return Skeleton info. Raises a script error (a Python exception, an MCP tool error) when it cannot be read
+	 *
+	 * Example:
+	 *   info = unreal.SkeletonService.get_skeleton_info("/Game/SK_Mannequin")
+	 *   print(f"Bones: {info.bone_count}")
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Skeleton|Discovery")
+	static FSkeletonAssetInfo GetSkeletonInfo(const FString& SkeletonPath);
+	/** C++ form of GetSkeletonInfo: false on failure, the result through the reference. Not reflected: an output reference
+	 *  would become a required input of the MCP tool and its value would be dropped (#687). */
+	static bool GetSkeletonInfo(const FString& SkeletonPath, FSkeletonAssetInfo& OutInfo);
+
 };

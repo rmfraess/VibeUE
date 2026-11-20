@@ -3167,3 +3167,205 @@ FAnimationEditResult UAnimSequenceService::MirrorPose(const FString& AnimPath, i
 	return Result;
 }
 
+// Restored from upstream: the native replacement does not do all of this (cut audit).
+bool UAnimSequenceService::AddCurveKey(
+	const FString& AnimPath,
+	const FString& CurveName,
+	float Time,
+	float Value)
+{
+	UAnimSequence* AnimSeq = LoadAnimSequence(AnimPath);
+	if (!AnimSeq)
+	{
+		return false;
+	}
+
+	// Get existing keys and add the new one
+	const FRawCurveTracks& CurveData = AnimSeq->GetCurveData();
+	TArray<FRichCurveKey> ExistingKeys;
+
+	for (const FFloatCurve& Curve : CurveData.FloatCurves)
+	{
+		if (Curve.GetName().ToString().Equals(CurveName, ESearchCase::IgnoreCase))
+		{
+			for (auto It = Curve.FloatCurve.GetKeyIterator(); It; ++It)
+			{
+				ExistingKeys.Add(*It);
+			}
+			break;
+		}
+	}
+
+	// Add the new key
+	FRichCurveKey NewKey;
+	NewKey.Time = Time;
+	NewKey.Value = Value;
+	NewKey.InterpMode = ERichCurveInterpMode::RCIM_Cubic;
+	NewKey.TangentMode = ERichCurveTangentMode::RCTM_Auto;
+	ExistingKeys.Add(NewKey);
+
+	// Sort by time
+	ExistingKeys.Sort([](const FRichCurveKey& A, const FRichCurveKey& B) { return A.Time < B.Time; });
+
+	// Set all keys through the controller
+	IAnimationDataController& Controller = AnimSeq->GetController();
+	FAnimationCurveIdentifier CurveId(FName(*CurveName), ERawCurveTrackTypes::RCT_Float);
+
+	if (!Controller.SetCurveKeys(CurveId, ExistingKeys))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UAnimSequenceService::AddCurveKey: Failed to add key to curve: %s"), *CurveName);
+		return false;
+	}
+
+	AnimSeq->MarkPackageDirty();
+	return true;
+}
+
+int32 UAnimSequenceService::AddNotifyState(
+	const FString& AnimPath,
+	const FString& NotifyStateClass,
+	float StartTime,
+	float Duration,
+	const FString& NotifyName)
+{
+	UAnimSequence* AnimSeq = LoadAnimSequence(AnimPath);
+	if (!AnimSeq)
+	{
+		return -1;
+	}
+
+	// Find the notify state class
+	UClass* NotifyStateUClass = FindObject<UClass>(nullptr, *NotifyStateClass);
+	if (!NotifyStateUClass)
+	{
+		NotifyStateUClass = LoadClass<UAnimNotifyState>(nullptr, *NotifyStateClass);
+	}
+
+	// Note: Unlike instant notifies, state notifies REQUIRE a NotifyStateClass object
+	// to function correctly (for duration to work). We cannot create "skeleton state notifies".
+	// The custom name is set on both NotifyName property and the object name, but the
+	// editor will display the class name from GetNotifyName() for state notifies.
+
+	if (!NotifyStateUClass)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UAnimSequenceService::AddNotifyState: Could not find notify state class: %s"), *NotifyStateClass);
+		return -1;
+	}
+
+	// Check if the class is abstract - can't instantiate abstract classes
+	const bool bIsAbstract = NotifyStateUClass->HasAnyClassFlags(CLASS_Abstract);
+	if (bIsAbstract)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UAnimSequenceService::AddNotifyState: Cannot instantiate abstract class: %s. Use a concrete notify state class like AnimNotify_PlaySound or a custom subclass."), *NotifyStateClass);
+		return -1;
+	}
+
+	AnimSeq->Modify();
+
+	// Create new notify event
+	FAnimNotifyEvent& NewNotify = AnimSeq->Notifies.AddDefaulted_GetRef();
+	
+	// Determine the notify name - use provided name or fall back to class name
+	FName FinalNotifyName;
+	if (!NotifyName.IsEmpty())
+	{
+		FinalNotifyName = FName(*NotifyName);
+	}
+	else if (NotifyStateUClass)
+	{
+		// Use the class display name (e.g., "AnimNotifyState Trail" from "UAnimNotifyState_Trail")
+		FinalNotifyName = FName(*NotifyStateUClass->GetDisplayNameText().ToString());
+	}
+	else
+	{
+		FinalNotifyName = FName(TEXT("NotifyState"));
+	}
+	NewNotify.NotifyName = FinalNotifyName;
+	
+	NewNotify.Link(AnimSeq, StartTime);
+	NewNotify.TriggerTimeOffset = GetTriggerTimeOffsetForType(AnimSeq->CalculateOffsetForNotify(StartTime));
+	NewNotify.TrackIndex = 0;
+	NewNotify.SetDuration(Duration);
+
+	// Always create a notify state object - state notifies require it for duration to work
+	// Unlike instant notifies, skeleton state notifies don't function correctly
+	NewNotify.NotifyStateClass = NewObject<UAnimNotifyState>(AnimSeq, NotifyStateUClass, FinalNotifyName, RF_Transactional);
+
+	AnimSeq->MarkPackageDirty();
+	AnimSeq->RefreshCacheData();
+
+	return AnimSeq->Notifies.Num() - 1;
+}
+
+bool UAnimSequenceService::AddSyncMarker(
+	const FString& AnimPath,
+	const FString& MarkerName,
+	float Time)
+{
+	UAnimSequence* AnimSeq = LoadAnimSequence(AnimPath);
+	if (!AnimSeq)
+	{
+		return false;
+	}
+
+	AnimSeq->Modify();
+
+	FAnimSyncMarker NewMarker;
+	NewMarker.MarkerName = FName(*MarkerName);
+	NewMarker.Time = Time;
+	NewMarker.TrackIndex = 0;
+
+	AnimSeq->AuthoredSyncMarkers.Add(NewMarker);
+
+	// Sort markers by time
+	AnimSeq->AuthoredSyncMarkers.Sort([](const FAnimSyncMarker& A, const FAnimSyncMarker& B)
+	{
+		return A.Time < B.Time;
+	});
+
+	AnimSeq->MarkPackageDirty();
+	return true;
+}
+
+bool UAnimSequenceService::RemoveNotifyTrack(
+	const FString& AnimPath,
+	int32 TrackIndex)
+{
+	UAnimSequence* AnimSeq = LoadAnimSequence(AnimPath);
+	if (!AnimSeq)
+	{
+		return false;
+	}
+
+	if (TrackIndex < 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UAnimSequenceService::RemoveNotifyTrack: Invalid track index: %d"), TrackIndex);
+		return false;
+	}
+
+	AnimSeq->Modify();
+
+	bool bFoundNotifiesOnTrack = false;
+
+	// Move any notifies on this track to track 0 (the first track)
+	for (FAnimNotifyEvent& Notify : AnimSeq->Notifies)
+	{
+		if (Notify.TrackIndex == TrackIndex)
+		{
+			Notify.TrackIndex = 0;
+			bFoundNotifiesOnTrack = true;
+		}
+		else if (Notify.TrackIndex > TrackIndex)
+		{
+			// Decrement track indices for notifies on higher tracks
+			Notify.TrackIndex--;
+		}
+	}
+
+	AnimSeq->MarkPackageDirty();
+
+	UE_LOG(LogTemp, Log, TEXT("UAnimSequenceService::RemoveNotifyTrack: Removed track %d, moved %s notifies to track 0"), 
+		TrackIndex, bFoundNotifiesOnTrack ? TEXT("some") : TEXT("no"));
+
+	return true;
+}

@@ -972,4 +972,104 @@ private:
 
 	/** Describe the rule driving a transition (for introspection). Fills RuleType/RuleVariable/RuleSummary/bHasRule. */
 	static void DescribeTransitionRule(class UAnimStateTransitionNode* Transition, FAnimTransitionInfo& OutInfo);
+public:
+	// Restored from upstream: the native replacement does not do all of this (cut audit).
+	/**
+	 * Disconnect a node's output from all connections.
+	 *
+	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
+	 * @param GraphName - Name of the graph
+	 * @param NodeId - GUID of the node
+	 * @param PinName - Name of the pin to disconnect
+	 * @return True if any connections were broken
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Connections")
+	static bool DisconnectAnimNode(
+		const FString& AnimBlueprintPath,
+		const FString& GraphName,
+		const FString& NodeId,
+		const FString& PinName);
+
+	/**
+	 * Get the preview mesh used by an Animation Blueprint.
+	 *
+	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
+	 * @return Path to the preview skeletal mesh, or empty string if not found
+	 *
+	 * Example:
+	 *   mesh_path = unreal.AnimGraphService.get_preview_mesh("/Game/ABP_Character")
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Assets")
+	static FString GetPreviewMesh(const FString& AnimBlueprintPath);
+
+	/**
+	 * Get all animation sequences used in an Animation Blueprint.
+	 *
+	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
+	 * @return Array of animation sequence usage information
+	 *
+	 * Example:
+	 *   sequences = unreal.AnimGraphService.get_used_anim_sequences("/Game/ABP_Character")
+	 *   for seq in sequences:
+	 *       print(f"{seq.sequence_name} used in {seq.used_in_graph}")
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Read"), Category = "VibeUE|Animation|Assets")
+	static TArray<FAnimSequenceUsageInfo> GetUsedAnimSequences(const FString& AnimBlueprintPath);
+
+	/**
+	 * Open an Animation Blueprint and focus on a specific graph.
+	 *
+	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
+	 * @param GraphName - Name of the graph to open (default: "AnimGraph")
+	 * @return True if the graph was opened successfully
+	 *
+	 * Example:
+	 *   unreal.AnimGraphService.open_anim_graph("/Game/ABP_Character", "AnimGraph")
+	 *   unreal.AnimGraphService.open_anim_graph("/Game/ABP_Character", "Locomotion")  # state machine
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Navigation")
+	static bool OpenAnimGraph(
+		const FString& AnimBlueprintPath,
+		const FString& GraphName = TEXT("AnimGraph"));
+
+	/**
+	 * Set the blend space on a blend space player node.
+	 *
+	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
+	 * @param GraphName - Name of the graph
+	 * @param NodeId - GUID of the blend space player node
+	 * @param BlendSpacePath - Path to the blend space asset
+	 * @return True if successful
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Assets")
+	static bool SetBlendSpaceAsset(
+		const FString& AnimBlueprintPath,
+		const FString& GraphName,
+		const FString& NodeId,
+		const FString& BlendSpacePath);
+
+	/**
+	 * Set the animation sequence on a sequence player node.
+	 *
+	 * @param AnimBlueprintPath - Full path to the Animation Blueprint
+	 * @param GraphName - Name of the graph containing the node
+	 * @param NodeId - GUID of the sequence player node
+	 * @param AnimSequencePath - Path to the animation sequence asset
+	 * @return True if successful
+	 *
+	 * Example:
+	 *   unreal.AnimGraphService.set_sequence_player_asset(
+	 *       "/Game/ABP_Character",
+	 *       "IdleState",
+	 *       node_id,
+	 *       "/Game/Animations/Idle_Loop"
+	 *   )
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Assets")
+	static bool SetSequencePlayerAsset(
+		const FString& AnimBlueprintPath,
+		const FString& GraphName,
+		const FString& NodeId,
+		const FString& AnimSequencePath);
+
 };

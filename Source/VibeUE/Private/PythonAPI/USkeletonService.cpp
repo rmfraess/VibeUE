@@ -1340,3 +1340,49 @@ FBoneValidationResult USkeletonService::ValidateBoneRotation(const FString& Skel
 	}
 	return Result;
 }
+
+// Restored from upstream: the native replacement does not do all of this (cut audit).
+bool USkeletonService::GetSkeletonInfo(const FString& SkeletonPath, FSkeletonAssetInfo& OutInfo)
+{
+	USkeleton* Skeleton = LoadSkeleton(SkeletonPath);
+	if (!Skeleton)
+	{
+		return false;
+	}
+
+	OutInfo.SkeletonPath = SkeletonPath;
+	OutInfo.SkeletonName = Skeleton->GetName();
+	OutInfo.BoneCount = Skeleton->GetReferenceSkeleton().GetNum();
+	OutInfo.CompatibleSkeletonCount = Skeleton->GetCompatibleSkeletons().Num();
+
+	// Get curve metadata count
+	TArray<FName> CurveNames;
+	Skeleton->GetCurveMetaDataNames(CurveNames);
+	OutInfo.CurveMetaDataCount = CurveNames.Num();
+
+	// Get blend profiles
+	OutInfo.BlendProfileCount = Skeleton->BlendProfiles.Num();
+	for (UBlendProfile* Profile : Skeleton->BlendProfiles)
+	{
+		if (Profile)
+		{
+			OutInfo.BlendProfileNames.Add(Profile->GetName());
+		}
+	}
+
+	// Forward axis is not directly accessible in UE 5.7 - would need preview mesh settings
+	OutInfo.PreviewForwardAxis = TEXT("X"); // Default
+
+	return true;
+}
+
+FSkeletonAssetInfo USkeletonService::GetSkeletonInfo(const FString& SkeletonPath)
+{
+	FSkeletonAssetInfo Result;
+	const VibeUE::FToolFailureLog FailureLog;
+	if (!GetSkeletonInfo(SkeletonPath, Result))
+	{
+		VibeUE::RaiseToolError(TEXT("GetSkeletonInfo"), FString::Printf(TEXT("no Skeleton could be loaded from '%s'"), *SkeletonPath), FailureLog);
+	}
+	return Result;
+}

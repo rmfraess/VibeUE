@@ -524,6 +524,35 @@ FNiagaraScratchResult UNiagaraScratchPadService::CreateScratchModule(
 	return Result;
 }
 
+TArray<FString> UNiagaraScratchPadService::ListScratchModules(
+	const FString& SystemPath,
+	const FString& EmitterName)
+{
+	TArray<FString> Out;
+	UNiagaraSystem* System = LoadSystem(SystemPath);
+	if (!System) return Out;
+	FNiagaraEmitterHandle* Handle = FindEmitterHandle(System, EmitterName);
+	if (!Handle) return Out;
+	FVersionedNiagaraEmitterData* EmitterData = Handle->GetEmitterData();
+	if (!EmitterData || !EmitterData->ScratchPads) return Out;
+
+	UNiagaraGraph* Graph = GetEmitterGraph(EmitterData);
+	if (!Graph) return Out;
+
+	TSet<UNiagaraScript*> ScratchScripts(EmitterData->ScratchPads->Scripts);
+
+	TArray<UNiagaraNodeFunctionCall*> Calls;
+	Graph->GetNodesOfClass<UNiagaraNodeFunctionCall>(Calls);
+	for (UNiagaraNodeFunctionCall* Call : Calls)
+	{
+		if (Call && Call->FunctionScript && ScratchScripts.Contains(Call->FunctionScript))
+		{
+			Out.Add(Call->GetFunctionName());
+		}
+	}
+	return Out;
+}
+
 // =====================================================================
 // Inspection
 // =====================================================================
@@ -1297,6 +1326,19 @@ bool UNiagaraScratchPadService::ApplyChanges(const FString& SystemPath)
 		return false;
 	}
 	return true;
+}
+
+TArray<FString> UNiagaraScratchPadService::GetCompileMessages(const FString& SystemPath, bool bErrorsOnly)
+{
+	TArray<FString> Messages;
+	UNiagaraSystem* System = LoadSystem(SystemPath);
+	if (!System)
+	{
+		Messages.Add(FString::Printf(TEXT("Error: failed to load Niagara system '%s'"), *SystemPath));
+		return Messages;
+	}
+	CollectCompileMessages(System, bErrorsOnly, Messages);
+	return Messages;
 }
 
 #undef LOCTEXT_NAMESPACE

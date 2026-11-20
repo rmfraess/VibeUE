@@ -377,7 +377,7 @@ Do this in separate steps:
 | `layer.name` on a `get_landscape_info().layers` entry | `layer.layer_name` (LandscapeLayerInfo_Custom property) |
 | `LandscapeService.create_spline_control_point(...)` (no such method) | `LandscapeService.create_spline_point(...)` -- no "control" in the name |
 | `LandscapeMaterialService.add_material_layer(...)` (no such method) | `ObjectToolset.SetProperties` on the LayerBlend expression's `Layers` (read with `GetProperties`, append) |
-| `LandscapeService.set_landscape_material` / `set_landscape_property` / `set_landscape_visibility` (cut / demoted) | `ObjectToolset.SetProperties` on the landscape actor (`{"LandscapeMaterial": "<object path>"}`); `LevelToolset.SetActorHidden` — see workflows-editing.md |
+| `LandscapeService.set_landscape_property` / `set_landscape_visibility` (cut) | `unreal.LandscapeService.set_landscape_material(label, path)` (Python; it notifies World Partition proxies) or `ObjectToolset.SetProperties` on the landscape actor (`{"LandscapeMaterial": "<object path>"}`); `LevelToolset.SetActorHidden` — see workflows-editing.md |
 | `connect_spline_points(..., tangent_length=25.0)` ignoring negative source | Pass `tangent_length=seg.start_tangent_length, end_tangent_length=seg.end_tangent_length` — **both** tangents are needed for exact shape |
 | Only passing `tangent_length` to `connect_spline_points` | Must also pass `end_tangent_length=seg.end_tangent_length` — end tangent is typically negative (UE convention). Omitting it defaults to `-start_tangent` which is usually correct for NEW splines, but when copying, always pass both explicitly |
 | `create_spline_point("L", location=vec)` | Parameter is `world_location`, NOT `location`: `create_spline_point("L", world_location=vec)` |

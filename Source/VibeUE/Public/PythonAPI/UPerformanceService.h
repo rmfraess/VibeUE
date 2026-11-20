@@ -81,4 +81,31 @@ public:
 	 * GEditor null (then only the handle is reset). Not a UFUNCTION. GAME-THREAD ONLY.
 	 */
 	static void ShutdownThrottlingHook();
+public:
+	// Restored from upstream: the native replacement does not do all of this (cut audit).
+	/**
+	 * TEST/VALIDATION HELPER — deliberately induce a frame hitch on a chosen thread to verify that
+	 * FrameTiming's verdict, budget gate and contested detection fire correctly against a KNOWN ground truth.
+	 *
+	 *   Thread = "game"   -> stall the game thread   `Milliseconds` ms/frame  (expect bound=GameThread)
+	 *   Thread = "render" -> stall the render thread `Milliseconds` ms/frame  (expect bound=RenderThread)
+	 *   Thread = "both"   -> stall game AND render by the same amount         (expect contested=true)
+	 *   Thread = "gpu"    -> supersample via r.ScreenPercentage to force GPU cost, auto-restored after
+	 *                        `Frames` frames (scene-dependent best-effort; `Milliseconds` is ignored).
+	 *
+	 * The CPU paths (game/render/both) are SELF-MEASURING and race-free: the stall is applied
+	 * synchronously inside the call and timed directly, so the response carries `observed_peak_game_ms` /
+	 * `observed_peak_render_ms` and a `verdict_matched_expect` bool. Validate from THIS single response —
+	 * do NOT follow up with FrameTiming, whose read runs on the game thread the stall blocks and reliably
+	 * lands on a clean frame. The gpu path is async (cost persists across frames), so for it alone read
+	 * FrameTiming on a following frame and confirm `expect`. Total CPU blocking is capped (~10 s) for safety.
+	 *
+	 * @param Thread       "game" (default), "render", "both", or "gpu".
+	 * @param Milliseconds Stall size per frame for the CPU threads. Clamped to [1, 5000]. Ignored for gpu.
+	 * @param Frames       Consecutive frames to sustain the hitch. Clamped to [1, 600]; CPU frames further
+	 *                     capped so total synchronous stall stays under ~10 s. Use >1 to simulate jitter.
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Execute"), Category = "VibeUE|Performance")
+	static FString ForceHitch(const FString& Thread = TEXT("game"), float Milliseconds = 250.0f, int32 Frames = 1);
+
 };

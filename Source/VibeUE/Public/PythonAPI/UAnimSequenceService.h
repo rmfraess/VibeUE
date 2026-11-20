@@ -1254,4 +1254,68 @@ private:
 
 	/** Fill animation info struct from animation sequence */
 	static void FillAnimSequenceInfo(class UAnimSequence* AnimSeq, FAnimSequenceInfo& OutInfo);
+public:
+	// Restored from upstream: the native replacement does not do all of this (cut audit).
+	/**
+	 * Add a single key to a curve.
+	 *
+	 * @param AnimPath - Path to the animation asset
+	 * @param CurveName - Name of the curve
+	 * @param Time - Time in seconds
+	 * @param Value - Value at this key
+	 * @return True if successful
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Curves")
+	static bool AddCurveKey(
+		const FString& AnimPath,
+		const FString& CurveName,
+		float Time,
+		float Value);
+
+	/**
+	 * Add a notify state (duration-based).
+	 *
+	 * @param AnimPath - Full path to an AnimSequence asset (montages must use AnimMontageService)
+	 * @param NotifyStateClass - Full path to a concrete class (e.g., "/Script/Engine.AnimNotifyState_Trail")
+	 * @param StartTime - Start time in seconds
+	 * @param Duration - Duration in seconds
+	 * @param NotifyName - Optional name for the notify
+	 * @return Index of the new notify, or -1 on failure
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|Notifies")
+	static int32 AddNotifyState(
+		const FString& AnimPath,
+		const FString& NotifyStateClass,
+		float StartTime,
+		float Duration,
+		const FString& NotifyName = TEXT(""));
+
+	/**
+	 * Add a sync marker to the animation.
+	 *
+	 * @param AnimPath - Path to the animation asset
+	 * @param MarkerName - Name for the marker
+	 * @param Time - Time in seconds
+	 * @return True if successful
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|SyncMarkers")
+	static bool AddSyncMarker(
+		const FString& AnimPath,
+		const FString& MarkerName,
+		float Time);
+
+	/**
+	 * Remove a notify track from an animation.
+	 * Moves all notifies on this track to track 0, then decrements
+	 * track indices for notifies on higher tracks.
+	 *
+	 * @param AnimPath - Path to the animation asset
+	 * @param TrackIndex - Index of the track to remove
+	 * @return True if successful
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Animation|NotifyTracks")
+	static bool RemoveNotifyTrack(
+		const FString& AnimPath,
+		int32 TrackIndex);
+
 };

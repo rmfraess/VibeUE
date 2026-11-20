@@ -152,7 +152,7 @@ print(f"meets {TARGET_FPS:.0f} FPS:",
 
 Always state the bottleneck's ms next to the target budget so the gap is explicit, e.g. "game
 thread 24.8 ms vs 16.66 ms for 60 FPS → must cut 8.2 ms on the game thread". To prove your verdict
-logic works against a known ground truth, stall the game thread on purpose (`time.sleep(0.25)` in `execute_python`, then read `PerfToolset.StatsToolset.GetFrameTimings`).
+logic works against a known ground truth, stall the game thread on purpose (`PerformanceService.ForceHitch` with thread `game`, 250 ms; `execute_python` rejects `time.sleep`), then read `PerfToolset.StatsToolset.GetFrameTimings`.
 
 ## ⏱️ Frame-time budgets — what a target FPS actually costs
 

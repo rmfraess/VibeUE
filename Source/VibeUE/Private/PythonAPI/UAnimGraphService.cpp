@@ -2501,3 +2501,268 @@ FAnimStateInfo UAnimGraphService::GetStateInfo(const FString& AnimBlueprintPath,
 	}
 	return Result;
 }
+
+// Restored from upstream: the native replacement does not do all of this (cut audit).
+bool UAnimGraphService::DisconnectAnimNode(const FString& AnimBlueprintPath, const FString& GraphName, 
+	const FString& NodeId, const FString& PinName)
+{
+	UAnimBlueprint* AnimBlueprint = LoadAnimBlueprint(AnimBlueprintPath);
+	if (!AnimBlueprint)
+	{
+		return false;
+	}
+
+	UEdGraph* TargetGraph = FindAnimGraph(AnimBlueprint, GraphName);
+	if (!TargetGraph)
+	{
+		return false;
+	}
+
+	FGuid NodeGuid;
+	if (!FGuid::Parse(NodeId, NodeGuid))
+	{
+		return false;
+	}
+
+	// Find node
+	UEdGraphNode* Node = nullptr;
+	for (UEdGraphNode* GraphNode : TargetGraph->Nodes)
+	{
+		if (GraphNode && GraphNode->NodeGuid == NodeGuid)
+		{
+			Node = GraphNode;
+			break;
+		}
+	}
+
+	if (!Node)
+	{
+		return false;
+	}
+
+	// Find and disconnect pin
+	for (UEdGraphPin* Pin : Node->Pins)
+	{
+		if (Pin && Pin->PinName.ToString() == PinName)
+		{
+			Pin->BreakAllPinLinks();
+			FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(AnimBlueprint);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+FString UAnimGraphService::GetPreviewMesh(const FString& AnimBlueprintPath)
+{
+	UAnimBlueprint* AnimBlueprint = LoadAnimBlueprint(AnimBlueprintPath);
+	if (!AnimBlueprint)
+	{
+		return FString();
+	}
+
+	USkeletalMesh* PreviewMesh = AnimBlueprint->GetPreviewMesh();
+	if (PreviewMesh)
+	{
+		return PreviewMesh->GetPathName();
+	}
+
+	return FString();
+}
+
+TArray<FAnimSequenceUsageInfo> UAnimGraphService::GetUsedAnimSequences(const FString& AnimBlueprintPath)
+{
+	TArray<FAnimSequenceUsageInfo> Sequences;
+
+	UAnimBlueprint* AnimBlueprint = LoadAnimBlueprint(AnimBlueprintPath);
+	if (!AnimBlueprint)
+	{
+		return Sequences;
+	}
+
+	TArray<UEdGraph*> Graphs;
+	AnimBlueprint->GetAllGraphs(Graphs);
+
+	for (UEdGraph* Graph : Graphs)
+	{
+		if (!Graph)
+		{
+			continue;
+		}
+
+		for (UEdGraphNode* Node : Graph->Nodes)
+		{
+			// Check for sequence player nodes
+			UAnimGraphNode_SequencePlayer* SeqPlayer = Cast<UAnimGraphNode_SequencePlayer>(Node);
+			if (SeqPlayer)
+			{
+				// Get the sequence from the node
+				UAnimSequenceBase* Sequence = SeqPlayer->Node.GetSequence();
+				if (Sequence)
+				{
+					FAnimSequenceUsageInfo Info;
+					Info.SequencePath = Sequence->GetPathName();
+					Info.SequenceName = Sequence->GetName();
+					Info.UsedInGraph = Graph->GetName();
+					Info.UsedByNode = Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString();
+
+					// Avoid duplicates
+					bool bAlreadyAdded = false;
+					for (const FAnimSequenceUsageInfo& Existing : Sequences)
+					{
+						if (Existing.SequencePath == Info.SequencePath && Existing.UsedInGraph == Info.UsedInGraph)
+						{
+							bAlreadyAdded = true;
+							break;
+						}
+					}
+
+					if (!bAlreadyAdded)
+					{
+						Sequences.Add(Info);
+					}
+				}
+			}
+		}
+	}
+
+	return Sequences;
+}
+
+bool UAnimGraphService::OpenAnimGraph(const FString& AnimBlueprintPath, const FString& GraphName)
+{
+	UAnimBlueprint* AnimBlueprint = LoadAnimBlueprint(AnimBlueprintPath);
+	if (!AnimBlueprint)
+	{
+		return false;
+	}
+
+	UEdGraph* Graph = FindAnimGraph(AnimBlueprint, GraphName);
+	if (!Graph)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("UAnimGraphService::OpenAnimGraph: Graph '%s' not found"), *GraphName);
+		return false;
+	}
+
+	IAnimationBlueprintEditor* Editor = GetAnimBlueprintEditor(AnimBlueprint);
+	if (!Editor)
+	{
+		return false;
+	}
+
+	// Focus on the graph
+	Editor->SetCurrentMode(FName("AnimationBlueprintEditorMode"));
+
+	// Use FocusedGraphEditorChanged or OpenDocument to navigate to the specific graph
+	FKismetEditorUtilities::BringKismetToFocusAttentionOnObject(Graph, false);
+
+	UE_LOG(LogTemp, Log, TEXT("UAnimGraphService::OpenAnimGraph: Opened graph '%s'"), *GraphName);
+	return true;
+}
+
+bool UAnimGraphService::SetBlendSpaceAsset(const FString& AnimBlueprintPath, const FString& GraphName, 
+	const FString& NodeId, const FString& BlendSpacePath)
+{
+	UAnimBlueprint* AnimBlueprint = LoadAnimBlueprint(AnimBlueprintPath);
+	if (!AnimBlueprint)
+	{
+		return false;
+	}
+
+	UEdGraph* TargetGraph = FindAnimGraph(AnimBlueprint, GraphName);
+	if (!TargetGraph)
+	{
+		return false;
+	}
+
+	FGuid NodeGuid;
+	if (!FGuid::Parse(NodeId, NodeGuid))
+	{
+		return false;
+	}
+
+	// Find node
+	UAnimGraphNode_BlendSpacePlayer* BSPlayer = nullptr;
+	for (UEdGraphNode* Node : TargetGraph->Nodes)
+	{
+		if (Node && Node->NodeGuid == NodeGuid)
+		{
+			BSPlayer = Cast<UAnimGraphNode_BlendSpacePlayer>(Node);
+			break;
+		}
+	}
+
+	if (!BSPlayer)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SetBlendSpaceAsset: Node is not a blend space player"));
+		return false;
+	}
+
+	// Load blend space
+	UBlendSpace* BlendSpace = Cast<UBlendSpace>(UEditorAssetLibrary::LoadAsset(BlendSpacePath));
+	if (!BlendSpace)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SetBlendSpaceAsset: Could not load blend space '%s'"), *BlendSpacePath);
+		return false;
+	}
+
+	BSPlayer->Node.SetBlendSpace(BlendSpace);
+	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(AnimBlueprint);
+
+	UE_LOG(LogTemp, Log, TEXT("SetBlendSpaceAsset: Set blend space to '%s'"), *BlendSpacePath);
+	return true;
+}
+
+bool UAnimGraphService::SetSequencePlayerAsset(const FString& AnimBlueprintPath, const FString& GraphName, 
+	const FString& NodeId, const FString& AnimSequencePath)
+{
+	UAnimBlueprint* AnimBlueprint = LoadAnimBlueprint(AnimBlueprintPath);
+	if (!AnimBlueprint)
+	{
+		return false;
+	}
+
+	UEdGraph* TargetGraph = FindAnimGraph(AnimBlueprint, GraphName);
+	if (!TargetGraph)
+	{
+		return false;
+	}
+
+	FGuid NodeGuid;
+	if (!FGuid::Parse(NodeId, NodeGuid))
+	{
+		return false;
+	}
+
+	// Find node
+	UAnimGraphNode_SequencePlayer* SeqPlayer = nullptr;
+	for (UEdGraphNode* Node : TargetGraph->Nodes)
+	{
+		if (Node && Node->NodeGuid == NodeGuid)
+		{
+			SeqPlayer = Cast<UAnimGraphNode_SequencePlayer>(Node);
+			break;
+		}
+	}
+
+	if (!SeqPlayer)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SetSequencePlayerAsset: Node is not a sequence player"));
+		return false;
+	}
+
+	// Load sequence
+	UAnimSequence* Sequence = Cast<UAnimSequence>(UEditorAssetLibrary::LoadAsset(AnimSequencePath));
+	if (!Sequence)
+	{
+		UE_LOG(LogTemp, Error, TEXT("SetSequencePlayerAsset: Could not load sequence '%s'"), *AnimSequencePath);
+		return false;
+	}
+
+	SeqPlayer->Node.SetSequence(Sequence);
+	FBlueprintEditorUtils::MarkBlueprintAsStructurallyModified(AnimBlueprint);
+
+	UE_LOG(LogTemp, Log, TEXT("SetSequencePlayerAsset: Set sequence to '%s'"), *AnimSequencePath);
+	return true;
+}

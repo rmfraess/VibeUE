@@ -595,4 +595,21 @@ private:
 
 	/** Build a list of available pin names for error messages */
 	static FString GetAvailablePinNames(UEdGraphNode* Node, EEdGraphPinDirection Direction);
+public:
+	// Restored from upstream: the native replacement does not do all of this (cut audit).
+	/**
+	 * Refresh the open Blueprint editor for a Blueprint so its SCS viewport re-runs the
+	 * construction script and its graphs redraw. Use after authoring changes that the open editor
+	 * does not reflect live. Returns False when the Blueprint has no editor open (there is nothing
+	 * to refresh — the on-disk asset is already up to date).
+	 *
+	 * @param BlueprintPath - Full path to the blueprint
+	 * @return True if an editor was open and was refreshed
+	 *
+	 * Example:
+	 *   unreal.BlueprintService.refresh_blueprint_editor("/Game/Props/BP_Refrigerator")
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Blueprints")
+	static bool RefreshBlueprintEditor(const FString& BlueprintPath);
+
 };

@@ -504,4 +504,29 @@ private:
 
 	/** Force the viewport to visually redraw (wakes Slate widget in non-realtime mode) */
 	static void ForceViewportRedraw();
+public:
+	// Restored from upstream: the native replacement does not do all of this (cut audit).
+	/**
+	 * Set the viewport horizontal field of view (perspective mode only; no effect in an ortho view).
+	 * Writing it stays here because Epic ships no FOV writer; READ it back with
+	 * SceneCaptureToolset.GetActiveEditorView (Camera.FOV) or from GetViewportInfo().fov.
+	 *
+	 * WARNING: this PERSISTS to EditorPerProjectUserSettings.ini. Snapshot with GetViewportInfo
+	 * and put it back with RestoreViewportInfo, or the user's viewport keeps this FOV forever.
+	 *
+	 * @param FOVDegrees - Field of view in degrees (typically 60-120, default 90)
+	 * @return True if FOV was set successfully
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
+	static bool SetFOV(float FOVDegrees);
+
+	/**
+	 * Set whether the viewport renders in realtime.
+	 *
+	 * @param bRealtime - True for realtime rendering, false for on-demand
+	 * @return True if set successfully
+	 */
+	UFUNCTION(BlueprintCallable, meta = (AICallable, AIAccessMode = "Write"), Category = "VibeUE|Viewport")
+	static bool SetRealtime(bool bRealtime);
+
 };

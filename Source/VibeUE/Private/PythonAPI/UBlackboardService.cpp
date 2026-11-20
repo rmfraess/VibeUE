@@ -165,6 +165,23 @@ namespace
 		UBlackboardData::OnUpdateKeys.Broadcast(Board);
 	}
 
+	/** Dirty the package and save it to disk. Callers Modify() BEFORE mutating, not here. */
+	FString SaveBlackboard(UBlackboardData* Board)
+	{
+		Board->MarkPackageDirty();
+		if (!UEditorLoadingAndSavingUtils::SavePackages({ Board->GetOutermost() }, /*bOnlyDirty*/ false))
+		{
+			// Same discipline as CommitGraph: a mutation that failed to reach disk must not sit
+			// dirty in memory, where the next successful save of the asset ships it silently.
+			return FString::Printf(
+				TEXT("Failed to save Blackboard %s (read-only file or a held file lock?). The edit "
+					 "did not reach disk%s"),
+				*Board->GetPathName(),
+				*VibeBT::DiscardDirtyStateFromDisk(Board->GetOutermost()));
+		}
+		return FString();
+	}
+
 	/** Find an entry this asset owns directly (not inherited) by name. */
 	FBlackboardEntry* FindOwnEntry(UBlackboardData* Board, const FName& KeyName)
 	{
@@ -490,3 +507,68 @@ TArray<FString> UBlackboardService::FindBlackboardKeyReferences(const FString& A
 	return SweepKeyReferences(Board, FName(*KeyName));
 }
 
+TArray<FString> UBlackboardService::RenameBlackboardKey(const FString& AssetPath, const FString& OldName,
+	const FString& NewName)
+{
+	// A rejected rename and a successful-but-unreferenced rename both have "nothing to report",
+	// which would otherwise both come back as an empty array. To keep the two distinguishable
+	// without changing the return type, a rejection returns a single sentinel entry prefixed
+	// "ERROR: " — a shape a real "<btPath>:<node>.<property>" reference can never take, since a
+	// BT package path always starts with a content root. A genuine, unreferenced success still
+	// returns a plain empty array.
+	if (OldName.IsEmpty() || NewName.IsEmpty() || OldName == NewName)
+	{
+		return { TEXT("ERROR: OldName and NewName must both be set and different") };
+	}
+	for (const FString& Candidate : { OldName, NewName })
+	{
+		const FString LengthError = VibeBT::CheckNameLength(Candidate, TEXT("key name"));
+		if (!LengthError.IsEmpty())
+		{
+			return { FString::Printf(TEXT("ERROR: %s"), *LengthError) };
+		}
+	}
+
+	UBlackboardData* Board = nullptr;
+	const FString GuardError = BlackboardWriteGuard(AssetPath, Board);
+	if (!GuardError.IsEmpty())
+	{
+		return { FString::Printf(TEXT("ERROR: %s"), *GuardError) };
+	}
+
+	const FName OldKeyName(*OldName);
+	const FName NewKeyName(*NewName);
+
+	FBlackboardEntry* Entry = FindOwnEntry(Board, OldKeyName);
+	if (!Entry)
+	{
+		// Missing entirely, or only present on the parent chain — nothing this asset owns to rename.
+		if (IsInheritedName(Board, OldKeyName))
+		{
+			return { FString::Printf(TEXT("ERROR: Key is inherited from the parent Blackboard: %s"), *OldName) };
+		}
+		return { FString::Printf(TEXT("ERROR: Key not found: %s"), *OldName) };
+	}
+
+	if (FindOwnEntry(Board, NewKeyName) || IsInheritedName(Board, NewKeyName))
+	{
+		// New name collides with an existing key — refuse rather than silently merging two keys.
+		return { FString::Printf(TEXT("ERROR: Key already exists: %s"), *NewName) };
+	}
+
+	Board->Modify();
+	Entry->EntryName = NewKeyName;
+	RunKeyChangeFixups(Board);
+	const FString SaveError = SaveBlackboard(Board);
+	if (!SaveError.IsEmpty())
+	{
+		// SaveBlackboard has already discarded the failed in-memory state back to disk, so no
+		// manual rollback is needed — and the BT sweep must not run against a rename that never
+		// took effect.
+		return { FString::Printf(TEXT("ERROR: %s"), *SaveError) };
+	}
+
+	// Sweep every BT that reads this blackboard — directly, or via a child blackboard that
+	// still inherits the renamed key — for key selectors still pointing at the old name.
+	return SweepKeyReferences(Board, OldKeyName);
+}
